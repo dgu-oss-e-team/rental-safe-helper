@@ -1,0 +1,33 @@
+{
+  "_comment": "목적 x 개인정보 종류별 처리 규칙 (최종 제안서의 목적별 가림 표). PART 4 담당. 바꿀 때는 docs/INTERFACES.md도 함께 수정.",
+  "CLAUSE_EXPLANATION": {
+    "PERSON_NAME": "REDACT",
+    "RESIDENT_ID": "REDACT",
+    "FOREIGNER_ID": "REDACT",
+    "PASSPORT_ID": "REDACT",
+    "PHONE_NUMBER": "REDACT",
+    "BANK_ACCOUNT": "REDACT",
+    "REGISTRY_ID": "REDACT",
+    "ADDRESS": "REDACT"
+  },
+  "FRAUD_CHECK": {
+    "PERSON_NAME": "REPLACE",
+    "RESIDENT_ID": "REDACT",
+    "FOREIGNER_ID": "REDACT",
+    "PASSPORT_ID": "REDACT",
+    "PHONE_NUMBER": "REDACT",
+    "BANK_ACCOUNT": "REDACT",
+    "REGISTRY_ID": "REDACT",
+    "ADDRESS": "REPLACE"
+  },
+  "CONTRACT_EXPLANATION": {
+    "PERSON_NAME": "REDACT",
+    "RESIDENT_ID": "REDACT",
+    "FOREIGNER_ID": "REDACT",
+    "PASSPORT_ID": "REDACT",
+    "PHONE_NUMBER": "REDACT",
+    "BANK_ACCOUNT": "REDACT",
+    "REGISTRY_ID": "REDACT",
+    "ADDRESS": "REDACT"
+  }
+}
