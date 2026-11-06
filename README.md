@@ -54,7 +54,11 @@ tests/                   # 파트별 테스트
 
 | 이름 | GitHub | 담당 |
 |---|---|---|
-| (회의 후 작성) | | |
+| 가리드마 | [@Garid1016](https://github.com/Garid1016) | PART 1 문서 입력·OCR |
+| 최영록 | [@choiyeongrok](https://github.com/choiyeongrok) | PART 2 문서 분석·개인정보 탐지 |
+| 박성연 | [@yeon2sheep](https://github.com/yeon2sheep) | PART 3 위험 점검·AI 상담 프롬프트 |
+| 김정연 | [@jygh429](https://github.com/jygh429) | PART 4 인물 판별·목적 기반 마스킹 |
+| 박상욱 (팀장) | [@sw8606](https://github.com/sw8606) | PART 5 웹 통합·마스킹 PDF |
 
 ## 데모
 

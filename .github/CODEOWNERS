@@ -1,0 +1,33 @@
+# 폴더별 담당자. PR이 이 폴더의 파일을 바꾸면 담당자가 리뷰어로 자동 지정된다.
+# 아래쪽 줄이 위쪽 줄보다 우선한다.
+
+# 기본값 (아래에 없는 파일): 팀장
+*                               @sw8606
+
+# PART 1 문서 입력·OCR
+/src/features/document-input/   @Garid1016
+/tests/part1-*                  @Garid1016
+
+# PART 2 문서 분석·개인정보 탐지
+/src/features/document-analysis/ @choiyeongrok
+/src/config/templates/          @choiyeongrok
+/tests/part2-*                  @choiyeongrok
+
+# PART 3 위험 점검·AI 프롬프트
+/src/features/risk-check/       @yeon2sheep
+/src/config/rules/              @yeon2sheep
+/tests/part3-*                  @yeon2sheep
+
+# PART 4 인물 판별·마스킹
+/src/features/masking/          @jygh429
+/src/config/masking/            @jygh429
+/tests/part4-*                  @jygh429
+
+# PART 5 웹 통합·마스킹 PDF
+/src/app/                       @sw8606
+/src/features/pdf-export/       @sw8606
+/tests/part5-*                  @sw8606
+
+# 공통 규격: 바꾸면 모든 파트에 영향이 있으므로 전원 리뷰
+/src/shared/                    @Garid1016 @choiyeongrok @yeon2sheep @jygh429 @sw8606
+/docs/INTERFACES.md             @Garid1016 @choiyeongrok @yeon2sheep @jygh429 @sw8606
