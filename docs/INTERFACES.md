@@ -23,7 +23,7 @@
 | `COORDINATE_INVALID` | 좌표 오류 |
 | `PDF_EXPORT_FAILED` | PDF 생성 실패 |
 | `INVALID_INPUT` | 함수 입력이 형식에 맞지 않음 |
-| `NOT_IMPLEMENTED` | 아직 구현 전 * |
+| `NOT_IMPLEMENTED` | 아직 구현 전 |
 
 ## 2. DocumentModel (PART 1 → 모두)
 
@@ -153,13 +153,13 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 | 1 | `readDocument(file)` | File (PDF/JPG/PNG) | DocumentModel |
 | 2 | `classifyDocument(document)` | DocumentModel | `{ documentId, documentType, score }` |
 | 2 | `detectPII(document)` | DocumentModel | PiiFinding[] |
-| 2 | `extractFields(documents, findings)` *(추가)* | DocumentModel[], PiiFinding[] | 비교용 추출 데이터 |
+| 2 | `extractFields(documents, findings)` | DocumentModel[], PiiFinding[] | 비교용 추출 데이터 |
 | 3 | `assessRisks(fields, personGroups)` | 추출 데이터, 인물 판별 결과 | RiskResult[] |
 | 3 | `buildPrompt({ purpose, riskResults, maskedText, legend })` | 위험 결과, 마스킹 완료 텍스트, 범례 | string |
 | 4 | `matchPeople(fields)` | 추출 데이터 | PersonGroup[] |
 | 4 | `createMaskingPlan(findings, personGroups, purpose)` | PiiFinding[], PersonGroup[], 목적 | MaskingPlan |
-| 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` *(추가)* | | `{ maskedText, legend }` |
-| 4 | `validateMaskedText(maskedText, findings, plan)` *(추가)* | | 남은 개인정보가 있으면 실패 |
+| 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` | | `{ maskedText, legend }` |
+| 4 | `validateMaskedText(maskedText, findings, plan)`  | | 남은 개인정보가 있으면 실패 |
 | 5 | `exportMaskedPDF(document, plan)` | DocumentModel, MaskingPlan | `{ fileName, blob }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
