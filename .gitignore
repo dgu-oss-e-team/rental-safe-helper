@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Test coverage / env
+coverage
+.env
+
+# 실제 서류는 절대 올리지 않는다 (가상 데이터만 fixtures/에)
+samples/real/
+*.real.*
