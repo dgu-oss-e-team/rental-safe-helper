@@ -22,8 +22,8 @@
 | `MISSING_REQUIRED_FIELD` | 필수 항목 누락 |
 | `COORDINATE_INVALID` | 좌표 오류 |
 | `PDF_EXPORT_FAILED` | PDF 생성 실패 |
-| `INVALID_INPUT` | 함수 입력이 형식에 맞지 않음 *(스켈레톤에서 추가)* |
-| `NOT_IMPLEMENTED` | 아직 구현 전 *(스켈레톤에서 추가)* |
+| `INVALID_INPUT` | 함수 입력이 형식에 맞지 않음 |
+| `NOT_IMPLEMENTED` | 아직 구현 전 * |
 
 ## 2. DocumentModel (PART 1 → 모두)
 
@@ -44,7 +44,6 @@
 }
 ```
 
-`documentType`, `sourceType`의 값 목록은 노션에 없어서 스켈레톤에서 위처럼 정했다. 회의에서 바꿀 수 있다.
 
 ## 3. 좌표 규칙
 
@@ -64,7 +63,7 @@
   id: 'PII_001',
   type: 'PERSON_NAME',
   value: '김철수',
-  documentId: 'DOC_001',        // 스켈레톤에서 추가: 문서가 여러 개라 어느 문서인지 필요
+  documentId: 'DOC_001',        // 문서가 여러 개라 어느 문서인지 필요
   pageIndex: 0,
   blockId: 'BLOCK_001',
   bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 },
@@ -84,11 +83,9 @@
 | 주소 | `ADDRESS` |
 | 등기 고유번호 | `REGISTRY_ID` |
 
-`reviewStatus`는 노션에 `DETECTED`만 있어서 나머지 값은 스켈레톤에서 제안했다.
-
 ## 5. 비교용 추출 데이터 (PART 2 `extractFields()` → PART 3·4)
 
-노션 함수 표에는 없지만 `assessRisks()`의 입력("비교용 추출 데이터")과 `matchPeople()`의 입력("인물 후보")을 만들기 위해 추가했다.
+assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력("인물 후보")이다.
 
 ```js
 {
@@ -138,7 +135,7 @@
     findingId: 'PII_001',
     action: 'REPLACE',     // REDACT | REPLACE | KEEP
     replacement: '[Landlord_A]',
-    documentId: 'DOC_001', // 스켈레톤에서 추가
+    documentId: 'DOC_001',
     pageIndex: 0,
     bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 }
   }]
@@ -166,4 +163,4 @@
 | 5 | `exportMaskedPDF(document, plan)` | DocumentModel, MaskingPlan | `{ fileName, blob }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
-*(추가)* 표시는 노션 함수 표에 없어서 스켈레톤에서 제안한 함수다. 회의에서 확정한다.
+
