@@ -44,6 +44,8 @@ export async function readDocument(file) {
   }
 
   // TODO(PART 1): 아래 Mock 선택을 실제 읽기 결과로 교체
+  console.log('Processing file:', file.name, file.type);
+  
   const name = file.name.toLowerCase();
   const looksLikeRegistry = /registry|register|등기/.test(name);
   const mock = looksLikeRegistry ? mockRegistryDocument : mockLeaseDocument;
