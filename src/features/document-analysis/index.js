@@ -8,12 +8,14 @@
  *   detectPII(document)                 → Result<PiiFinding[]>
  *   extractFields(documents, findings)  → Result<ExtractedFields>   (비교용 추출 데이터, PART 3·4가 사용)
  *
- * 지금은 Mock 단계.
+ * 현재 상태: detectPII()는 정규식 탐지(pii-patterns.js) 사용. 이름·주소는 이슈 ④ 전까지 Mock 보충.
+ *           classifyDocument()는 키워드 판별, extractFields()는 아직 Mock.
  * TODO(PART 2): src/config/templates/의 YAML 템플릿 기반 판별, 정규식 탐지(pii-patterns.js),
  *               항목 추출(field-extractor.js), 이름 탐지(name-detector.js)로 Mock을 교체한다.
  */
 
-import { ok, fail, ERROR_CODE, DOCUMENT_TYPE } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS } from '../../shared/document-model.js';
+import { findPatternPII } from './pii-patterns.js';
 import {
   mockRegistryFindings,
   mockLeaseFindings,
@@ -56,6 +58,15 @@ export function classifyDocument(document) {
   return ok({ documentId: document.documentId, documentType, score: best.score });
 }
 
+/** OCR 신뢰도가 이 값보다 낮으면 사용자 확인이 필요하다고 표시한다. */
+const LOW_CONFIDENCE = 0.8;
+
+/**
+ * 아직 PART 2가 직접 찾지 못하는 개인정보 종류.
+ * TODO(PART 2 이슈 ④): 이름·주소 탐지를 만들면 이 목록과 아래 Mock 보충을 지운다.
+ */
+const NOT_YET_DETECTED_TYPES = [PII_TYPE.PERSON_NAME, PII_TYPE.ADDRESS];
+
 /**
  * 문서에서 개인정보를 찾는다.
  * @param {DocumentModel} document
@@ -63,13 +74,46 @@ export function classifyDocument(document) {
 export function detectPII(document) {
   if (!document?.pages) return fail(ERROR_CODE.INVALID_INPUT, 'Document is missing.');
 
-  // TODO(PART 2): 실제 탐지로 교체
+  /** @type {PiiFinding[]} */
+  const findings = [];
+  let seq = 0;
+
+  // 1. 글자 블록마다 정규식 탐지를 돌린다.
+  for (const page of document.pages) {
+    for (const block of page.blocks) {
+      for (const hit of findPatternPII(block.text)) {
+        seq += 1;
+        const lowConfidence = block.confidence !== null && block.confidence < LOW_CONFIDENCE;
+        findings.push({
+          id: `PII_${document.documentId}_${String(seq).padStart(3, '0')}`,
+          type: hit.type,
+          value: hit.value,
+          documentId: document.documentId,
+          pageIndex: page.pageIndex,
+          blockId: block.blockId,
+          // TODO(PART 2): PART 1이 단어 단위 좌표(words)를 주면 개인정보 부분만 가리도록 좁힌다.
+          // 지금은 블록 전체 좌표를 쓴다. 더 넓게 가리는 쪽이라 개인정보가 새지 않는다.
+          bbox: { ...block.bbox },
+          confidence: block.confidence,
+          reviewStatus:
+            hit.uncertain || lowConfidence ? REVIEW_STATUS.NEEDS_REVIEW : REVIEW_STATUS.DETECTED,
+        });
+      }
+    }
+  }
+
+  // 2. 이름·주소는 이슈 ④ 전까지 Mock 결과로 보충한다. (데모와 PART 4 연결 유지)
   /** @type {Record<string, PiiFinding[]>} */
   const mockByDocument = {
     DOC_REGISTRY: mockRegistryFindings,
     DOC_LEASE: mockLeaseFindings,
   };
-  return ok(structuredClone(mockByDocument[document.documentId] ?? []));
+  const pending = (mockByDocument[document.documentId] ?? []).filter((f) =>
+    NOT_YET_DETECTED_TYPES.includes(f.type),
+  );
+  findings.push(...structuredClone(pending));
+
+  return ok(findings);
 }
 
 /**
