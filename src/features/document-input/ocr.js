@@ -1,7 +1,5 @@
 // @ts-check
-/**
- * OCR module for image-based documents in PART 1.
- */
+import { createWorker } from 'tesseract.js';
 
 /**
  * Performs OCR processing on an image buffer or file.
@@ -9,7 +7,15 @@
  * @returns {Promise<string>}
  */
 export async function recognizeImageText(buffer) {
-  // TODO: Integrate Tesseract.js / OpenCV.js for image preprocessing and OCR text extraction
+  if (!buffer || buffer.byteLength === 0) {
+    return '';
+  }
+
   console.log('Processing image buffer for OCR, size:', buffer.byteLength);
-  return '';
+
+  const worker = await createWorker('kor+eng');
+  const ret = await worker.recognize(new Uint8Array(buffer));
+  await worker.terminate();
+
+  return ret.data.text || '';
 }
