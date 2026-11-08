@@ -57,3 +57,90 @@ export function findPassportNumbers(text) {
   }
   return results;
 }
+
+/**
+ * 전화번호
+ * 휴대폰: 010, 011, 016~019 / 서울: 02 / 지역: 031~064 / 인터넷전화: 070
+ * 가운데 3~4자리, 끝 4자리. 하이픈(-)이나 공백이 있어도 되고 없어도 된다.
+ */
+const PHONE_REGEX =
+  /(?<!\d)(?:01[016-9]|02|0[3-6][1-5]|070)[-\s]?\d{3,4}[-\s]?\d{4}(?!\d)/g;
+
+/** 등기 고유번호: 4자리-4자리-6자리 (예: 1101-2024-123456) */
+const REGISTRY_ID_REGEX = /(?<!\d)\d{4}-\d{4}-\d{6}(?!\d)/g;
+
+/**
+ * 계좌번호 후보: 하이픈으로 나뉜 숫자 덩어리(예: 123-45-678901) 또는 10~14자리 연속 숫자
+ * 은행마다 형식이 달라서 모양만으로는 판단하기 어렵다.
+ * 그래서 아래 BANK_KEYWORD_REGEX가 바로 앞에 있을 때만 계좌번호로 본다.
+ */
+const BANK_CANDIDATE_REGEX = /(?<!\d)(?:\d{2,6}(?:-\d{2,6}){1,4}|\d{10,14})(?!\d)/g;
+const BANK_KEYWORD_REGEX = /계좌|은행|예금주|입금|account|bank/i;
+const BANK_KEYWORD_WINDOW = 20; // 숫자 앞 20글자 안에 키워드가 있어야 한다
+
+/**
+ * 정규식 하나로 찾은 결과를 공통 모양으로 만든다.
+ * @param {string} text
+ * @param {RegExp} regex
+ * @param {string} type
+ */
+function findByRegex(text, regex, type) {
+  const results = [];
+  for (const match of text.matchAll(regex)) {
+    results.push({
+      type,
+      value: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return results;
+}
+
+/** @param {string} text */
+export function findPhoneNumbers(text) {
+  return findByRegex(text, PHONE_REGEX, PII_TYPE.PHONE_NUMBER);
+}
+
+/** @param {string} text */
+export function findRegistryIds(text) {
+  return findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID);
+}
+
+/**
+ * 계좌번호를 찾는다. 숫자 개수가 10~14개이고, 앞에 은행 관련 단어가 있을 때만 인정한다.
+ * @param {string} text
+ */
+export function findBankAccounts(text) {
+  return findByRegex(text, BANK_CANDIDATE_REGEX, PII_TYPE.BANK_ACCOUNT).filter((r) => {
+    const digitCount = r.value.replace(/\D/g, '').length;
+    if (digitCount < 10 || digitCount > 14) return false;
+    const before = text.slice(Math.max(0, r.start - BANK_KEYWORD_WINDOW), r.start);
+    return BANK_KEYWORD_REGEX.test(before);
+  });
+}
+
+/**
+ * 모든 정규식 탐지를 정해진 순서로 실행한다.
+ * 구체적인 패턴을 먼저 찾고, 이미 찾은 구간과 겹치는 결과는 버린다.
+ * 예: 등기 고유번호를 먼저 찾았으면, 같은 숫자를 계좌번호로 다시 잡지 않는다.
+ * @param {string} text
+ */
+export function findPatternPII(text) {
+  const finders = [
+    findIdNumbers, // 1. 주민·외국인등록번호
+    findRegistryIds, // 2. 등기 고유번호
+    findPassportNumbers, // 3. 여권번호
+    findPhoneNumbers, // 4. 전화번호
+    findBankAccounts, // 5. 계좌번호 (가장 느슨하니까 마지막)
+  ];
+  /** @type {{type: string, value: string, start: number, end: number}[]} */
+  const results = [];
+  for (const find of finders) {
+    for (const r of find(text)) {
+      const overlaps = results.some((prev) => r.start < prev.end && prev.start < r.end);
+      if (!overlaps) results.push(r);
+    }
+  }
+  return results.sort((a, b) => a.start - b.start);
+}
