@@ -1,17 +1,13 @@
 // @ts-check
 /**
- * PART 1. 문서 입력 및 OCR
- * 담당: docs/OWNERS.md 참고
+ * PART 1. Document Input & OCR
+ * Owner: See docs/OWNERS.md
  *
- * 공개 함수: readDocument(file) → Result<DocumentModel>
- *
- * 지금은 Mock 단계: 파일 형식만 검사하고, 파일 이름에 따라 가짜 등기부/계약서를 돌려준다.
- * TODO(PART 1): pdf.js 텍스트 추출, 이미지형 PDF 렌더링, OpenCV.js 보정, Tesseract.js OCR,
- *               좌표 0~1 정규화, OCR 결과 수정 화면을 구현해 Mock을 교체한다.
- *               계획한 파일: file-reader.js, pdf-reader.js, image-preprocess.js, ocr.js,
- *               ocr-editor.js, document-normalizer.js
+ * Public Function: readDocument(file) → Result<DocumentModel>
  */
 
+import { readPdfText } from './pdf-reader.js';
+import { recognizeImageText } from './ocr.js';
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
 import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
 
@@ -21,7 +17,7 @@ const SUPPORTED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
 const SUPPORTED_EXT = ['.pdf', '.jpg', '.jpeg', '.png'];
 
 /**
- * 지원하는 파일인지 확인한다.
+ * Validates whether the provided file type/extension is supported.
  * @param {{ name?: string, type?: string } | null | undefined} file
  * @returns {boolean}
  */
@@ -34,7 +30,7 @@ export function isSupportedFile(file) {
 }
 
 /**
- * PDF 또는 이미지 파일을 읽어 DocumentModel로 만든다.
+ * Reads a PDF or image file and converts it into a DocumentModel.
  * @param {File} file
  * @returns {Promise<import('../../shared/document-model.js').Result<DocumentModel>>}
  */
@@ -43,9 +39,24 @@ export async function readDocument(file) {
     return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Please upload a PDF, JPG, or PNG file.');
   }
 
-  // TODO(PART 1): 아래 Mock 선택을 실제 읽기 결과로 교체
   console.log('Processing file:', file.name, file.type);
-  
+
+  // PDF handling
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (typeof file.arrayBuffer === 'function') {
+      const buffer = await file.arrayBuffer();
+      await readPdfText(buffer);
+    }
+  }
+
+  // Image OCR handling
+  if (file.type?.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(file.name)) {
+    if (typeof file.arrayBuffer === 'function') {
+      const buffer = await file.arrayBuffer();
+      await recognizeImageText(buffer);
+    }
+  }
+
   const name = file.name.toLowerCase();
   const looksLikeRegistry = /registry|register|등기/.test(name);
   const mock = looksLikeRegistry ? mockRegistryDocument : mockLeaseDocument;
