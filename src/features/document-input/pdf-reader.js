@@ -1,9 +1,10 @@
 // @ts-check
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+// @ts-ignore
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
-// Configure standard PDF.js worker location
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 }
 
 /**
@@ -16,21 +17,27 @@ export async function readPdfText(buffer) {
     return { pageCount: 0, textPages: [] };
   }
 
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
-  const pdfDocument = await loadingTask.promise;
-  const textPages = [];
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+    const pdfDocument = await loadingTask.promise;
+    const textPages = [];
 
-  for (let i = 1; i <= pdfDocument.numPages; i++) {
-    const page = await pdfDocument.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((/** @type {any} */ item) => ('str' in item ? item.str : ''))
-      .join(' ');
-    textPages.push(pageText);
+    for (let i = 1; i <= pdfDocument.numPages; i++) {
+      const page = await pdfDocument.getPage(i);
+      const textContent = await page.getTextContent();
+
+      // Join items directly without extra spaces to prevent breaking phone/ID regex matching
+      const pageText = textContent.items
+        .map((/** @type {any} */ item) => ('str' in item ? item.str : ''))
+        .join('');
+      textPages.push(pageText);
+    }
+
+    return {
+      pageCount: pdfDocument.numPages,
+      textPages,
+    };
+  } catch (error) {
+    throw new Error('PDF_READ_FAILED');
   }
-
-  return {
-    pageCount: pdfDocument.numPages,
-    textPages,
-  };
 }
