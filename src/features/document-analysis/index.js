@@ -77,6 +77,7 @@ const LOW_CONFIDENCE = 0.8;
  * 아직 PART 2가 직접 찾지 못하는 개인정보 종류.
  * TODO(PART 2 이슈 ④): 이름·주소 탐지를 만들면 이 목록과 아래 Mock 보충을 지운다.
  */
+/** @type {string[]} */
 const NOT_YET_DETECTED_TYPES = [PII_TYPE.PERSON_NAME, PII_TYPE.ADDRESS];
 
 /**

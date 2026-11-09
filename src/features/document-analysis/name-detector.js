@@ -9,10 +9,16 @@ import { PII_TYPE } from '../../shared/document-model.js';
 import { findIdNumbers } from './pii-patterns.js';
 import rules from '../../config/templates/person-labels.json';
 
-/** 정규식 특수문자를 글자 그대로 쓰이게 바꾼다. */
+/**
+ * 정규식 특수문자를 글자 그대로 쓰이게 바꾼다.
+ * @param {string} s
+ */
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** "임대인" → "임\s*대\s*인" : OCR이 글자 사이에 공백을 넣어도 찾는다. */
+/**
+ * "임대인" → "임\s*대\s*인" : OCR이 글자 사이에 공백을 넣어도 찾는다.
+ * @param {string} word
+ */
 const spaced = (word) => [...word].map(escapeRegex).join('\\s*');
 
 const NAME_FIELD = rules.nameFieldWords.map(spaced).join('|');
@@ -29,6 +35,7 @@ const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:\\s+[A-Z]
  * 라벨 하나에 대한 정규식을 만든다.
  * 라벨 → (성명) → (:) → 공백이나 콜론 1개 이상 → 이름
  * 라벨과 이름 사이에 구분(공백이나 :)이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
+ * @param {string} label
  */
 function labelRegex(label) {
   return new RegExp(
