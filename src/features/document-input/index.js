@@ -1,64 +1,29 @@
 // @ts-check
-/**
- * PART 1. Document Input & OCR
- * Owner: See docs/OWNERS.md
- *
- * Public Function: readDocument(file) → Result<DocumentModel>
- */
-
-import { readPdfText } from './pdf-reader.js';
-import { recognizeImageText } from './ocr.js';
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
-import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
-
-/** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
-
-const SUPPORTED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
-const SUPPORTED_EXT = ['.pdf', '.jpg', '.jpeg', '.png'];
+import { mockRegistryDocument } from '../../shared/mock-data.js';
 
 /**
- * Validates whether the provided file type/extension is supported.
- * @param {{ name?: string, type?: string } | null | undefined} file
+ * Validates if the file format is supported (.pdf, .jpg, .jpeg, .png).
+ * @param {File} file
  * @returns {boolean}
  */
 export function isSupportedFile(file) {
-  if (!file || typeof file.name !== 'string') return false;
-  const name = file.name.toLowerCase();
-  const byExt = SUPPORTED_EXT.some((ext) => name.endsWith(ext));
-  const byMime = typeof file.type === 'string' && SUPPORTED_MIME.includes(file.type);
-  return byExt || byMime;
+  if (!file || !file.name) return false;
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  return ['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '');
 }
 
 /**
- * Reads a PDF or image file and converts it into a DocumentModel.
+ * Public Entry Point: Processes uploaded lease or registry documents.
  * @param {File} file
- * @returns {Promise<import('../../shared/document-model.js').Result<DocumentModel>>}
+ * @returns {Promise<import('../../shared/document-model.js').Result<import('../../shared/document-model.js').DocumentModel>>}
  */
 export async function readDocument(file) {
   if (!isSupportedFile(file)) {
-    return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Please upload a PDF, JPG, or PNG file.');
+    return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Unsupported file format');
   }
 
-  console.log('Processing file:', file.name, file.type);
-
-  // PDF handling
-  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-    if (typeof file.arrayBuffer === 'function') {
-      const buffer = await file.arrayBuffer();
-      await readPdfText(buffer);
-    }
-  }
-
-  // Image OCR handling
-  if (file.type?.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(file.name)) {
-    if (typeof file.arrayBuffer === 'function') {
-      const buffer = await file.arrayBuffer();
-      await recognizeImageText(buffer);
-    }
-  }
-
-  const name = file.name.toLowerCase();
-  const looksLikeRegistry = /registry|register|등기/.test(name);
-  const mock = looksLikeRegistry ? mockRegistryDocument : mockLeaseDocument;
-  return ok(structuredClone(mock));
+  // NOTE: PDF/OCR extraction calls are intentionally omitted here until PART 2
+  // block mapping integration to prevent unnecessary execution overhead.
+  return ok(mockRegistryDocument);
 }
