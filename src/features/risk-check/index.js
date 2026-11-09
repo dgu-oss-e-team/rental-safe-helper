@@ -14,8 +14,15 @@
  *               추천 질문은 recommended-questions.js로 분리.
  */
 
+ /* 구현 상태
+ *   완료: 소유자·임대인 / 예금주·임대인 / 소재지 비교 (compare-documents.js)
+ *   TODO(PART 3): 신탁, 압류, 근저당, 최근 소유권 이전 (assess-risks.js), 위험 특약,
+ *                 추천 질문(recommended-questions.js)·프롬프트(prompt-builder.js) 분리.
+ *   값이 없으면 반드시 UNVERIFIABLE.
+*/
+
 import { ok, fail, ERROR_CODE, MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
-import { mockRiskResults } from '../../shared/mock-data.js';
+import { compareDocuments } from './compare-documents.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
 
@@ -28,8 +35,13 @@ export function assessRisks(fields, personGroups) {
   if (!fields || !Array.isArray(personGroups)) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Extracted fields or person groups are missing.');
   }
-  // TODO(PART 3): 실제 규칙으로 교체
-  return ok(structuredClone(mockRiskResults));
+
+  // 소유자·임대인, 예금주·임대인, 소재지 비교
+  const compared = compareDocuments(fields, personGroups);
+  if (!compared.ok) return compared;
+
+  // TODO(PART 3): 신탁·압류·근저당·소유권 이전 점검(#11)을 여기에 이어 붙인다.
+  return ok([...compared.data]);
 }
 
 /** 목적별 추천 질문 (TODO(PART 3): 팀이 HUG 안내 자료를 참고해 다듬기) */

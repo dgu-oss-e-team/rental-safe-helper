@@ -128,6 +128,8 @@ export const ERROR_CODE = Object.freeze({
  * @property {string} title
  * @property {string} explanation
  * @property {string} action
+ * @property {{ left: { label: string, value: string }, right: { label: string, value: string } }} [evidence]
+ *   화면 근거 칸 전용(선택). 실제 이름·주소가 들어갈 수 있으므로 AI 프롬프트에 절대 넣지 않는다.
  */
 
 /**

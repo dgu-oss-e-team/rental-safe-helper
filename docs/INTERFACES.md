@@ -132,8 +132,17 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 ## 7. 위험 점검 결과 (PART 3)
 
 ```js
-{ ruleId: 'OWNER_MISMATCH', status: 'STOP', title: '...', explanation: '...', action: '...' }
+{
+  ruleId: 'OWNER_MISMATCH', status: 'STOP', title: '...', explanation: '...', action: '...',
+  evidence: {  // 선택. 화면 근거 칸 전용
+    left:  { label: 'Registry owner',    value: '김철수 (birth 800101)' },
+    right: { label: 'Contract landlord', value: '김철수 (birth 750315)' }
+  }
+}
 ```
+
+- `explanation`, `action`, `title`에는 실제 이름 대신 **역할 가명**(`[Owner_A]` 등)만 쓴다. AI 프롬프트에 들어가기 때문이다.
+- `evidence`는 사용자 화면에만 보여 준다. 실제 이름·주소가 들어갈 수 있으므로 **프롬프트·로그·오류 메시지에 넣지 않는다.**
 
 | status | 의미 |
 |---|---|

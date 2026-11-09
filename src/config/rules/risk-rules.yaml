@@ -1,0 +1,76 @@
+# 위험 점검 규칙 (PART 3)
+# - 규칙의 "문구"와 "설정"만 둔다. 판정 로직은 src/features/risk-check/*.js 에 있다.
+# - 상태(STOP / CHECK / NO_FLAG / UNVERIFIABLE)마다 explanation, action을 적는다.
+# - {owner}, {landlord}, {accountHolder} 자리에는 PART 4가 만든 역할 가명(예: [Owner_A])이 들어간다.
+#   실제 이름은 절대 쓰지 않는다. 이 문구는 AI 프롬프트에 그대로 들어가기 때문이다.
+# - evidence: 화면에만 보여 주는 근거 칸의 제목 (프롬프트에는 넣지 않는다).
+
+rules:
+  OWNER_MISMATCH:
+    title: Registered owner and landlord do not match
+    evidence:
+      left: Registry owner
+      right: Contract landlord
+    results:
+      STOP:
+        explanation: >-
+          {owner} is the registered owner, but {landlord} is signing as the landlord.
+          If the person signing is not the registered owner, they may have no right to
+          rent out the home, and your deposit may not be protected.
+        action: >-
+          Ask to see the landlord's ID and compare the name and birth date with the
+          owner on the registry.
+      NO_FLAG:
+        explanation: >-
+          The registered owner and the landlord appear to be the same person ({landlord}).
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Still check the landlord's ID when you meet.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not tell whether the registered owner and the landlord are the same
+          person, because a name or birth date could not be read or confirmed.
+        action: >-
+          Ask to see the landlord's ID and compare it with the owner on the registry yourself.
+
+  ACCOUNT_HOLDER_MISMATCH:
+    title: Bank account holder is not the landlord
+    evidence:
+      left: Contract account holder
+      right: Contract landlord
+    results:
+      STOP:
+        explanation: >-
+          The account holder ({accountHolder}) is not the landlord ({landlord}).
+          Money sent to someone else's account may not count as paid to the landlord.
+        action: Send money only to an account in the landlord's own name.
+      NO_FLAG:
+        explanation: >-
+          The account holder and the landlord appear to be the same person ({landlord}).
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Check the account holder again before you send money.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not confirm whether the account holder is the landlord, because the
+          name or birth date could not be read or confirmed.
+        action: >-
+          Send money only to an account in the landlord's own name, and ask the landlord
+          to confirm the account holder.
+
+  ADDRESS_MISMATCH:
+    title: Property address does not match
+    evidence:
+      left: Registry address
+      right: Contract address
+    results:
+      STOP:
+        explanation: >-
+          The address on the registry and the address on the contract look different.
+          The registry may be for a different home, so the other checks may not apply
+          to the home you are renting.
+        action: Get a new registry for the exact address, including the unit number.
+      NO_FLAG:
+        explanation: The address on the registry and the address on the contract match.
+        action: No action needed for this check. Always check the unit number yourself.
+      UNVERIFIABLE:
+        explanation: We could not read the address on the registry or on the contract.
+        action: Compare the address on the registry and the contract yourself, including the unit number.
