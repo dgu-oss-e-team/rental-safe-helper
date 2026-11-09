@@ -1,20 +1,31 @@
 // @ts-check
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
-import { mockRegistryDocument } from '../../shared/mock-data.js';
+import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
 
 /**
- * Validates if the file format is supported (.pdf, .jpg, .jpeg, .png).
+ * Validates if the file format is supported (.pdf, .jpg, .jpeg, .png)
+ * by checking both extension and MIME type.
  * @param {File} file
  * @returns {boolean}
  */
 export function isSupportedFile(file) {
-  if (!file || !file.name) return false;
-  const ext = file.name.split('.').pop()?.toLowerCase();
-  return ['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '');
+  if (!file) return false;
+
+  const validExts = ['pdf', 'jpg', 'jpeg', 'png'];
+  const validMimes = ['application/pdf', 'image/jpeg', 'image/png'];
+
+  const fileName = file.name || '';
+  const ext = fileName.split('.').pop()?.toLowerCase();
+
+  const isExtValid = Boolean(ext && validExts.includes(ext));
+  const isMimeValid = Boolean(file.type && validMimes.includes(file.type));
+
+  return isExtValid || isMimeValid;
 }
 
 /**
  * Public Entry Point: Processes uploaded lease or registry documents.
+ * TODO(PART 1): Connect full PDF/OCR block parsing for PART 2 integration.
  * @param {File} file
  * @returns {Promise<import('../../shared/document-model.js').Result<import('../../shared/document-model.js').DocumentModel>>}
  */
@@ -23,7 +34,8 @@ export async function readDocument(file) {
     return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Unsupported file format');
   }
 
-  // NOTE: PDF/OCR extraction calls are intentionally omitted here until PART 2
-  // block mapping integration to prevent unnecessary execution overhead.
-  return ok(mockRegistryDocument);
+  const isRegistry = file.name.includes('등기');
+  const targetMock = isRegistry ? mockRegistryDocument : mockLeaseDocument;
+
+  return ok(structuredClone(targetMock));
 }

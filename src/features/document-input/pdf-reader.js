@@ -9,6 +9,7 @@ if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
 
 /**
  * Extracts raw text and page content from a PDF ArrayBuffer.
+ * TODO(PART 1): Full block extraction for PART 2 integration
  * @param {ArrayBuffer} buffer
  * @returns {Promise<{ pageCount: number, textPages: string[] }>}
  */
@@ -26,10 +27,15 @@ export async function readPdfText(buffer) {
       const page = await pdfDocument.getPage(i);
       const textContent = await page.getTextContent();
 
-      // Join items directly without extra spaces to prevent breaking phone/ID regex matching
-      const pageText = textContent.items
-        .map((/** @type {any} */ item) => ('str' in item ? item.str : ''))
-        .join('');
+      let pageText = '';
+      for (const item of textContent.items) {
+        if ('str' in item) {
+          pageText += item.str;
+          if (/** @type {any} */ (item).hasEOL) {
+            pageText += '\n';
+          }
+        }
+      }
       textPages.push(pageText);
     }
 
