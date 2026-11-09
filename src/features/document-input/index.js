@@ -34,7 +34,7 @@ export async function readDocument(file) {
     return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Unsupported file format');
   }
 
-  const isRegistry = /registry|register|등기/i.test(file.name);
+  const isRegistry = file.name.includes('등기');
   const targetMock = isRegistry ? mockRegistryDocument : mockLeaseDocument;
 
   return ok(structuredClone(targetMock));
