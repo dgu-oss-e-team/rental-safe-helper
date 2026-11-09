@@ -24,7 +24,8 @@ import {
   MASKING_PURPOSE,
   PII_TYPE,
 } from '../../shared/document-model.js';
-import { mockPersonGroups } from '../../shared/mock-data.js';
+import { collectPeople, groupPeople } from './person-matcher.js';
+import { assignAliases } from './alias-manager.js';
 import policy from '../../config/masking/masking-policy.json';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
@@ -49,7 +50,9 @@ const ROLE_MEANING = {
 export function matchPeople(fields) {
   if (!fields) return fail(ERROR_CODE.INVALID_INPUT, 'Extracted fields are missing.');
   // TODO(PART 4): 실제 판정으로 교체
-  return ok(structuredClone(mockPersonGroups));
+  const people = collectPeople(fields);
+  const groups = groupPeople(people);
+  return ok(assignAliases(groups));
 }
 
 /**
