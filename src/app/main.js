@@ -72,8 +72,52 @@ function jsonSection(title, data) {
   return el('section', { class: 'card' }, [el('h2', {}, [title]), el('pre', {}, [JSON.stringify(data, null, 2)])]);
 }
 
+/** 다운로드 링크용 주소. 다시 그릴 때 이전 주소를 풀어 메모리를 돌려준다 */
+let downloadUrls = [];
+
+/**
+ * 마스킹 PDF 다운로드 영역 (PART 5)
+ * @param {{ documentId: string, documentType: string, result: any }[]} pdfs
+ */
+function pdfSection(pdfs) {
+  const section = el('section', { class: 'card' }, [el('h2', {}, ['7. Masked PDF (PART 5)'])]);
+  for (const p of pdfs) {
+    if (p.result.ok) {
+      const url = URL.createObjectURL(p.result.data.blob);
+      downloadUrls.push(url);
+      section.append(
+        el('a', { class: 'download', href: url, download: p.result.data.fileName }, [
+          `Download ${p.result.data.fileName} (${p.result.data.pageCount} page${p.result.data.pageCount > 1 ? 's' : ''})`,
+        ]),
+      );
+    } else {
+      section.append(el('p', { class: 'error' }, [`${p.documentId}: ${p.result.error.message}`]));
+    }
+  }
+  section.append(
+    el('p', { class: 'notice' }, ['The PDF is rebuilt from page images, so the original text cannot be copied from it.']),
+  );
+  return section;
+}
+
+/**
+ * 서류 종류를 알 수 없을 때 안내 (PART 2가 UNKNOWN을 돌려준 경우)
+ * @param {{ documentType: string }[]} documents
+ */
+function unknownTypeNotice(documents) {
+  const count = documents.filter((d) => d.documentType === 'UNKNOWN').length;
+  if (count === 0) return [];
+  return [
+    el('p', { class: 'error' }, [
+      `We could not tell the type of ${count} document(s). Please check that you uploaded a property register or a lease contract.`,
+    ]),
+  ];
+}
+
 function render() {
   const { status, result, error } = appState.getState();
+  downloadUrls.forEach((url) => URL.revokeObjectURL(url));
+  downloadUrls = [];
   output.replaceChildren();
   if (status === 'running') output.append(el('p', {}, ['Working…']));
   if (status === 'error' && error) {
@@ -95,16 +139,14 @@ function render() {
   });
 
   output.append(
+    ...unknownTypeNotice(result.documents),
     jsonSection('1. Documents (PART 1·2)', result.documents.map((d) => ({ id: d.documentId, type: d.documentType }))),
     jsonSection('2. Personal information found (PART 2)', result.findings.map((f) => ({ id: f.id, type: f.type }))),
     jsonSection('3. Risk check (PART 3)', result.riskResults),
     jsonSection('4. Masking plan (PART 4)', result.maskingPlan),
     jsonSection('5. Masked text (PART 4)', result.maskedText),
     el('section', { class: 'card' }, [el('h2', {}, ['6. Prompt for AI (PART 3)']), promptBox, copyButton]),
-    jsonSection(
-      '7. Masked PDF (PART 5)',
-      result.pdfs.map((p) => ({ documentId: p.documentId, ok: p.result.ok, error: p.result.ok ? null : p.result.error })),
-    ),
+    pdfSection(result.pdfs),
   );
 }
 

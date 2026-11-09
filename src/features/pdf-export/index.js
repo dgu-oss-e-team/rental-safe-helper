@@ -3,7 +3,8 @@
  * PART 5. 마스킹 PDF 생성
  * 담당: docs/OWNERS.md 참고
  *
- * 공개 함수: exportMaskedPDF(document, plan) → Result<{ fileName: string, blob: Blob }>
+ * 공개 함수: exportMaskedPDF(document, plan, { file }) → Result<{ fileName: string, blob: Blob, pageCount: number }>
+ *   - file: 사용자가 올린 원본 파일. 없거나 빈 파일이면(샘플 데이터) 문서 글자로 "가짜 페이지"를 그려 데모한다.
  *
  * 규칙: 원본 PDF 위에 검은 상자만 덮지 않는다.
  *   1) 페이지를 이미지로 렌더링 (render-pages.js, pdf.js)
@@ -12,10 +13,17 @@
  *   4) 메타데이터 제거 (metadata-cleaner.js)
  *   5) 다시 읽어 텍스트·메타데이터가 남지 않았는지 검증 (validate-pdf.js)
  *
- * TODO(PART 5): 위 단계를 구현한다. 그 전까지는 NOT_IMPLEMENTED를 돌려주고, 화면은 이를 "준비 중"으로 표시한다.
+ * 안전장치: 글자를 읽지 못한 페이지(스캔 PDF 등)가 있으면 PDF를 만들지 않는다.
+ *   그 페이지는 개인정보를 찾지 못해 아무것도 가려지지 않은 채 나갈 수 있기 때문이다.
  */
 
 import { fail, ok, ERROR_CODE, isValidBBox } from '../../shared/document-model.js';
+import { planRedactions, drawRedactions } from './apply-redactions.js';
+
+// pdf.js·pdf-lib는 크기가 커서(약 1MB) 첫 화면에서 불러오지 않고, PDF를 만들 때만 불러온다.
+// (중간발표 피드백: 휴대폰에서 무겁지 않게)
+const loadPdfTools = () =>
+  Promise.all([import('./render-pages.js'), import('./export-pdf.js'), import('./validate-pdf.js')]);
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -33,14 +41,90 @@ export function checkPlanCoordinates(plan) {
 }
 
 /**
+ * 글자를 읽은 페이지 번호 목록. 글자가 하나도 없는 페이지는 빠진다.
+ * @param {DocumentModel} document
+ * @returns {Set<number>}
+ */
+export function pagesWithText(document) {
+  const result = new Set();
+  for (const page of document?.pages ?? []) {
+    if (page.blocks?.some((b) => typeof b.text === 'string' && b.text.trim() !== '')) {
+      result.add(page.pageIndex);
+    }
+  }
+  return result;
+}
+
+/**
+ * 다운로드 파일 이름. 원본 파일 이름에는 개인정보가 있을 수 있어 쓰지 않는다.
+ * @param {DocumentModel} document
+ */
+function maskedFileName(document) {
+  const kind = { REGISTRY: 'registry', LEASE_CONTRACT: 'lease-contract' }[document.documentType] ?? 'document';
+  return `masked-${kind}.pdf`;
+}
+
+/**
  * 원본 문서와 마스킹 계획으로 새 PDF를 만든다.
  * @param {DocumentModel} document
  * @param {MaskingPlan} plan
+ * @param {{ file?: Blob }} [options]
+ * @returns {Promise<import('../../shared/document-model.js').Result<{ fileName: string, blob: Blob, pageCount: number }>>}
  */
-// eslint-disable-next-line no-unused-vars
-export async function exportMaskedPDF(document, plan) {
+export async function exportMaskedPDF(document, plan, options = {}) {
+  if (!document?.pages || !plan?.items) {
+    return fail(ERROR_CODE.INVALID_INPUT, 'Document or masking plan is missing.');
+  }
   const coords = checkPlanCoordinates(plan);
   if (!coords.ok) return coords;
-  // TODO(PART 5): 실제 PDF 생성
-  return fail(ERROR_CODE.NOT_IMPLEMENTED, 'Masked PDF export is not ready yet.');
+
+  const readable = pagesWithText(document);
+  if (readable.size === 0) {
+    return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text was read from this document, so it cannot be masked safely.');
+  }
+
+  try {
+    const [{ renderPages, canvasToJpeg }, { buildImageOnlyPdf }, { validateMaskedPdf }] = await loadPdfTools();
+    const rendered = await renderPages(document, options.file);
+
+    // 원본에는 있는데 글자를 읽지 못한 페이지가 있으면 만들지 않는다 (가려지지 않은 채 나갈 수 있음)
+    const unreadable = rendered.filter((p) => !readable.has(p.pageIndex));
+    if (unreadable.length > 0) {
+      return fail(
+        ERROR_CODE.LOW_CONFIDENCE,
+        `${unreadable.length} page(s) could not be read, so the masked PDF was not created.`,
+      );
+    }
+
+    const images = [];
+    for (const page of rendered) {
+      const ctx = /** @type {CanvasRenderingContext2D} */ (page.canvas.getContext('2d'));
+      const drawItems = planRedactions(plan, {
+        documentId: document.documentId,
+        pageIndex: page.pageIndex,
+        width: page.canvas.width,
+        height: page.canvas.height,
+      });
+      drawRedactions(ctx, drawItems);
+      images.push({
+        bytes: await canvasToJpeg(page.canvas),
+        format: /** @type {const} */ ('jpeg'),
+        widthPt: page.canvas.width * page.pointsPerPixel,
+        heightPt: page.canvas.height * page.pointsPerPixel,
+      });
+    }
+
+    const pdfBytes = await buildImageOnlyPdf(images);
+    const check = await validateMaskedPdf(pdfBytes);
+    if (!check.ok) return check;
+
+    return ok({
+      fileName: maskedFileName(document),
+      blob: new Blob([pdfBytes], { type: 'application/pdf' }),
+      pageCount: check.data.pageCount,
+    });
+  } catch {
+    // 오류 내용에 서류 정보가 섞일 수 있어 그대로 내보내지 않는다
+    return fail(ERROR_CODE.PDF_EXPORT_FAILED, 'Could not create the masked PDF.');
+  }
 }
