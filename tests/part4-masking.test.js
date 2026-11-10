@@ -59,6 +59,53 @@ describe('PART 4 목적 기반 마스킹', () => {
     expect(coarsenAddress('경기도 화성시 봉담읍 와우리 12')).toBe('경기도 화성시 봉담읍');
   });
 
+  it('시·도 줄임말도 인정한다 (person-labels.json addressRegions)', () => {
+    expect(coarsenAddress('서울 중구 필동로 00')).toBe('서울 중구');
+    expect(coarsenAddress('경기 수원시 팔달구 인계동 1')).toBe('경기 수원시 팔달구 인계동');
+  });
+
+  it('두 줄 주소(groupId)는 이어 붙여 한 번만 줄이고, 첫 조각에만 넣고 나머지는 가린다', () => {
+    const base = findings.find((f) => f.type === PII_TYPE.ADDRESS);
+    const pieces = [
+      { ...base, id: 'ADDR_P1', value: '경기도 성남시', blockId: 'B1', groupId: 'ADDR_X_1' },
+      { ...base, id: 'ADDR_P2', value: '분당구 정자동 178-1,', blockId: 'B2', groupId: 'ADDR_X_1' },
+      { ...base, id: 'ADDR_P3', value: '101동 1001호', blockId: 'B3', groupId: 'ADDR_X_1' },
+    ];
+    const plan = createMaskingPlan(pieces, mockPersonGroups, MASKING_PURPOSE.FRAUD_CHECK).data;
+    expect(plan.items.map((i) => [i.action, i.replacement])).toEqual([
+      [MASKING_ACTION.REPLACE, '경기도 성남시 분당구 정자동'],
+      [MASKING_ACTION.REDACT, '[REDACTED]'],
+      [MASKING_ACTION.REDACT, '[REDACTED]'],
+    ]);
+    // PART 5가 조각마다 상자를 그릴 수 있게 모든 조각이 계획에 들어 있어야 한다
+    expect(plan.items.map((i) => i.findingId)).toEqual(['ADDR_P1', 'ADDR_P2', 'ADDR_P3']);
+  });
+
+  it('두 줄 주소 조각이 줄인 주소 안에 들어 있어도 검사에서 멈추지 않는다', () => {
+    const base = findings.find((f) => f.type === PII_TYPE.ADDRESS);
+    const doc = {
+      documentId: base.documentId,
+      pages: [{ pageIndex: 0, blocks: [
+        { blockId: 'B1', text: '소재지 서울특별시' },
+        { blockId: 'B2', text: '중구 필동로 00' },
+      ] }],
+    };
+    const pieces = [
+      { ...base, id: 'ADDR_P1', value: '서울특별시', blockId: 'B1', groupId: 'ADDR_X_2' },
+      { ...base, id: 'ADDR_P2', value: '중구 필동로 00', blockId: 'B2', groupId: 'ADDR_X_2' },
+    ];
+    const plan = createMaskingPlan(pieces, mockPersonGroups, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const masked = applyMaskingPlan([doc], plan, pieces, mockPersonGroups).data;
+    expect(masked.maskedText[base.documentId]).toBe('소재지 서울특별시 중구\n[REDACTED]');
+    expect(validateMaskedText(masked.maskedText, pieces, plan).ok).toBe(true);
+  });
+
+  it('줄인 주소 밖에 원래 번지가 남아 있으면 검사에서 걸린다', () => {
+    const base = findings.find((f) => f.type === PII_TYPE.ADDRESS);
+    const plan = createMaskingPlan([base], mockPersonGroups, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const leakedText = { [base.documentId]: `소재지 ${base.value}` };
+    expect(validateMaskedText(leakedText, [base], plan).ok).toBe(false);
+  });
   it('도로명 주소 괄호 안의 동 이름도 살린다', () => {
     expect(coarsenAddress('경기도 성남시 분당구 불정로 6 (정자동)')).toBe('경기도 성남시 분당구 정자동');
   });
