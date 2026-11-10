@@ -63,6 +63,26 @@ describe('PART 4 동일 인물 판별 matchPeople()', () => {
     expect(groups.map((g) => g.status)).toEqual(['AMBIGUOUS', 'AMBIGUOUS']);
   });
 
+  it('이름을 못 읽은 사람(빈 이름)은 판정에서 빠진다', () => {
+    const fields = makeFields({
+      owners: [{ findingId: 'A', name: '김철수', birthDate: '800101', role: 'OWNER' }],
+      landlords: [{ findingId: 'B', name: '', birthDate: '750315', role: 'LANDLORD' }],
+    });
+    const groups = matchPeople(fields).data;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].findingIds).toEqual(['A']);
+  });
+
+  it('둘 다 생년월일이 없는 동명이인은 둘 다 AMBIGUOUS', () => {
+    const fields = makeFields({
+      landlords: [{ findingId: 'B', name: '김철수', birthDate: null, role: 'LANDLORD' }],
+      accountHolders: [{ findingId: 'C', name: '김철수', birthDate: null, role: 'ACCOUNT_HOLDER' }],
+    });
+    const groups = matchPeople(fields).data;
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.status)).toEqual(['AMBIGUOUS', 'AMBIGUOUS']);
+  });
+  
   it('띄어쓰기가 달라도 같은 이름으로 본다', () => {
     expect(normalizeName('김 철수')).toBe(normalizeName('김철수'));
     expect(normalizeName('Nguyen Van A')).toBe('NGUYENVANA');

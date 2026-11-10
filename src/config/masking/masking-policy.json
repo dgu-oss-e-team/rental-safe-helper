@@ -1,5 +1,5 @@
 {
-  "_comment": "목적 x 개인정보 종류별 처리 규칙 (최종 제안서의 목적별 가림 표). PART 4 담당. 바꿀 때는 docs/INTERFACES.md도 함께 수정.",
+  "_comment": "목적 x 개인정보 종류별 처리 규칙 (최종 제안서의 목적별 가림 표). 조항 설명과 계약 설명은 개인정보 처리가 같고, 차이는 남기는 정보 중 무엇을 핵심으로 묻는지(프롬프트)에 있다. PART 4 담당. 바꿀 때는 docs/INTERFACES.md도 함께 수정.",
   "CLAUSE_EXPLANATION": {
     "PERSON_NAME": "REDACT",
     "RESIDENT_ID": "REDACT",

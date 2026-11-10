@@ -16,6 +16,8 @@
  *   완료: matchPeople() 이름 + 생년월일 판정 (person-matcher.js, alias-manager.js)
  *   TODO(PART 4): Fuse.js 이름 유사도, 목적별 마스킹 규칙(masking-policy.json) 정리,
  *                 createMaskingPlan/applyMaskingPlan 파일 분리.
+ *   완료: 주소 시·구(동)까지 남기기 (coarsenAddress)
+ *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, masking-review-ui.
  */
 
 import {
@@ -57,12 +59,38 @@ export function matchPeople(fields) {
 }
 
 /**
- * 주소에서 시·도와 시·군·구까지만 남긴다. (예: "서울특별시 중구 필동로 00, 101호" → "서울특별시 중구")
- * TODO(PART 4): 동·읍·면까지 남기는 규칙과 예외 처리
+ * 주소에서 시·도, 시·군·구, 동·읍·면까지만 남기고 번지·호수는 지운다.
+ * (최종 제안서 목적별 가림 표: 사기 위험 확인 → "시·구(동)만 남김")
+ *
+ * 예: "서울특별시 중구 필동로 00, 101호"        → "서울특별시 중구"
+ *     "경기도 성남시 분당구 정자동 178-1"       → "경기도 성남시 분당구 정자동"
+ *     "경기도 성남시 분당구 불정로 6 (정자동)"  → "경기도 성남시 분당구 정자동"
+ *
+ * 남길 부분을 하나도 못 찾으면 빈 문자열을 돌려준다 (→ 호출하는 쪽에서 통째로 가림).
  * @param {string} address
  */
 export function coarsenAddress(address) {
-  return address.split(/\s+/).slice(0, 2).join(' ');
+  const text = String(address ?? '');
+  // 괄호 안 동 이름 (도로명 주소의 참고 항목) 따로 꺼내 두기: "(정자동)" → "정자동"
+  const refDong = text.match(/\(([가-힣][가-힣0-9]*(?:동|가))[,)]/)?.[1] ?? null;
+  const tokens = text.replace(/\(.*?\)/g, ' ').split(/[\s,]+/).filter(Boolean);
+
+  const kept = [];
+  let i = 0;
+  // 1) 시·도, 시·군·구: "서울특별시", "경기도", "성남시", "분당구", "양평군"
+  while (i < tokens.length && /^[가-힣]+(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/.test(tokens[i])) {
+    kept.push(tokens[i]);
+    i += 1;
+  }
+  if (kept.length === 0) return '';
+
+  // 2) 바로 다음이 동·읍·면이면 하나 더 남긴다: "정자동", "필동2가", "봉담읍"
+  //    숫자로 시작하는 "101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+  const next = tokens[i];
+  if (next && /^[가-힣][가-힣0-9]*(동|가|읍|면)$/.test(next)) kept.push(next);
+  else if (refDong) kept.push(refDong);
+
+  return kept.join(' ');
 }
 
 /**
@@ -99,7 +127,10 @@ export function createMaskingPlan(findings, personGroups, purpose) {
         if (alias) replacement = alias;
         else action = MASKING_ACTION.REDACT;
       } else if (f.type === PII_TYPE.ADDRESS) {
-        replacement = coarsenAddress(f.value);
+        const coarse = coarsenAddress(f.value);
+        // 남길 부분을 못 찾으면 안전하게 통째로 가린다
+        if (coarse) replacement = coarse;
+        else action = MASKING_ACTION.REDACT;
       }
     } else if (action === MASKING_ACTION.KEEP) {
       replacement = null;
