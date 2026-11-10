@@ -71,8 +71,8 @@ function defaultRiskResults(riskResults) {
  * @param {{
  *   analysis: import('./pipeline.js').Analysis,
  *   prepared: import('./pipeline.js').Prepared,
- *   edits: import('./app-state.js').MaskingEdits,
- *   onChange: (edits: import('./app-state.js').MaskingEdits) => void,
+ *   edits: import('./masking-edits.js').MaskingEdits,
+ *   onChange: (edits: import('./masking-edits.js').MaskingEdits) => void,
  * }} input
  * @returns {HTMLElement}
  */

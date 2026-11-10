@@ -185,8 +185,10 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 }
 ```
 
-- **흐름**: PART 4 `masking-review-ui`가 바뀔 때마다 `onChange(edits)`로 **edits 전체**를 넘긴다(바뀐 부분만 X). PART 5는 상태(`maskingEdits`)에 저장하고 `createMaskingPlan(findings, personGroups, purpose, edits)`를 다시 불러 미리보기를 갱신한다. 규칙 적용은 모두 PART 4가 한다.
+- **흐름**: PART 4 `masking-review-ui`가 바뀔 때마다 `onChange(edits)`로 **edits 전체**를 넘긴다(바뀐 부분만 X). PART 5는 상태(`maskingEdits`)에 저장하고 `createMaskingPlan` → `applyMaskingPlan` → `validateMaskedText`에 **모두 edits를 넘겨** 미리보기를 갱신한다(9번 표). 규칙 적용은 모두 PART 4가 한다.
 - **add**: 항상 `REDACT`. AI로 보내는 글(maskedText)에서는 `value`를 가리고, PDF용 `bbox`는 PART 4가 그 block 위치로 채운다.
+  findings에 없는 글자이므로 `applyMaskingPlan`·`validateMaskedText`는 edits의 `add`를 보고 가리고 검사한다.
+  계획(위 items)에는 이렇게 들어간다: `{ findingId: 'USER_001', action: 'REDACT', replacement: '[REDACTED]', documentId, pageIndex, bbox: 그 block의 bbox }` (findingId = add의 `id`)
 - **remove**: 해제할 수 없는 종류는 무시한다: `RESIDENT_ID`, `FOREIGNER_ID`, `PASSPORT_ID`, `PHONE_NUMBER`, `BANK_ACCOUNT`.
   두 줄 주소는 같은 `groupId` 전체, 이름은 같은 인물 묶음 전체에 함께 적용한다(한 곳만 풀면 가명이 누구인지 드러남).
 - **목적을 바꾸면**: `add`는 유지하고 `remove`는 비운다.
@@ -208,8 +210,8 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 | 3 | `buildPrompt({ purpose, riskResults, maskedText, legend })` | 위험 결과, 마스킹 완료 텍스트, 범례 | string |
 | 4 | `matchPeople(fields)` | 추출 데이터 | PersonGroup[] |
 | 4 | `createMaskingPlan(findings, personGroups, purpose, edits?)` | PiiFinding[], PersonGroup[], 목적, 사용자 수정(8번, 없으면 빈 값) | MaskingPlan |
-| 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` | | `{ maskedText, legend }` |
-| 4 | `validateMaskedText(maskedText, findings, plan)`  | | 남은 개인정보가 있으면 실패 |
+| 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
+| 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |

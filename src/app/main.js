@@ -10,7 +10,8 @@
 
 import './style.css';
 import { analyzeDocuments, prepareForAi, exportMaskedPdfs } from './pipeline.js';
-import { appState, initialState, emptyEdits, normalizeEdits, editsAfterPurposeChange } from './app-state.js';
+import { appState, initialState } from './app-state.js';
+import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
@@ -42,7 +43,7 @@ const STEP_TEXT = {
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
  * @property {(purpose: string) => void} setPurpose
  * @property {() => void} prepare
- * @property {(edits: import('./app-state.js').MaskingEdits) => void} setMaskingEdits  PART 4 확인 화면의 onChange
+ * @property {(edits: import('./masking-edits.js').MaskingEdits) => void} setMaskingEdits  PART 4 확인 화면의 onChange
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
  * @property {() => void} restart

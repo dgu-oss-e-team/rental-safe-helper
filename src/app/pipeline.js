@@ -23,7 +23,7 @@ import {
   validateMaskedText,
 } from '../features/masking/index.js';
 import { exportMaskedPDF } from '../features/pdf-export/index.js';
-import { emptyEdits, normalizeEdits } from './app-state.js';
+import { emptyEdits, normalizeEdits } from './masking-edits.js';
 
 /**
  * @typedef {Object} Analysis  analyzeDocuments()의 결과
@@ -109,18 +109,21 @@ export async function analyzeDocuments({ files }) {
  * 2) AI 상담 준비: 목적에 맞게 가리고, 남은 개인정보를 검사하고, 프롬프트를 만든다.
  * @param {Analysis} analysis
  * @param {string} purpose  MASKING_PURPOSE 값
- * @param {import('./app-state.js').MaskingEdits} [edits]  ④에서 사용자가 해제·추가한 내용 (규칙은 PART 4가 적용)
+ * @param {import('./masking-edits.js').MaskingEdits} [edits]  ④에서 사용자가 해제·추가한 내용 (규칙은 PART 4가 적용)
  */
 export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   const { documents, findings, personGroups, riskResults } = analysis;
 
-  const plan = createMaskingPlan(findings, personGroups, purpose, normalizeEdits(edits));
+  // 사용자가 더 가린 글자(add)는 findings에 없으므로, 가리기·검사 단계에도 edits를 함께 넘긴다
+  const userEdits = normalizeEdits(edits);
+
+  const plan = createMaskingPlan(findings, personGroups, purpose, userEdits);
   if (!plan.ok) return stoppedAt('createMaskingPlan', plan);
 
-  const masked = applyMaskingPlan(documents, plan.data, findings, personGroups);
+  const masked = applyMaskingPlan(documents, plan.data, findings, personGroups, userEdits);
   if (!masked.ok) return stoppedAt('applyMaskingPlan', masked);
 
-  const check = validateMaskedText(masked.data.maskedText, findings, plan.data);
+  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits);
   if (!check.ok) return stoppedAt('validateMaskedText', check);
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)

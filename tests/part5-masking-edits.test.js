@@ -1,15 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MASKING_PURPOSE } from '../src/shared/document-model.js';
 
-// PART 4 createMaskingPlan이 edits를 받는지 확인하려고 원래 함수를 감싼다 (동작은 그대로)
+// PART 4 함수들이 edits를 받는지 확인하려고 원래 함수를 감싼다 (동작은 그대로)
 vi.mock('../src/features/masking/index.js', async (importOriginal) => {
   const original = await importOriginal();
-  return { ...original, createMaskingPlan: vi.fn(original.createMaskingPlan) };
+  return {
+    ...original,
+    createMaskingPlan: vi.fn(original.createMaskingPlan),
+    applyMaskingPlan: vi.fn(original.applyMaskingPlan),
+    validateMaskedText: vi.fn(original.validateMaskedText),
+  };
 });
 
-const { createMaskingPlan } = await import('../src/features/masking/index.js');
+const { createMaskingPlan, applyMaskingPlan, validateMaskedText } = await import('../src/features/masking/index.js');
 const { analyzeDocuments, prepareForAi } = await import('../src/app/pipeline.js');
-const { initialState, emptyEdits, normalizeEdits, editsAfterPurposeChange } = await import('../src/app/app-state.js');
+const { initialState } = await import('../src/app/app-state.js');
+const { emptyEdits, normalizeEdits, editsAfterPurposeChange } = await import('../src/app/masking-edits.js');
 
 const sampleFiles = () => [
   new File([''], 'sample-registry.pdf', { type: 'application/pdf' }),
@@ -52,6 +58,14 @@ describe('PART 5 prepareForAi에 edits 전달', () => {
   beforeEach(async () => {
     analysis = (await analyzeDocuments({ files: sampleFiles() })).data;
     vi.mocked(createMaskingPlan).mockClear();
+    vi.mocked(applyMaskingPlan).mockClear();
+    vi.mocked(validateMaskedText).mockClear();
+  });
+
+  it('가리기(applyMaskingPlan)와 검사(validateMaskedText)에도 같은 edits를 마지막 인자로 넘긴다 (add 글자는 findings에 없으므로)', () => {
+    prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK, someEdits());
+    expect(vi.mocked(applyMaskingPlan).mock.calls[0][4]).toEqual(someEdits());
+    expect(vi.mocked(validateMaskedText).mock.calls[0][3]).toEqual(someEdits());
   });
 
   it('edits를 그대로 createMaskingPlan 네 번째 인자로 넘긴다', () => {
