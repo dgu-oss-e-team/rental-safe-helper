@@ -14,8 +14,8 @@
  *
  * 구현 상태
  *   완료: matchPeople() 이름 + 생년월일 판정 (person-matcher.js, alias-manager.js)
- *   TODO(PART 4): Fuse.js 이름 유사도, 목적별 마스킹 규칙(masking-policy.json) 정리,
- *                 createMaskingPlan/applyMaskingPlan 파일 분리.
+ *   완료: 주소 시·구(동)까지 남기기 (coarsenAddress, 줄임말, 두 줄 주소 groupId)
+ *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, masking-review-ui.
  */
 
 import {
@@ -29,6 +29,8 @@ import {
 import { collectPeople, groupPeople } from './person-matcher.js';
 import { assignAliases } from './alias-manager.js';
 import policy from '../../config/masking/masking-policy.json';
+// 시·도 이름 목록 (정식 이름 + 줄임말). PART 2가 관리하는 설정 파일을 같이 읽는다.
+import personLabels from '../../config/templates/person-labels.json';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -56,13 +58,51 @@ export function matchPeople(fields) {
   return ok(assignAliases(groups));
 }
 
+/** 시·도 이름 목록 (person-labels.json의 addressRegions) */
+const ADDRESS_REGIONS = new Set(personLabels.addressRegions ?? []);
+/** 목록에 없더라도 정식 시·도 이름 모양이면 인정 */
+const REGION_PATTERN = /^[가-힣]+(특별시|광역시|특별자치시|특별자치도|도|시)$/;
+
 /**
- * 주소에서 시·도와 시·군·구까지만 남긴다. (예: "서울특별시 중구 필동로 00, 101호" → "서울특별시 중구")
- * TODO(PART 4): 동·읍·면까지 남기는 규칙과 예외 처리
+ * 주소에서 시·도, 시·군·구, 동·읍·면까지만 남기고 번지·호수는 지운다.
+ * (최종 제안서 목적별 가림 표: 사기 위험 확인 → "시·구(동)만 남김")
+ *
+ * 예: "서울특별시 중구 필동로 00, 101호"        → "서울특별시 중구"
+ *     "경기도 성남시 분당구 정자동 178-1"       → "경기도 성남시 분당구 정자동"
+ *     "경기도 성남시 분당구 불정로 6 (정자동)"  → "경기도 성남시 분당구 정자동"
+ *     "경기 수원시 팔달구 …"                  → "경기 수원시 팔달구" (줄임말도 인정)
+ *
+ * 남길 부분을 하나도 못 찾으면 빈 문자열을 돌려준다 (→ 호출하는 쪽에서 통째로 가림).
  * @param {string} address
  */
 export function coarsenAddress(address) {
-  return address.split(/\s+/).slice(0, 2).join(' ');
+  const text = String(address ?? '');
+  // 괄호 안 동 이름 (도로명 주소의 참고 항목) 따로 꺼내 두기: "(정자동)" → "정자동"
+  const refDong = text.match(/\(([가-힣][가-힣0-9]*(?:동|가))[,)]/)?.[1] ?? null;
+  const tokens = text.replace(/\(.*?\)/g, ' ').split(/[\s,]+/).filter(Boolean);
+
+  const kept = [];
+  let i = 0;
+  // 1) 시·도: 정식 이름("서울특별시")이나 줄임말("서울", "경기") 모두 인정
+  if (tokens[0] && (ADDRESS_REGIONS.has(tokens[0]) || REGION_PATTERN.test(tokens[0]))) {
+    kept.push(tokens[0]);
+    i = 1;
+  }
+  // 2) 시·군·구: "성남시", "분당구", "양평군"
+  while (i < tokens.length && /^[가-힣]+(시|군|구)$/.test(tokens[i])) {
+    kept.push(tokens[i]);
+    i += 1;
+  }
+  if (kept.length === 0) return '';
+
+  // 3) 바로 다음이 동·읍·면이면 하나 더 남긴다: "정자동", "필동2가", "봉담읍"
+    //    "101동", "래미안101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+    //    → 한글 뒤에 숫자는 한 자리까지만 허용 ("역삼1동", "필동2가"는 남김)
+  const next = tokens[i];
+  if (next && /^[가-힣]+[0-9]?(동|가|읍|면)$/.test(next)) kept.push(next);
+  else if (refDong) kept.push(refDong);
+
+  return kept.join(' ');
 }
 
 /**
@@ -87,6 +127,16 @@ export function createMaskingPlan(findings, personGroups, purpose) {
     for (const id of group.findingIds) aliasByFinding.set(id, group.alias);
   }
 
+  // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)
+  /** @type {Map<string, { firstId: string, text: string }>} */
+  const addressGroups = new Map();
+  for (const f of findings) {
+    if (f.type !== PII_TYPE.ADDRESS || !f.groupId) continue;
+    const g = addressGroups.get(f.groupId);
+    if (g) g.text += ` ${f.value}`;
+    else addressGroups.set(f.groupId, { firstId: f.id, text: f.value });
+  }
+
   const items = findings.map((f) => {
     let action = rules[f.type] ?? MASKING_ACTION.REDACT; // 모르는 종류는 안전하게 가림
     /** @type {string | null} */
@@ -99,7 +149,16 @@ export function createMaskingPlan(findings, personGroups, purpose) {
         if (alias) replacement = alias;
         else action = MASKING_ACTION.REDACT;
       } else if (f.type === PII_TYPE.ADDRESS) {
-        replacement = coarsenAddress(f.value);
+        const group = f.groupId ? addressGroups.get(f.groupId) : undefined;
+        if (group && group.firstId !== f.id) {
+          // 두 줄 주소의 둘째 조각부터는 가린다 (줄인 주소는 첫 조각에만 넣음)
+          action = MASKING_ACTION.REDACT;
+        } else {
+          const coarse = coarsenAddress(group ? group.text : f.value);
+          // 남길 부분을 못 찾으면 안전하게 통째로 가린다
+          if (coarse) replacement = coarse;
+          else action = MASKING_ACTION.REDACT;
+        }
       }
     } else if (action === MASKING_ACTION.KEEP) {
       replacement = null;
@@ -162,6 +221,24 @@ export function applyMaskingPlan(documents, plan, findings, personGroups) {
 }
 
 /**
+ * text 안에서 words 각각이 나오는 모든 자리를 [시작, 끝] 목록으로 돌려준다.
+ * @param {string} text
+ * @param {string[]} words
+ * @returns {[number, number][]}
+ */
+function findSpans(text, words) {
+  /** @type {[number, number][]} */
+  const spans = [];
+  for (const word of words) {
+    if (!word) continue;
+    for (let at = text.indexOf(word); at !== -1; at = text.indexOf(word, at + 1)) {
+      spans.push([at, at + word.length]);
+    }
+  }
+  return spans;
+}
+
+/**
  * 외부로 보내기 전에, 가려야 하는 원본 값이 남아 있지 않은지 검사한다.
  * @param {Record<string, string>} maskedText
  * @param {PiiFinding[]} findings
@@ -169,6 +246,12 @@ export function applyMaskingPlan(documents, plan, findings, personGroups) {
  */
 export function validateMaskedText(maskedText, findings, plan) {
   const all = Object.values(maskedText).join('\n');
+  // 일부러 남긴 글자(가명, 줄인 주소)가 있는 자리. 원래 값이 이 자리 "안에서만" 보이면 새어 나간 게 아니다.
+  // 예: 두 줄 주소 조각 "서울특별시"는 줄인 주소 "서울특별시 중구" 안에 들어 있다.
+  const allowedSpans = findSpans(
+    all,
+    plan.items.filter((i) => i.action === MASKING_ACTION.REPLACE && i.replacement).map((i) => String(i.replacement)),
+  );
   // 하이픈·공백을 뺀 숫자열로도 비교한다 (줄 단위로 비교해 다른 줄의 숫자가 이어 붙지 않게 함)
   const digitLines = all.split('\n').map((line) => line.replace(/[^0-9]/g, ''));
   const actionById = new Map(plan.items.map((i) => [i.findingId, i.action]));
@@ -179,7 +262,7 @@ export function validateMaskedText(maskedText, findings, plan) {
     checked += 1;
     const digitsOnly = f.value.replace(/[^0-9]/g, '');
     const leaked =
-      all.includes(f.value) ||
+      findSpans(all, [f.value]).some(([a, b]) => !allowedSpans.some(([x, y]) => x <= a && b <= y)) ||
       (digitsOnly.length >= 6 && digitLines.some((line) => line.includes(digitsOnly)));
     if (leaked) {
       // 메시지에 실제 값을 넣지 않는다
