@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { toPixelRect, planRedactions } from '../src/features/pdf-export/apply-redactions.js';
 import { buildImageOnlyPdf } from '../src/features/pdf-export/export-pdf.js';
 import { validateMaskedPdf } from '../src/features/pdf-export/validate-pdf.js';
 import { exportMaskedPDF, pagesWithText } from '../src/features/pdf-export/index.js';
 import { mockLeaseDocument } from '../src/shared/mock-data.js';
-
+import { toPixelRect, planRedactions, fitFontSize, drawRedactions } from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
 const TINY_PNG = Uint8Array.from(
   atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='),
@@ -115,5 +114,61 @@ describe('PART 5 exportMaskedPDF() 안전장치', () => {
 
   it('pagesWithText()는 글자가 있는 페이지만 돌려준다', () => {
     expect([...pagesWithText(mockLeaseDocument)]).toEqual([0]);
+  });
+});
+
+describe('PART 5 가명 글자 크기 (fitFontSize)', () => {
+  it('넓은 상자는 높이 기준(70%)으로 정한다', () => {
+    expect(fitFontSize(5, { width: 1000, height: 40 })).toBe(28);
+  });
+
+  it('좁은 상자는 글자 길이에 맞게 줄인다 (눌리지 않게)', () => {
+    // 1px당 길이 8 → 너비 100에 맞추려면 약 11px
+    const size = fitFontSize(8, { width: 100, height: 40 });
+    expect(size).toBeLessThan(28);
+    expect(size * 8).toBeLessThanOrEqual(100);
+  });
+
+  it('상자가 낮으면 10px보다 작아져도 상자 밖으로 나가지 않는다', () => {
+    expect(fitFontSize(5, { width: 1000, height: 9 })).toBeLessThanOrEqual(9 * 0.7);
+  });
+
+  it('너무 작아지면 0 → 가명 대신 검은 상자', () => {
+    expect(fitFontSize(20, { width: 40, height: 8 })).toBe(0);
+  });
+});
+
+describe('PART 5 마스킹 그리기 (drawRedactions)', () => {
+  /** 캔버스 대신 "어떤 색으로 무엇을 그렸는지"만 기록한다 (Node에는 캔버스가 없음) */
+  function fakeContext() {
+    const calls = [];
+    const ctx = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      font: '',
+      textBaseline: '',
+      measureText: (text) => ({ width: text.length * 60 }), // 100px일 때 글자당 60px로 가정
+      fillRect: (...r) => calls.push(['fillRect', ctx.fillStyle, ...r]),
+      strokeRect: (...r) => calls.push(['strokeRect', ctx.strokeStyle, ...r]),
+      fillText: (text) => calls.push(['fillText', ctx.fillStyle, text]),
+    };
+    return { ctx, calls };
+  }
+
+  it('가명이 들어가는 상자는 흰 상자 + 테두리 + 가명', () => {
+    const { ctx, calls } = fakeContext();
+    drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 600, height: 40 }, text: '[Landlord_A]' }]);
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([
+      ['fillRect', '#ffffff'],
+      ['strokeRect', '#1f5fbf'],
+      ['fillText', '#1f5fbf'],
+    ]);
+  });
+
+  it('가명이 안 들어가는 작은 상자는 검은 상자로 가린다 (흰 상자만 남지 않게)', () => {
+    const { ctx, calls } = fakeContext();
+    drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 40, height: 8 }, text: '[AccountHolder_D]' }]);
+    expect(calls).toEqual([['fillRect', '#000000', 0, 0, 40, 8]]);
   });
 });
