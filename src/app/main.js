@@ -10,7 +10,7 @@
 
 import './style.css';
 import { analyzeDocuments, prepareForAi, exportMaskedPdfs } from './pipeline.js';
-import { appState, initialState } from './app-state.js';
+import { appState, initialState, emptyEdits, normalizeEdits, editsAfterPurposeChange } from './app-state.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
@@ -42,6 +42,7 @@ const STEP_TEXT = {
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
  * @property {(purpose: string) => void} setPurpose
  * @property {() => void} prepare
+ * @property {(edits: import('./app-state.js').MaskingEdits) => void} setMaskingEdits  PART 4 확인 화면의 onChange
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
  * @property {() => void} restart
@@ -57,7 +58,17 @@ const toError = (r) => ({ step: r.step, ...r.error });
 async function runAnalysis(files) {
   appState.setState({ busy: 'Reading your documents and checking risks…', error: null });
   const r = await analyzeDocuments({ files });
-  if (r.ok) appState.setState({ busy: null, analysis: r.data, prepared: null, pdfs: null, reviewed: false, step: 'results' });
+  // 새 서류면 findingId·blockId가 달라지므로 이전 수정(maskingEdits)도 비운다
+  if (r.ok)
+    appState.setState({
+      busy: null,
+      analysis: r.data,
+      prepared: null,
+      maskingEdits: emptyEdits(),
+      pdfs: null,
+      reviewed: false,
+      step: 'results',
+    });
   else appState.setState({ busy: null, error: toError(r) });
 }
 
@@ -81,14 +92,32 @@ const act = {
     appState.setState({ step, error: null });
   },
   setPurpose(purpose) {
-    // 목적이 바뀌면 이전에 만든 마스킹 결과는 버린다
-    appState.setState({ purpose, prepared: null, pdfs: null, reviewed: false });
+    const state = appState.getState();
+    if (purpose === state.purpose) return;
+    // 목적이 바뀌면 이전 마스킹 결과는 버리고, 해제(remove)는 새 목적에서 다시 고르게 한다 (더 가린 것은 유지)
+    appState.setState({
+      purpose,
+      maskingEdits: editsAfterPurposeChange(state.maskingEdits),
+      prepared: null,
+      pdfs: null,
+      reviewed: false,
+    });
   },
   prepare() {
+    const { analysis, purpose, maskingEdits } = appState.getState();
+    if (!analysis) return;
+    const r = prepareForAi(analysis, purpose, maskingEdits);
+    if (r.ok) appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
+    else appState.setState({ error: toError(r) });
+  },
+  setMaskingEdits(edits) {
     const { analysis, purpose } = appState.getState();
     if (!analysis) return;
-    const r = prepareForAi(analysis, purpose);
-    if (r.ok) appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
+    const next = normalizeEdits(edits);
+    // 수정할 때마다 다시 가려서 미리보기를 바꾼다. 바뀐 내용은 다시 확인해야 하므로 체크를 푼다.
+    const r = prepareForAi(analysis, purpose, next);
+    // 실패하면(예: 남은 개인정보 검사 실패) 이전 수정과 미리보기를 그대로 두고 오류만 보여 준다
+    if (r.ok) appState.setState({ maskingEdits: next, prepared: r.data, reviewed: false, pdfs: null, error: null });
     else appState.setState({ error: toError(r) });
   },
   setReviewed(checked) {
