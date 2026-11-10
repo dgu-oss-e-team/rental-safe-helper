@@ -132,8 +132,17 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 ## 7. 위험 점검 결과 (PART 3)
 
 ```js
-{ ruleId: 'OWNER_MISMATCH', status: 'STOP', title: '...', explanation: '...', action: '...' }
+{
+  ruleId: 'OWNER_MISMATCH', status: 'STOP', title: '...', explanation: '...', action: '...',
+  evidence: {  // 선택. 화면 근거 칸 전용
+    left:  { label: 'Registry owner',    value: '김철수 (birth 800101)' },
+    right: { label: 'Contract landlord', value: '김철수 (birth 750315)' }
+  }
+}
 ```
+
+- `explanation`, `action`, `title`에는 실제 이름 대신 **역할 가명**(`[Owner_A]` 등)만 쓴다. AI 프롬프트에 들어가기 때문이다.
+- `evidence`는 사용자 화면에만 보여 준다. 실제 이름·주소가 들어갈 수 있으므로 **프롬프트·로그·오류 메시지에 넣지 않는다.**
 
 | status | 의미 |
 |---|---|
@@ -176,7 +185,7 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 | 4 | `createMaskingPlan(findings, personGroups, purpose)` | PiiFinding[], PersonGroup[], 목적 | MaskingPlan |
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` | | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan)`  | | 남은 개인정보가 있으면 실패 |
-| 5 | `exportMaskedPDF(document, plan)` | DocumentModel, MaskingPlan | `{ fileName, blob }` |
+| 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
 

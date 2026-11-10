@@ -87,10 +87,15 @@ export async function runPipeline({ files, purpose }) {
   if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
 
   // 7) 마스킹 PDF (PART 5) - 실패해도 나머지 결과는 유지
+  //    documents[i]는 files[i]를 읽은 결과라 같은 순서로 원본 파일을 넘긴다
   const pdfs = [];
-  for (const doc of documents) {
-    const docPlan = { ...plan.data, items: plan.data.items.filter((i) => i.documentId === doc.documentId) };
-    pdfs.push({ documentId: doc.documentId, result: await exportMaskedPDF(doc, docPlan) });
+  for (const [i, doc] of documents.entries()) {
+    const docPlan = { ...plan.data, items: plan.data.items.filter((item) => item.documentId === doc.documentId) };
+    pdfs.push({
+      documentId: doc.documentId,
+      documentType: doc.documentType,
+      result: await exportMaskedPDF(doc, docPlan, { file: files[i] }),
+    });
   }
 
   return ok({
