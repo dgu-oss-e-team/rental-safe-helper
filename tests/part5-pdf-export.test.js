@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { toPixelRect, planRedactions } from '../src/features/pdf-export/apply-redactions.js';
 import { buildImageOnlyPdf } from '../src/features/pdf-export/export-pdf.js';
 import { validateMaskedPdf } from '../src/features/pdf-export/validate-pdf.js';
 import { exportMaskedPDF, pagesWithText } from '../src/features/pdf-export/index.js';
 import { mockLeaseDocument } from '../src/shared/mock-data.js';
-import { toPixelRect, planRedactions, fitFontSize } from '../src/features/pdf-export/apply-redactions.js';
+import { toPixelRect, planRedactions, fitFontSize, drawRedactions } from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
 const TINY_PNG = Uint8Array.from(
   atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='),
@@ -134,7 +133,42 @@ describe('PART 5 가명 글자 크기 (fitFontSize)', () => {
     expect(fitFontSize(5, { width: 1000, height: 9 })).toBeLessThanOrEqual(9 * 0.7);
   });
 
-  it('너무 작아지면 0 → 글자 없이 상자만', () => {
+  it('너무 작아지면 0 → 가명 대신 검은 상자', () => {
     expect(fitFontSize(20, { width: 40, height: 8 })).toBe(0);
+  });
+});
+
+describe('PART 5 마스킹 그리기 (drawRedactions)', () => {
+  /** 캔버스 대신 "어떤 색으로 무엇을 그렸는지"만 기록한다 (Node에는 캔버스가 없음) */
+  function fakeContext() {
+    const calls = [];
+    const ctx = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      font: '',
+      textBaseline: '',
+      measureText: (text) => ({ width: text.length * 60 }), // 100px일 때 글자당 60px로 가정
+      fillRect: (...r) => calls.push(['fillRect', ctx.fillStyle, ...r]),
+      strokeRect: (...r) => calls.push(['strokeRect', ctx.strokeStyle, ...r]),
+      fillText: (text) => calls.push(['fillText', ctx.fillStyle, text]),
+    };
+    return { ctx, calls };
+  }
+
+  it('가명이 들어가는 상자는 흰 상자 + 테두리 + 가명', () => {
+    const { ctx, calls } = fakeContext();
+    drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 600, height: 40 }, text: '[Landlord_A]' }]);
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([
+      ['fillRect', '#ffffff'],
+      ['strokeRect', '#1f5fbf'],
+      ['fillText', '#1f5fbf'],
+    ]);
+  });
+
+  it('가명이 안 들어가는 작은 상자는 검은 상자로 가린다 (흰 상자만 남지 않게)', () => {
+    const { ctx, calls } = fakeContext();
+    drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 40, height: 8 }, text: '[AccountHolder_D]' }]);
+    expect(calls).toEqual([['fillRect', '#000000', 0, 0, 40, 8]]);
   });
 });
