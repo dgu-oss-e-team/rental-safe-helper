@@ -11,12 +11,19 @@
  * 현재 상태: detectPII()는 번호류(pii-patterns.js) + 이름·주소(name-detector.js)를 실제로 찾는다.
  *           classifyDocument()는 키워드 개수 비교(띄어쓰기 무시, 동점이면 UNKNOWN).
  *           extractFields()는 사람 정보·주소를 실제 탐지 결과에서 만들고, 보증금·월세·특약·권리는 아직 Mock.
- * TODO(PART 2 이슈 ⑤): 항목 추출(field-extractor.js)로 extractFields()의 남은 Mock을 교체한다.
+ * TODO(PART 2): field-extractor.js(PR #30)가 병합되면 extractFields()의 남은 Mock을 교체한다.
  */
 
 import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS } from '../../shared/document-model.js';
 import { findPatternPII } from './pii-patterns.js';
-import { findPeople, findAddresses, lastRoleIn } from './name-detector.js';
+import {
+  findPeople,
+  findAddresses,
+  lastRoleIn,
+  findAddressContinuation,
+  findTrailingRegion,
+  reachesLineEnd,
+} from './name-detector.js';
 import { mockExtractedFields } from '../../shared/mock-data.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
@@ -77,31 +84,88 @@ const LOW_CONFIDENCE = 0.8;
  * - ID는 문서에 나오는 순서대로 PII_{documentId}_{001, 002 ...}로 붙인다.
  *   같은 문서를 다시 훑으면 항상 같은 ID가 나와서, 두 함수의 결과가 서로 맞는다.
  * - 역할 라벨("임대인")과 "성명" 칸이 다른 블록에 있어도 이어지도록, 앞 블록의 마지막 역할을 다음 블록에 넘긴다.
+ * - 두 줄 주소: 주소가 줄 끝까지 오고 아랫줄(같은 블록이든 다음 블록이든)이 주소 뒷부분으로 시작하면,
+ *   줄마다 결과를 하나씩 만들고 같은 groupId를 붙인다. 한 줄 주소에는 groupId가 없다. (INTERFACES.md 4번)
  * @param {DocumentModel} document
  */
 function scanDocument(document) {
+  /** @type {any[]} */
   const hits = [];
-  let seq = 0;
+  let order = 0;
   /** @type {string | null} 앞 블록에서 이어받은 역할 ("성명" 칸 이름에 붙인다) */
   let role = null;
+  /**
+   * 윗줄에서 열린 주소: 줄 끝까지 온 주소 조각, 또는 줄 끝의 시·도 이름(아직 결과에 넣지 않은 후보)
+   * @type {{ hit: any, regionOnly: boolean } | null}
+   */
+  let open = null;
+  let groupSeq = 0;
+  /** @param {any[]} list @param {{ start: number, end: number }} r */
+  const overlapsAny = (list, r) => list.some((prev) => r.start < prev.end && prev.start < r.end);
+
   for (const page of document.pages) {
     for (const block of page.blocks) {
+      order += 1;
       const text = block.text ?? '';
       /** @type {any[]} */
       const found = [...findPatternPII(text)];
       for (const r of [...findPeople(text, role), ...findAddresses(text)]) {
-        const overlaps = found.some((prev) => r.start < prev.end && prev.start < r.end);
-        if (!overlaps) found.push(r);
+        if (!overlapsAny(found, r)) found.push(r);
       }
       role = lastRoleIn(text, role);
-      found.sort((a, b) => a.start - b.start);
-      for (const hit of found) {
-        seq += 1;
-        hits.push({ ...hit, page, block, id: `PII_${document.documentId}_${String(seq).padStart(3, '0')}` });
+
+      // 줄 단위로 훑으며 윗줄 주소와 이어지는 조각을 찾는다.
+      let offset = 0;
+      for (const line of text.split('\n')) {
+        const lineEnd = offset + line.length;
+        /** @type {{ hit: any, regionOnly: boolean } | null} */
+        let next = null;
+
+        if (open) {
+          const c = findAddressContinuation(line, open.regionOnly);
+          /** @type {any} */
+          const piece = c && { ...c, start: c.start + offset, end: c.end + offset };
+          if (piece && !overlapsAny(found, piece)) {
+            if (open.regionOnly) hits.push(open.hit); // 시·도 이름 조각을 이제 결과에 넣는다
+            open.hit.groupId ??= `ADDR_${document.documentId}_${++groupSeq}`;
+            piece.groupId = open.hit.groupId;
+            found.push(piece);
+            if (reachesLineEnd(piece.value, text.slice(piece.end, lineEnd))) {
+              next = { hit: piece, regionOnly: false };
+            }
+          }
+        }
+
+        if (!next) {
+          // 이 줄에서 끝나는 주소 중 줄 끝까지 온 것이 있으면 아랫줄과 이어질 수 있다.
+          const ending = found
+            .filter((h) => h.type === PII_TYPE.ADDRESS && h.end > offset && h.end <= lineEnd)
+            .filter((h) => reachesLineEnd(h.value, text.slice(h.end, lineEnd)))
+            .pop();
+          if (ending) next = { hit: ending, regionOnly: false };
+        }
+
+        if (!next) {
+          const region = findTrailingRegion(line);
+          const candidate = region && { ...region, start: region.start + offset, end: region.end + offset };
+          if (candidate && !overlapsAny(found, candidate)) {
+            next = { hit: { ...candidate, page, block, order }, regionOnly: true };
+          }
+        }
+
+        open = next;
+        offset = lineEnd + 1;
       }
+
+      // 복사하지 않고 원본에 위치 정보를 붙인다. 다음 블록에서 이어지는 조각이 나오면
+      // 이 원본에 groupId를 나중에 붙여야 하기 때문이다.
+      for (const hit of found) hits.push(Object.assign(hit, { page, block, order }));
     }
   }
-  return hits;
+
+  // 문서에 나오는 순서(블록 순서 → 블록 안 위치)대로 ID를 붙인다.
+  hits.sort((a, b) => a.order - b.order || a.start - b.start);
+  return hits.map((hit, i) => ({ ...hit, id: `PII_${document.documentId}_${String(i + 1).padStart(3, '0')}` }));
 }
 
 /**
@@ -128,6 +192,8 @@ export function detectPII(document) {
       confidence: block.confidence,
       reviewStatus:
         hit.uncertain || lowConfidence ? REVIEW_STATUS.NEEDS_REVIEW : REVIEW_STATUS.DETECTED,
+      // 두 줄 이상에 걸친 주소 조각에만 붙는다. (INTERFACES.md 4번 groupId)
+      ...(hit.groupId ? { groupId: hit.groupId } : {}),
     };
   });
 
@@ -170,6 +236,7 @@ const PROPERTY_ADDRESS_LABEL = /소\s*재\s*지|도\s*로\s*명\s*주\s*소|지\
  * 계약·등기 대상 집의 주소를 고른다.
  * 1순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
  * 2순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
+ * 두 줄에 걸친 주소면 같은 groupId 조각을 순서대로 이어 붙인다. (PART 3이 동·호수까지 비교하므로)
  * 주소가 하나도 없으면 null (못 읽음)
  * @param {any[]} hits scanDocument() 결과
  */
@@ -178,7 +245,13 @@ function pickPropertyAddress(hits) {
   const labelled = addresses.find((h) =>
     PROPERTY_ADDRESS_LABEL.test((h.block.text ?? '').slice(0, h.start)),
   );
-  return (labelled ?? addresses[0])?.value ?? null;
+  const picked = labelled ?? addresses[0];
+  if (!picked) return null;
+  if (!picked.groupId) return picked.value;
+  return addresses
+    .filter((h) => h.groupId === picked.groupId)
+    .map((h) => h.value.trim())
+    .join(' ');
 }
 
 /**
@@ -189,7 +262,7 @@ function pickPropertyAddress(hits) {
  *   TODO(PART 2): 사용자가 직접 추가(USER_ADDED)한 이름은 역할을 알 수 없어서 아직 넣지 않는다.
  *   PART 5 검토 화면에서 역할을 고르게 되면 그때 반영한다.
  * - 문서가 없으면 그 문서의 항목은 null (못 읽음), 문서는 있는데 사람이 없으면 [] (없음)
- * TODO(PART 2 이슈 ⑤): 등기부 권리(rights), 보증금·월세·특약은 아직 Mock 값이다.
+ * TODO(PART 2): 등기부 권리(rights), 보증금·월세·특약은 아직 Mock 값이다. field-extractor.js(PR #30) 병합 후 교체.
  * @param {DocumentModel[]} documents
  * @param {PiiFinding[]} findings
  */
@@ -223,7 +296,7 @@ export function extractFields(documents, findings) {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
       owners: byRole(people, 'OWNER'),
-      rights: mock.registry.rights, // TODO(PART 2 이슈 ⑤)
+      rights: mock.registry.rights, // TODO(PART 2): PR #30 병합 후 findRegistryRights()
     };
   }
 
@@ -251,9 +324,9 @@ export function extractFields(documents, findings) {
       landlords: byRole(people, 'LANDLORD'),
       tenants: byRole(people, 'TENANT'),
       accountHolders: byRole(people, 'ACCOUNT_HOLDER'),
-      deposit: mock.contract.deposit, // TODO(PART 2 이슈 ⑤)
-      monthlyRent: mock.contract.monthlyRent, // TODO(PART 2 이슈 ⑤)
-      specialTerms: mock.contract.specialTerms, // TODO(PART 2 이슈 ⑤)
+      deposit: mock.contract.deposit, // TODO(PART 2): PR #30 병합 후 findDeposit()
+      monthlyRent: mock.contract.monthlyRent, // TODO(PART 2): PR #30 병합 후 findMonthlyRent()
+      specialTerms: mock.contract.specialTerms, // TODO(PART 2): PR #30 병합 후 findSpecialTerms()
     };
   }
 

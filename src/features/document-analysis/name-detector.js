@@ -160,6 +160,66 @@ export function findAddresses(text) {
   return results;
 }
 
+/*
+ * 두 줄 주소 (줄이 바뀌거나 블록이 나뉜 주소)
+ * 윗줄 주소가 줄 끝까지 왔을 때, 아랫줄 맨 앞이 주소의 뒷부분처럼 생겼으면 이어진 주소로 본다.
+ * - 동·층·호: "101동 1001호", "제2층 제201호"
+ * - 도로명: "필동로 00", "필동로12길 3"
+ * - 시·군·구: 윗줄이 "서울특별시"처럼 시·도 이름으로 끝났을 때만 ("중구 필동로 00")
+ */
+const ADDRESS_TAIL = '(?:[^\\n(]*[^\\s\\n(])?';
+const DONG_HO = '제?[ \\t]*[0-9A-Za-z]+(?:-[0-9]+)?[ \\t]*(?:동|층|호)(?![가-힣])';
+const ROAD = '[가-힣0-9]+(?:로|길)[ \\t]*\\d';
+const SIGUNGU = '[가-힣]+(?:시|군|구)(?![가-힣])';
+const CONTINUATION_REGEX = new RegExp(`^[ \\t]*((?:${DONG_HO}|${ROAD})${ADDRESS_TAIL})`);
+const CONTINUATION_AFTER_REGION_REGEX = new RegExp(`^[ \\t]*(${SIGUNGU}${ADDRESS_TAIL})`);
+const TRAILING_REGION_REGEX = new RegExp(
+  `(?<![가-힣])(${rules.addressRegions.map(escapeRegex).join('|')})[ \\t,]*$`,
+);
+/** 주소 뒤에 이것만 남아 있으면 "줄 끝까지 온 주소"로 본다. (쉼표, 공백, 괄호 하나) */
+const ADDRESS_LINE_REST = /^[\s,]*(?:\([^)]*\))?[\s,]*$/;
+
+/**
+ * 아랫줄 맨 앞의 주소 뒷부분을 찾는다.
+ * @param {string} line 한 줄 (줄바꿈 없음)
+ * @param {boolean} [afterRegion] 윗줄이 시·도 이름으로 끝났는지
+ * @returns {{ type: string, value: string, start: number, end: number } | null}
+ */
+export function findAddressContinuation(line, afterRegion = false) {
+  const m = line.match(afterRegion ? CONTINUATION_AFTER_REGION_REGEX : CONTINUATION_REGEX);
+  if (!m) return null;
+  const start = (m.index ?? 0) + m[0].length - m[1].length;
+  return { type: PII_TYPE.ADDRESS, value: m[1], start, end: start + m[1].length };
+}
+
+/**
+ * 줄 끝에 시·도 이름만 있는지 찾는다. (예: "소재지 서울특별시" → "서울특별시")
+ * 아랫줄이 시·군·구로 시작할 때만 주소 조각으로 쓴다.
+ * @param {string} line 한 줄 (줄바꿈 없음)
+ * @returns {{ type: string, value: string, start: number, end: number } | null}
+ */
+export function findTrailingRegion(line) {
+  const m = line.match(TRAILING_REGION_REGEX);
+  if (!m) return null;
+  const start = m.index ?? 0;
+  return { type: PII_TYPE.ADDRESS, value: m[1], start, end: start + m[1].length };
+}
+
+/** 주소답게 끝나는 모양: 숫자, 쉼표, 동·층·호·로·길·시·군·구 (예: "필동로 00,", "서울특별시 중구") */
+const ADDRESS_LIKE_END = /(?:\d|,|[동층호로길시군구])$/;
+
+/**
+ * 주소가 아랫줄과 이어질 수 있는지.
+ * - 주소 뒤에 쉼표·공백·괄호 하나만 남아 있어야 한다. (줄 끝까지 온 주소)
+ * - 주소가 주소답게 끝나야 한다. "서울특별시 중구 필동로 00 소재 주택을 임대한다"처럼
+ *   문장이 붙어 줄 끝까지 잡힌 경우는 잇지 않는다.
+ * @param {string} value 주소 조각
+ * @param {string} rest 주소 끝부터 줄 끝까지의 글자
+ */
+export function reachesLineEnd(value, rest) {
+  return ADDRESS_LINE_REST.test(rest) && ADDRESS_LIKE_END.test(value.trim());
+}
+
 /**
  * 사람 정보(이름 + 역할 + 생년월일)를 찾는다. extractFields()가 쓸 재료다.
  * 생년월일은 같은 줄에서 이름 뒤에 처음 나오는 주민·외국인등록번호의 앞 6자리다.

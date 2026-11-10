@@ -59,7 +59,7 @@ describe('PART 2 라벨 기반 이름 탐지', () => {
   });
 });
 
-describe('PART 2 서명란 "성명" 칸과 중개사 (④-2 연결 전, 상욱님 요청)', () => {
+describe('PART 2 서명란 "성명" 칸과 중개사', () => {
   it('혼자 있는 "성명" 칸 뒤 이름도 찾는다 (역할을 모르면 role은 null)', () => {
     const r = findLabeledNames('성명 김철수 서명또는날인');
     expect(r).toHaveLength(1);
