@@ -9,7 +9,7 @@
  *   extractFields(documents, findings)  → Result<ExtractedFields>   (비교용 추출 데이터, PART 3·4가 사용)
  *
  * 현재 상태: detectPII()는 정규식 탐지(pii-patterns.js) 사용. 이름·주소는 이슈 ④ 전까지 Mock 보충.
- *           classifyDocument()는 키워드 판별, extractFields()는 아직 Mock.
+ *           classifyDocument()는 키워드 개수 비교(띄어쓰기 무시, 동점이면 UNKNOWN), extractFields()는 아직 Mock.
  * TODO(PART 2): src/config/templates/의 YAML 템플릿 기반 판별, 정규식 탐지(pii-patterns.js),
  *               항목 추출(field-extractor.js), 이름 탐지(name-detector.js)로 Mock을 교체한다.
  */
@@ -25,11 +25,18 @@ import {
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 
-/** 판별 키워드 (TODO(PART 2): src/config/templates/*.yaml로 옮기기) */
+/**
+ * 판별 키워드 (TODO(PART 2): src/config/templates/*.yaml로 옮기기)
+ * 띄어쓰기를 지우고 비교하므로 '갑 구'와 '갑구'를 따로 넣지 않는다(두 번 세어짐).
+ * 키워드·띄어쓰기 처리 참고: PR #18 (Garid1016)
+ */
 const KEYWORDS = {
-  [DOCUMENT_TYPE.REGISTRY]: ['등기사항', '갑 구', '을 구', '갑구', '을구', '고유번호'],
-  [DOCUMENT_TYPE.LEASE_CONTRACT]: ['임대차', '임대인', '임차인', '보증금', '특약'],
+  [DOCUMENT_TYPE.REGISTRY]: ['등기사항', '등기부등본', '표제부', '갑구', '을구', '고유번호'],
+  [DOCUMENT_TYPE.LEASE_CONTRACT]: ['임대차', '부동산임대차계약서', '임대인', '임차인', '보증금', '특약'],
 };
+
+/** @param {string} s */
+const removeSpaces = (s) => s.replace(/\s+/g, '');
 
 /**
  * @param {DocumentModel} document
@@ -41,19 +48,24 @@ function fullText(document) {
 
 /**
  * 등기부인지 계약서인지 판별한다.
+ * 문서 종류별 키워드가 몇 개 들어 있는지 세서 더 많은 쪽으로 정한다.
+ * 계약서에 "등기사항전부증명서 확인"이 들어가도 계약서 키워드가 더 많으면 계약서가 된다.
+ * OCR이 "갑 구"처럼 띄어 읽어도 잡히도록 띄어쓰기를 지우고 비교한다.
+ * 개수가 같으면(0개 포함) 어느 쪽인지 알 수 없으므로 UNKNOWN.
  * @param {DocumentModel} document
  */
 export function classifyDocument(document) {
   if (!document?.pages) return fail(ERROR_CODE.INVALID_INPUT, 'Document is missing.');
 
-  const text = fullText(document);
+  const text = removeSpaces(fullText(document));
   const scores = Object.entries(KEYWORDS).map(([type, words]) => ({
     type,
-    score: words.filter((w) => text.includes(w)).length,
+    score: words.filter((w) => text.includes(removeSpaces(w))).length,
   }));
   scores.sort((a, b) => b.score - a.score);
-  const best = scores[0];
-  const documentType = best.score > 0 ? best.type : DOCUMENT_TYPE.UNKNOWN;
+  const [best, second] = scores;
+  const isTie = best.score === second.score;
+  const documentType = best.score > 0 && !isTie ? best.type : DOCUMENT_TYPE.UNKNOWN;
 
   return ok({ documentId: document.documentId, documentType, score: best.score });
 }
@@ -65,6 +77,7 @@ const LOW_CONFIDENCE = 0.8;
  * 아직 PART 2가 직접 찾지 못하는 개인정보 종류.
  * TODO(PART 2 이슈 ④): 이름·주소 탐지를 만들면 이 목록과 아래 Mock 보충을 지운다.
  */
+/** @type {string[]} */
 const NOT_YET_DETECTED_TYPES = [PII_TYPE.PERSON_NAME, PII_TYPE.ADDRESS];
 
 /**

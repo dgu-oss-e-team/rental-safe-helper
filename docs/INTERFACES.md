@@ -185,7 +185,7 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 | 4 | `createMaskingPlan(findings, personGroups, purpose)` | PiiFinding[], PersonGroup[], 목적 | MaskingPlan |
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` | | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan)`  | | 남은 개인정보가 있으면 실패 |
-| 5 | `exportMaskedPDF(document, plan)` | DocumentModel, MaskingPlan | `{ fileName, blob }` |
+| 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
 
