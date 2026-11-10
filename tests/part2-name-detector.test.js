@@ -3,6 +3,7 @@ import {
   findLabeledNames,
   findAddresses,
   findPeople,
+  lastRoleIn,
 } from '../src/features/document-analysis/name-detector.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
@@ -55,6 +56,78 @@ describe('PART 2 라벨 기반 이름 탐지', () => {
 
   it('라벨 뒤가 항목 이름이면 잡지 않는다', () => {
     expect(findLabeledNames('임대인 주소 서울특별시 중구')).toHaveLength(0);
+  });
+});
+
+describe('PART 2 서명란 "성명" 칸과 중개사 (④-2 연결 전, 상욱님 요청)', () => {
+  it('혼자 있는 "성명" 칸 뒤 이름도 찾는다 (역할을 모르면 role은 null)', () => {
+    const r = findLabeledNames('성명 김철수 서명또는날인');
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ type: PII_TYPE.PERSON_NAME, value: '김철수', role: null });
+  });
+
+  it('"성명" 칸은 위쪽의 가장 최근 역할 라벨을 이어받는다 (표준계약서 서명란)', () => {
+    const text =
+      '임 대 인 주소 서울특별시 중구 필동로 00\n주민등록번호 750315-1****** 전화 010-0000-0000 성명 김철수\n' +
+      '임 차 인 주소 서울특별시 중구 필동로 00\n외국인등록번호 990505-5****** 전화 010-0000-0000 성명 NGUYEN VAN A';
+    const r = findLabeledNames(text);
+    expect(r.map((p) => [p.value, p.role])).toEqual([
+      ['김철수', 'LANDLORD'],
+      ['NGUYEN VAN A', 'TENANT'],
+    ]);
+  });
+
+  it('앞 블록에서 이어받은 역할을 쓴다', () => {
+    expect(findLabeledNames('성명 김철수', 'LANDLORD')[0].role).toBe('LANDLORD');
+  });
+
+  it('글 안에 역할 라벨이 있으면 이어받은 역할보다 그걸 쓴다', () => {
+    expect(findLabeledNames('임차인 주소 …\n성명 이영희', 'LANDLORD')[0].role).toBe('TENANT');
+  });
+
+  it('"임대인 성명: 이영희"는 한 번만 찾는다', () => {
+    const r = findLabeledNames('임대인 성명: 이영희');
+    expect(r).toHaveLength(1);
+    expect(r[0].role).toBe('LANDLORD');
+  });
+
+  it('문장 속 라벨("임대인은")은 역할로 이어받지 않는다', () => {
+    expect(findLabeledNames('임대인은 수리 의무를 진다\n성명 김철수')[0].role).toBeNull();
+  });
+
+  it('개업공인중개사 대표 이름을 찾는다', () => {
+    const r = findLabeledNames('개업공인중개사 사무소명칭 가상공인중개사사무소 대표 홍길동');
+    expect(r.map((p) => [p.value, p.role])).toEqual([['홍길동', 'BROKER']]);
+  });
+
+  it('"대표 이사"는 이름으로 잡지 않는다', () => {
+    expect(findLabeledNames('대표 이사')).toHaveLength(0);
+  });
+
+  it('"공인중개사" 라벨 뒤 이름을 찾고, "개업공인중개사"와 겹쳐도 한 번만 찾는다', () => {
+    expect(findLabeledNames('공인중개사 홍길동').map((p) => [p.value, p.role])).toEqual([['홍길동', 'BROKER']]);
+    expect(findLabeledNames('개업공인중개사 홍길동')).toHaveLength(1);
+  });
+
+  it('중개사 칸의 항목 이름(사무소, 자격증, 소재지)은 이름으로 잡지 않는다', () => {
+    expect(findLabeledNames('가상공인중개사 사무소')).toHaveLength(0);
+    expect(findLabeledNames('공인중개사 자격증')).toHaveLength(0);
+    expect(findLabeledNames('공인중개사 소재지 서울특별시 중구')).toHaveLength(0);
+  });
+
+  it('문장 속 "공인중개사는", "공인중개사법"은 잡지 않는다', () => {
+    expect(findLabeledNames('공인중개사는 중개대상물을 확인한다')).toHaveLength(0);
+    expect(findLabeledNames('공인중개사법에 따라')).toHaveLength(0);
+  });
+
+  it('lastRoleIn: 글의 마지막 역할을 돌려주고, 없으면 이어받은 역할을 그대로 돌려준다', () => {
+    expect(lastRoleIn('임대인 주소 …\n임차인 주소 …')).toBe('TENANT');
+    expect(lastRoleIn('주민등록번호 …', 'LANDLORD')).toBe('LANDLORD');
+    expect(lastRoleIn('특약사항')).toBeNull();
+  });
+
+  it('findPeople도 "성명" 칸 이름에 이어받은 역할을 붙인다', () => {
+    expect(findPeople('성명 김철수', 'LANDLORD')[0]).toMatchObject({ value: '김철수', role: 'LANDLORD' });
   });
 });
 

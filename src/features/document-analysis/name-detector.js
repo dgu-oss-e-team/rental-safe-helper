@@ -50,21 +50,85 @@ const PERSON_RULES = rules.persons.flatMap(({ role, labels }) =>
 );
 
 /**
- * 라벨 뒤의 이름을 찾는다.
- * @param {string} text
- * @returns {{type: string, value: string, start: number, end: number, role: string}[]}
+ * 역할 라벨이 "항목 이름"으로 쓰인 자리. (뒤에 공백·콜론·줄 끝이 오는 경우)
+ * "임대인 주소 …"처럼 이름이 바로 안 와도 역할이 시작됐다는 표시로 쓴다. "임대인과", "임대인은"은 제외.
  */
-export function findLabeledNames(text) {
-  const results = [];
-  for (const { role, regex } of PERSON_RULES) {
-    for (const match of text.matchAll(regex)) {
-      const name = match[1].trim();
-      if (NOT_NAMES.has(name)) continue;
-      const start = match.index + match[0].lastIndexOf(match[1]);
-      results.push({ type: PII_TYPE.PERSON_NAME, value: name, start, end: start + name.length, role });
-    }
+const ROLE_ANCHORS = rules.persons.flatMap(({ role, labels }) =>
+  labels.map((label) => ({ role, regex: new RegExp(`(?<![가-힣])${spaced(label)}(?=[\\s:：]|$)`, 'g') })),
+);
+
+/**
+ * 역할 라벨 없이 혼자 있는 "성명" 칸 뒤의 이름.
+ * 표준계약서 서명란은 "임대인"이 표 왼쪽에 한 번 나오고, 이름은 다른 줄의 "성명" 칸에 있다.
+ */
+const STANDALONE_NAME_REGEX = new RegExp(
+  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+  'g',
+);
+
+/**
+ * 글 안의 역할 라벨 위치를 앞에서부터 모은다.
+ * @param {string} text
+ * @returns {{ role: string, index: number }[]}
+ */
+function findRoleAnchors(text) {
+  const anchors = [];
+  for (const { role, regex } of ROLE_ANCHORS) {
+    for (const match of text.matchAll(regex)) anchors.push({ role, index: match.index });
   }
-  return results.sort((a, b) => a.start - b.start);
+  return anchors.sort((a, b) => a.index - b.index);
+}
+
+/**
+ * 글에서 마지막으로 나온 역할. 없으면 이어받은 역할을 그대로 돌려준다.
+ * 문서를 블록 단위로 훑을 때, 다음 블록에 넘겨줄 역할을 구하는 데 쓴다.
+ * @param {string} text
+ * @param {string | null} [inheritedRole] 앞 블록에서 이어받은 역할
+ * @returns {string | null}
+ */
+export function lastRoleIn(text, inheritedRole = null) {
+  const anchors = findRoleAnchors(text);
+  return anchors.length ? anchors[anchors.length - 1].role : inheritedRole;
+}
+
+/**
+ * 라벨 뒤의 이름을 찾는다.
+ * - "임대인 김철수"처럼 역할 라벨 바로 뒤 이름은 그 역할
+ * - "성명 김철수"처럼 혼자 있는 성명 칸은 위쪽에서 가장 최근에 나온 역할을 이어받는다.
+ *   위쪽에 역할이 없으면 role은 null이다. (역할은 몰라도 이름은 가려야 하므로 일단 찾는다)
+ * @param {string} text
+ * @param {string | null} [inheritedRole] 앞 블록에서 이어받은 역할
+ * @returns {{type: string, value: string, start: number, end: number, role: string | null}[]}
+ */
+export function findLabeledNames(text, inheritedRole = null) {
+  /** @type {Map<number, {type: string, value: string, start: number, end: number, role: string | null}>} */
+  const byStart = new Map();
+  /**
+   * @param {RegExpMatchArray} match
+   * @param {(start: number) => string | null} roleAt
+   */
+  const add = (match, roleAt) => {
+    const name = match[1].trim();
+    if (NOT_NAMES.has(name)) return;
+    const start = (match.index ?? 0) + match[0].lastIndexOf(match[1]);
+    // 같은 이름을 두 규칙이 모두 찾으면("임대인 성명: 이영희") 역할 라벨 쪽을 남긴다.
+    if (byStart.has(start)) return;
+    byStart.set(start, { type: PII_TYPE.PERSON_NAME, value: name, start, end: start + name.length, role: roleAt(start) });
+  };
+
+  for (const { role, regex } of PERSON_RULES) {
+    for (const match of text.matchAll(regex)) add(match, () => role);
+  }
+
+  const anchors = findRoleAnchors(text);
+  /** @param {number} start */
+  const roleBefore = (start) => {
+    const before = anchors.filter((a) => a.index < start);
+    return before.length ? before[before.length - 1].role : inheritedRole;
+  };
+  for (const match of text.matchAll(STANDALONE_NAME_REGEX)) add(match, roleBefore);
+
+  return [...byStart.values()].sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -103,10 +167,11 @@ export function findAddresses(text) {
  * (다른 사람의 번호를 가져오면 계좌주 확인이 "확인 불가" 대신 "같은 사람"으로 잘못 나올 수 있다.)
  * 번호가 없으면 birthDate는 null이다. (못 읽음 = null 규칙)
  * @param {string} text
+ * @param {string | null} [inheritedRole] 앞 블록에서 이어받은 역할 ("성명" 칸 이름에 붙인다)
  */
-export function findPeople(text) {
+export function findPeople(text, inheritedRole = null) {
   const ids = findIdNumbers(text);
-  const people = findLabeledNames(text);
+  const people = findLabeledNames(text, inheritedRole);
   return people.map((person, idx) => {
     const lineEnd = text.indexOf('\n', person.end);
     const next = people[idx + 1];
