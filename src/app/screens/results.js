@@ -36,7 +36,7 @@ export function resultsScreen(state, act) {
       slots.riskResults(analysis.riskResults),
     ]),
     actions([
-      button('Ask AI about it safely', () => act.goTo('purpose')),
+      button('Ask AI about these results', () => act.goTo('purpose')),
       button('Start over', () => act.restart(), { variant: 'secondary' }),
     ]),
   ]);
