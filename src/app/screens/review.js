@@ -21,7 +21,12 @@ export function reviewScreen(state, act) {
   return el('div', {}, [
     card('Check what will be shared', [
       el('p', {}, ['This is exactly what the AI will see. Make sure no name, ID number, phone number, account, or full address is left.']),
-      slots.maskingReview({ analysis, prepared }),
+      slots.maskingReview({
+        analysis,
+        prepared,
+        edits: state.maskingEdits,
+        onChange: (edits) => act.setMaskingEdits(edits),
+      }),
       el('label', { class: 'confirm', for: 'reviewed' }, [confirm, ' I checked that no personal information is left.']),
     ]),
     actions([

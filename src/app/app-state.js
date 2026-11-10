@@ -5,6 +5,7 @@
  */
 
 import { MASKING_PURPOSE } from '../shared/document-model.js';
+import { emptyEdits } from './masking-edits.js';
 
 /**
  * @template T
@@ -49,6 +50,8 @@ export function initialState() {
     /** prepareForAi() 결과 */
     /** @type {import('./pipeline.js').Prepared | null} */
     prepared: null,
+    /** ④에서 사용자가 해제·추가한 마스킹 (서류를 새로 분석하면 비운다) */
+    maskingEdits: emptyEdits(),
     /** 사용자가 "가려진 내용을 확인했다"고 체크했는지 */
     reviewed: false,
     /** exportMaskedPdfs() 결과 */

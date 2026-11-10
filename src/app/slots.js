@@ -64,7 +64,16 @@ function defaultRiskResults(riskResults) {
 /**
  * [PART 4 자리] 보내기 전 확인 화면
  * 지금은 가려진 결과를 읽기 전용으로 보여 준다. 가릴 항목 추가·해제, "같은 사람인가요?" 질문은 PART 4가 만든다.
- * @param {{ analysis: import('./pipeline.js').Analysis, prepared: import('./pipeline.js').Prepared }} input
+ *
+ * PART 4 UI는 input.edits(지금 수정 내용)로 화면을 그리고, 사용자가 바꿀 때마다
+ * input.onChange(edits 전체)를 부른다. 그러면 PART 5가 마스킹을 다시 계산해 이 화면을 새로 그린다.
+ * (docs/INTERFACES.md 8번 "사용자 수정")
+ * @param {{
+ *   analysis: import('./pipeline.js').Analysis,
+ *   prepared: import('./pipeline.js').Prepared,
+ *   edits: import('./masking-edits.js').MaskingEdits,
+ *   onChange: (edits: import('./masking-edits.js').MaskingEdits) => void,
+ * }} input
  * @returns {HTMLElement}
  */
 function defaultMaskingReview({ analysis, prepared }) {
@@ -100,6 +109,6 @@ function defaultMaskingReview({ analysis, prepared }) {
 export const slots = {
   /** PART 3: (riskResults: RiskResult[]) => HTMLElement */
   riskResults: defaultRiskResults,
-  /** PART 4: ({ analysis, prepared }) => HTMLElement */
+  /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement */
   maskingReview: defaultMaskingReview,
 };

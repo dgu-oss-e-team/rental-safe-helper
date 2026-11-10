@@ -169,6 +169,33 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 
 목적별 처리 규칙은 `src/config/masking/masking-policy.json`. 주민·외국인등록번호·여권번호는 모든 목적에서 `REDACT`.
 
+### 사용자 수정 (edits): ④ 보내기 전 확인 화면 (PART 4 UI → PART 5 → PART 4)
+
+사용자가 가릴 항목을 해제하거나 더 가린 내용. PR #37에서 PART 4·5 합의.
+
+```js
+{
+  remove: ['PII_DOC_LEASE_003'],   // 사용자가 해제한 findingId
+  add: [{                          // 사용자가 글자를 선택해 더 가린 부분
+    id: 'USER_001',
+    documentId: 'DOC_002',
+    blockId: 'BLOCK_014',
+    value: '선택한 글자'
+  }]
+}
+```
+
+- **흐름**: PART 4 `masking-review-ui`가 바뀔 때마다 `onChange(edits)`로 **edits 전체**를 넘긴다(바뀐 부분만 X). PART 5는 상태(`maskingEdits`)에 저장하고 `createMaskingPlan` → `applyMaskingPlan` → `validateMaskedText`에 **모두 edits를 넘겨** 미리보기를 갱신한다(9번 표). 규칙 적용은 모두 PART 4가 한다.
+- **add**: 항상 `REDACT`. AI로 보내는 글(maskedText)에서는 `value`를 가리고, PDF용 `bbox`는 PART 4가 그 block 위치로 채운다.
+  findings에 없는 글자이므로 `applyMaskingPlan`·`validateMaskedText`는 edits의 `add`를 보고 가리고 검사한다.
+  계획(위 items)에는 이렇게 들어간다: `{ findingId: 'USER_001', action: 'REDACT', replacement: '[REDACTED]', documentId, pageIndex, bbox: 그 block의 bbox }` (findingId = add의 `id`)
+- **remove**: 해제할 수 없는 종류는 무시한다: `RESIDENT_ID`, `FOREIGNER_ID`, `PASSPORT_ID`, `PHONE_NUMBER`, `BANK_ACCOUNT`.
+  두 줄 주소는 같은 `groupId` 전체, 이름은 같은 인물 묶음 전체에 함께 적용한다(한 곳만 풀면 가명이 누구인지 드러남).
+- **목적을 바꾸면**: `add`는 유지하고 `remove`는 비운다.
+- **서류를 새로 분석하거나 처음부터 다시 하면**: edits 전체를 비운다(findingId·blockId가 달라짐).
+- "같은 사람인가요?" 답은 edits에 넣지 않는다. 위험 점검에도 쓰이므로 PART 3·4와 따로 정한다.
+- edits에는 원본 글자(`value`)가 들어가므로 브라우저 메모리에만 두고, 프롬프트·로그·오류 메시지에 넣지 않는다.
+
 ## 9. 공개 함수
 
 각 파트는 `src/features/<파트>/index.js`에서만 공개 함수를 내보낸다. 다른 파트의 내부 파일을 직접 import하지 않는다.
@@ -182,10 +209,11 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 | 3 | `assessRisks(fields, personGroups)` | 추출 데이터, 인물 판별 결과 | RiskResult[] |
 | 3 | `buildPrompt({ purpose, riskResults, maskedText, legend })` | 위험 결과, 마스킹 완료 텍스트, 범례 | string |
 | 4 | `matchPeople(fields)` | 추출 데이터 | PersonGroup[] |
-| 4 | `createMaskingPlan(findings, personGroups, purpose)` | PiiFinding[], PersonGroup[], 목적 | MaskingPlan |
-| 4 | `applyMaskingPlan(documents, plan, findings, personGroups)` | | `{ maskedText, legend }` |
-| 4 | `validateMaskedText(maskedText, findings, plan)`  | | 남은 개인정보가 있으면 실패 |
+| 4 | `createMaskingPlan(findings, personGroups, purpose, edits?)` | PiiFinding[], PersonGroup[], 목적, 사용자 수정(8번, 없으면 빈 값) | MaskingPlan |
+| 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
+| 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
+| 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
 
