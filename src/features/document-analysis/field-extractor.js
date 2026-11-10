@@ -147,29 +147,108 @@ const RIGHT_KINDS = [
 ];
 
 /**
- * 등기부 권리(근저당·압류·가압류·신탁·전세권·임차권)를 줄마다 찾는다.
- * - 근저당은 "채권최고액" 뒤 금액을 maxClaimAmount로 읽는다.
- * - 줄에 "말소"가 있으면 cancelled: true
+ * @typedef {object} RegistryRight
+ * @property {string} kind
+ * @property {number | null} maxClaimAmount 채권최고액 (근저당만, 못 읽으면 null)
+ * @property {boolean | null} cancelled 말소 여부. 말소 줄이 어느 권리를 가리키는지 모르면 null(확인 필요)
+ * @property {string | null} receivedAt 접수일 (아직 안 읽는다)
+ */
+
+/** 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)" */
+const SECTION_HEADING = /^\s*[【[(]?\s*([갑을])\s*구\s*[】\])]?(?=\s|$)/;
+/** 기록이 없는 구를 이렇게 적는 경우도 읽은 것으로 본다: "을구 기록사항 없음" */
+const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
+/** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
+const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
+/** 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기). "2020년"은 순위번호가 아니다. */
+const RANK_REGEX = /^\s*(\d{1,3})(-\d+)?(?![\d,.]|\s*[년월일번호])/;
+/** 말소 줄이 가리키는 순위번호: "3번가압류등기말소" → 3 */
+const CANCEL_TARGET = /(\d{1,3})\s*번[^\n]*?말\s*소/;
+/** 권리 한 건의 이어지는 줄(권리자 칸 등). 새 권리로 세지 않는다. */
+const CONTINUATION_LINE =
+  /^\s*(?:근\s*저\s*당\s*권\s*자|채\s*권\s*자|채\s*무\s*자|수\s*탁\s*자|위\s*탁\s*자|권\s*리\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|신\s*탁\s*원\s*부)/;
+const MAX_CLAIM_LABEL = /채\s*권\s*최\s*고\s*액/;
+
+/**
+ * 등기부 권리(근저당·압류·가압류·신탁·전세권·임차권)를 찾는다. 갑구·을구 안의 줄만 본다.
+ * - 갑구·을구 제목을 둘 다 찾았을 때만 결과를 준다. 하나라도 못 찾으면 null(못 읽음).
+ *   (한쪽만 읽고 []를 주면 "압류 없음"처럼 보이기 때문)
+ * - 근저당은 "채권최고액" 뒤 금액을 maxClaimAmount로 읽는다. 다음 줄에 있어도 읽는다.
+ * - 말소는 별도 줄("3번가압류등기말소")로 적히므로, 그 줄이 가리키는 순위번호의 권리를 cancelled: true로 바꾼다.
+ *   어느 권리인지 모르는 말소 줄이 있으면 그 구에서 말소 표시가 없는 권리는 cancelled: null(확인 필요).
+ *   (말소된 칸에 그어진 빨간 줄은 글자로 읽히지 않는다)
+ * - 부기등기("1-1 근저당권변경")와 이어지는 줄("근저당권자 …")은 새 권리로 세지 않는다.
  * - receivedAt(접수일)은 아직 안 읽는다. (TODO)
- * 등기부를 읽었는데 권리가 없으면 [].
  * @param {string[]} lines
+ * @returns {RegistryRight[] | null}
  */
 export function findRegistryRights(lines) {
+  /** @type {RegistryRight[]} */
   const rights = [];
+  /** 권리마다 [구, 순위번호] (순위번호를 못 읽으면 null) */
+  /** @type {Array<{ section: string, rank: string | null }>} */
+  const places = [];
+  /** @type {Array<{ section: string, rank: string | null }>} */
+  const cancels = [];
+  const seen = new Set();
+  /** @type {string | null} */
+  let section = null;
+
   for (const line of lines) {
-    const found = RIGHT_KINDS.find(({ regex }) => regex.test(line));
-    if (!found) continue;
-    let maxClaimAmount = null;
-    if (found.kind === 'MORTGAGE') {
-      const label = /채\s*권\s*최\s*고\s*액/.exec(line);
-      maxClaimAmount = label ? parseAmount(line.slice(label.index + label[0].length)) : null;
+    if (SUMMARY_HEADING.test(line)) break;
+    const empty = EMPTY_SECTION.exec(line);
+    if (empty) seen.add(empty[1]);
+    const heading = SECTION_HEADING.exec(line);
+    if (heading) {
+      section = heading[1];
+      seen.add(section);
+      continue;
     }
+    if (section === null) continue;
+
+    if (/말\s*소/.test(line)) {
+      const target = CANCEL_TARGET.exec(line);
+      cancels.push({ section, rank: target ? target[1] : null });
+      continue;
+    }
+    if (CONTINUATION_LINE.test(line)) continue;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch && rankMatch[2]) continue; // 부기등기
+    const rank = rankMatch ? rankMatch[1] : null;
+
+    const found = RIGHT_KINDS.find(({ regex }) => regex.test(line));
+    const maxClaim = MAX_CLAIM_LABEL.exec(line);
+    if (!found) {
+      // 채권최고액만 다음 줄에 있는 경우: 바로 앞 근저당에 붙인다.
+      const last = rights[rights.length - 1];
+      if (maxClaim && last && last.kind === 'MORTGAGE' && last.maxClaimAmount === null) {
+        last.maxClaimAmount = parseAmount(line.slice(maxClaim.index + maxClaim[0].length));
+      }
+      continue;
+    }
+    if (rank !== null && places.some((p) => p.section === section && p.rank === rank)) continue;
+
     rights.push({
       kind: found.kind,
-      maxClaimAmount,
-      cancelled: /말\s*소/.test(line),
+      maxClaimAmount:
+        found.kind === 'MORTGAGE' && maxClaim ? parseAmount(line.slice(maxClaim.index + maxClaim[0].length)) : null,
+      cancelled: false,
       receivedAt: null,
     });
+    places.push({ section, rank });
   }
+
+  if (!seen.has('갑') || !seen.has('을')) return null;
+
+  const unknownCancelSections = new Set();
+  for (const c of cancels) {
+    const i = c.rank === null ? -1 : places.findIndex((p) => p.section === c.section && p.rank === c.rank);
+    if (i === -1) unknownCancelSections.add(c.section);
+    else rights[i].cancelled = true;
+  }
+  rights.forEach((r, i) => {
+    if (r.cancelled === false && unknownCancelSections.has(places[i].section)) r.cancelled = null;
+  });
   return rights;
 }

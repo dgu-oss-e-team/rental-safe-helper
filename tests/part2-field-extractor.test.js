@@ -94,25 +94,156 @@ describe('PART 2 등기부 권리', () => {
     expect(findRegistryRights(linesOf(mockRegistryDocument))).toEqual(mockExtractedFields.registry.rights);
   });
 
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+  /** 갑구·을구 줄을 받아 등기부 한 장처럼 만든다 */
+  const registry = (/** @type {string[]} */ gap, /** @type {string[]} */ eul = []) => [
+    '등기사항전부증명서(말소사항 포함)',
+    GAP,
+    ...gap,
+    EUL,
+    ...eul,
+  ];
+
   it('가압류와 압류를 구분한다', () => {
-    const r = findRegistryRights(['가압류 청구금액 금30,000,000원', '압류 서울특별시']);
-    expect(r.map((x) => x.kind)).toEqual(['PROVISIONAL_SEIZURE', 'SEIZURE']);
+    const r = findRegistryRights(registry(['가압류 청구금액 금30,000,000원', '압류 서울특별시']));
+    expect(r?.map((x) => x.kind)).toEqual(['PROVISIONAL_SEIZURE', 'SEIZURE']);
   });
 
   it('신탁·전세권도 찾는다', () => {
-    const r = findRegistryRights(['소유권이전 신탁 수탁자 ○○신탁', '전세권설정 전세금 금100,000,000원']);
-    expect(r.map((x) => x.kind)).toEqual(['TRUST', 'JEONSE']);
+    const r = findRegistryRights(registry(['소유권이전 신탁 수탁자 ○○신탁'], ['전세권설정 전세금 금100,000,000원']));
+    expect(r?.map((x) => x.kind)).toEqual(['TRUST', 'JEONSE']);
   });
 
   it('한글 채권최고액도 읽는다', () => {
-    expect(findRegistryRights(['근저당권설정 채권최고액 금 일억이천만원'])[0].maxClaimAmount).toBe(120000000);
-  });
-
-  it('"말소"가 있으면 cancelled', () => {
-    expect(findRegistryRights(['3번근저당권설정등기말소'])[0].cancelled).toBe(true);
+    expect(findRegistryRights(registry([], ['근저당권설정 채권최고액 금 일억이천만원']))?.[0].maxClaimAmount).toBe(120000000);
   });
 
   it('제목 줄("말소사항 포함", "을구")은 권리로 잡지 않는다', () => {
-    expect(findRegistryRights(['등기사항전부증명서(말소사항 포함)', '【 을 구 】 (소유권 이외의 권리에 관한 사항)'])).toEqual([]);
+    expect(findRegistryRights(registry([]))).toEqual([]);
+  });
+
+  it('갑구·을구 밖(표제부)의 글자는 권리로 잡지 않는다', () => {
+    expect(findRegistryRights(['표제부 신탁', ...registry([])])).toEqual([]);
+  });
+});
+
+describe('PART 2 등기부 권리: 갑구·을구를 다 읽었는지', () => {
+  it('을구 제목을 못 찾으면 null (압류 없음으로 보이지 않게)', () => {
+    expect(findRegistryRights(['【 갑 구 】', '1 소유권보존'])).toBeNull();
+  });
+
+  it('갑구 제목을 못 찾으면 null', () => {
+    expect(findRegistryRights(['【 을 구 】', '1 근저당권설정 채권최고액 금120,000,000원'])).toBeNull();
+  });
+
+  it('제목이 하나도 없으면 null', () => {
+    expect(findRegistryRights(['근저당권설정 채권최고액 금120,000,000원'])).toBeNull();
+  });
+
+  it('"을구 기록사항 없음"은 을구를 읽은 것으로 본다', () => {
+    expect(findRegistryRights(['【 갑 구 】', '1 소유권보존', '을구 - 기록사항 없음'])).toEqual([]);
+  });
+
+  it('OCR이 괄호를 놓쳐도 제목으로 본다', () => {
+    expect(findRegistryRights(['갑 구 (소유권에 관한 사항)', '을 구 (소유권 이외의 권리에 관한 사항)'])).toEqual([]);
+  });
+});
+
+describe('PART 2 등기부 권리: 말소', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('별도 줄의 "3번가압류등기말소"는 3번 권리를 cancelled로 바꾸고, 새 권리를 만들지 않는다', () => {
+    const r = findRegistryRights([
+      GAP,
+      '1 소유권보존',
+      '3 가압류 청구금액 금30,000,000원',
+      '4 3번가압류등기말소',
+      '5 압류',
+      EUL,
+    ]);
+    expect(r).toEqual([
+      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null },
+      { kind: 'SEIZURE', maxClaimAmount: null, cancelled: false, receivedAt: null },
+    ]);
+  });
+
+  it('을구 근저당 말소도 같은 구의 순위번호로 찾는다', () => {
+    const r = findRegistryRights([
+      GAP,
+      '3 가압류',
+      EUL,
+      '1 근저당권설정 채권최고액 금120,000,000원',
+      '3 근저당권설정 채권최고액 금60,000,000원',
+      '4 3번근저당권설정등기말소',
+    ]);
+    expect(r?.map((x) => [x.kind, x.cancelled])).toEqual([
+      ['PROVISIONAL_SEIZURE', false], // 갑구 3번은 그대로
+      ['MORTGAGE', false],
+      ['MORTGAGE', true],
+    ]);
+  });
+
+  it('어느 권리인지 모르는 말소 줄이 있으면 그 구의 권리는 cancelled: null (확인 필요)', () => {
+    const r = findRegistryRights([GAP, '가압류', '압류', '가압류등기말소', EUL, '근저당권설정']);
+    expect(r?.map((x) => [x.kind, x.cancelled])).toEqual([
+      ['PROVISIONAL_SEIZURE', null],
+      ['SEIZURE', null],
+      ['MORTGAGE', false], // 다른 구는 영향 없음
+    ]);
+  });
+
+  it('가리키는 순위번호의 권리가 없어도 cancelled: null', () => {
+    const r = findRegistryRights([GAP, '2 압류', '5 7번압류등기말소', EUL]);
+    expect(r?.[0].cancelled).toBeNull();
+  });
+});
+
+describe('PART 2 등기부 권리: 한 권리를 두 번 세지 않는다', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('"근저당권자 …", "수탁자 …" 같은 이어지는 줄은 새 권리가 아니다', () => {
+    const r = findRegistryRights([
+      GAP,
+      '2 소유권이전 신탁',
+      '수탁자 ○○신탁주식회사',
+      '신탁원부 제2020-00호',
+      EUL,
+      '1 근저당권설정',
+      '채권최고액 금120,000,000원',
+      '근저당권자 주식회사○○은행',
+    ]);
+    expect(r).toEqual([
+      { kind: 'TRUST', maxClaimAmount: null, cancelled: false, receivedAt: null },
+      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null },
+    ]);
+  });
+
+  it('부기등기("1-1 근저당권변경")는 새 근저당이 아니다', () => {
+    const r = findRegistryRights([GAP, EUL, '1 근저당권설정 채권최고액 금120,000,000원', '1-1 1번근저당권변경 채권최고액 금100,000,000원']);
+    expect(r).toHaveLength(1);
+  });
+
+  it('같은 구의 같은 순위번호가 다시 나와도 한 번만 센다', () => {
+    const r = findRegistryRights([GAP, EUL, '1 근저당권설정 채권최고액 금120,000,000원', '1 근저당권설정']);
+    expect(r).toHaveLength(1);
+  });
+
+  it('"2020년…"처럼 날짜로 시작하는 줄은 순위번호로 보지 않는다', () => {
+    const r = findRegistryRights([GAP, EUL, '1 근저당권설정', '2020년3월2일 근저당권설정 채권최고액 금60,000,000원']);
+    expect(r).toHaveLength(2);
+  });
+
+  it('끝의 "주요 등기사항 요약"은 되풀이라 세지 않는다', () => {
+    const r = findRegistryRights([
+      GAP,
+      EUL,
+      '1 근저당권설정 채권최고액 금120,000,000원',
+      '주요 등기사항 요약 (참고용)',
+      '1 근저당권설정 채권최고액 금120,000,000원 주식회사○○은행',
+    ]);
+    expect(r).toHaveLength(1);
   });
 });
