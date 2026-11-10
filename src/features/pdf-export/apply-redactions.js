@@ -25,6 +25,24 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
 /** 상자를 글자보다 조금 넓게 그려서 글자 가장자리가 새지 않게 한다 (페이지 크기 대비 비율) */
 const PADDING = 0.002;
 
+/** 가명 글자가 이보다 작아지면 읽을 수 없으므로 글자 없이 상자만 그린다 (px) */
+const MIN_LABEL_FONT = 6;
+
+/**
+ * 상자 안에 가명이 눌리지 않고 들어가는 글자 크기를 구한다.
+ * - 높이 기준(상자 높이의 70%)과 너비 기준(글자 길이가 상자에 맞게) 중 작은 값
+ * - 너무 작아지면 0을 돌려준다 → 글자 없이 상자만 그림
+ * @param {number} widthPer1px  글자 크기 1px일 때의 글자 길이 (measureText 결과 ÷ 잰 크기)
+ * @param {{ width: number, height: number }} rect  픽셀
+ */
+export function fitFontSize(widthPer1px, rect) {
+  const sidePadding = rect.height * 0.15;
+  const byHeight = rect.height * 0.7;
+  const byWidth = widthPer1px > 0 ? (rect.width - sidePadding * 2) / widthPer1px : byHeight;
+  const size = Math.floor(Math.min(byHeight, byWidth));
+  return size >= MIN_LABEL_FONT ? size : 0;
+}
+
 /**
  * 0~1 정규화 좌표를 픽셀 좌표로 바꾼다. 여유(PADDING)를 더하고 페이지 밖으로 나가지 않게 자른다.
  * @param {BBox} bbox
@@ -96,10 +114,16 @@ export function drawRedactions(ctx, drawItems) {
     ctx.lineWidth = Math.max(1, Math.round(height * 0.06));
     ctx.strokeRect(x, y, width, height);
 
-    const fontSize = Math.max(10, Math.floor(height * 0.7));
+        // 100px로 길이를 재서 1px당 길이를 구하고, 상자에 맞는 크기를 계산한다
+    const text = item.text ?? '';
+    ctx.font = 'bold 100px sans-serif';
+    const fontSize = fitFontSize(ctx.measureText(text).width / 100, item.rect);
+    if (fontSize === 0) continue; // 너무 작은 상자: 흰 상자와 테두리만 (원래 글자는 이미 덮였음)
+
     ctx.fillStyle = '#1f5fbf';
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textBaseline = 'middle';
-    ctx.fillText(item.text ?? '', x + fontSize * 0.3, y + height / 2, Math.max(1, width - fontSize * 0.6));
+    // 최대 너비를 주지 않아서 글자가 가로로 눌리지 않는다 (크기를 이미 맞췄음)
+    ctx.fillText(text, x + height * 0.15, y + height / 2);
   }
 }

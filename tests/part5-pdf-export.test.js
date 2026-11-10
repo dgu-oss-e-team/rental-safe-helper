@@ -5,7 +5,7 @@ import { buildImageOnlyPdf } from '../src/features/pdf-export/export-pdf.js';
 import { validateMaskedPdf } from '../src/features/pdf-export/validate-pdf.js';
 import { exportMaskedPDF, pagesWithText } from '../src/features/pdf-export/index.js';
 import { mockLeaseDocument } from '../src/shared/mock-data.js';
-
+import { toPixelRect, planRedactions, fitFontSize } from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
 const TINY_PNG = Uint8Array.from(
   atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='),
@@ -115,5 +115,26 @@ describe('PART 5 exportMaskedPDF() 안전장치', () => {
 
   it('pagesWithText()는 글자가 있는 페이지만 돌려준다', () => {
     expect([...pagesWithText(mockLeaseDocument)]).toEqual([0]);
+  });
+});
+
+describe('PART 5 가명 글자 크기 (fitFontSize)', () => {
+  it('넓은 상자는 높이 기준(70%)으로 정한다', () => {
+    expect(fitFontSize(5, { width: 1000, height: 40 })).toBe(28);
+  });
+
+  it('좁은 상자는 글자 길이에 맞게 줄인다 (눌리지 않게)', () => {
+    // 1px당 길이 8 → 너비 100에 맞추려면 약 11px
+    const size = fitFontSize(8, { width: 100, height: 40 });
+    expect(size).toBeLessThan(28);
+    expect(size * 8).toBeLessThanOrEqual(100);
+  });
+
+  it('상자가 낮으면 10px보다 작아져도 상자 밖으로 나가지 않는다', () => {
+    expect(fitFontSize(5, { width: 1000, height: 9 })).toBeLessThanOrEqual(9 * 0.7);
+  });
+
+  it('너무 작아지면 0 → 글자 없이 상자만', () => {
+    expect(fitFontSize(20, { width: 40, height: 8 })).toBe(0);
   });
 });
