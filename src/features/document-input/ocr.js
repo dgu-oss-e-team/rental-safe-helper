@@ -10,16 +10,8 @@ let cachedWorker = null;
  */
 async function getWorker() {
   if (!cachedWorker) {
-    // @ts-ignore
-    const envBase = (/** @type {any} */ (import.meta)).env?.BASE_URL;
-    const baseUrl = envBase || '/';
-    const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    
-    cachedWorker = await createWorker('kor+eng', 1, {
-      workerPath: `${prefix}tesseract/worker.min.js`,
-      corePath: `${prefix}tesseract/tesseract-core.wasm.js`,
-      langPath: `${prefix}tesseract/lang-data`,
-    });
+    // Default CDN paths (no local public assets required)
+    cachedWorker = await createWorker('kor+eng', 1);
   }
   return cachedWorker;
 }
