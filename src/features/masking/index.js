@@ -96,9 +96,10 @@ export function coarsenAddress(address) {
   if (kept.length === 0) return '';
 
   // 3) 바로 다음이 동·읍·면이면 하나 더 남긴다: "정자동", "필동2가", "봉담읍"
-  //    숫자로 시작하는 "101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+    //    "101동", "래미안101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+    //    → 한글 뒤에 숫자는 한 자리까지만 허용 ("역삼1동", "필동2가"는 남김)
   const next = tokens[i];
-  if (next && /^[가-힣][가-힣0-9]*(동|가|읍|면)$/.test(next)) kept.push(next);
+  if (next && /^[가-힣]+[0-9]?(동|가|읍|면)$/.test(next)) kept.push(next);
   else if (refDong) kept.push(refDong);
 
   return kept.join(' ');
