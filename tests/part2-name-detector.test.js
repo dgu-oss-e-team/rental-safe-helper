@@ -26,6 +26,10 @@ describe('PART 2 라벨 기반 이름 탐지', () => {
     expect(r[0]).toMatchObject({ value: 'NGUYEN VAN A', role: 'TENANT' });
   });
 
+  it('영문 이름이 다음 줄까지 이어지지 않는다', () => {
+    expect(findLabeledNames('임차인 NGUYEN VAN A\nTel 010')[0].value).toBe('NGUYEN VAN A');
+  });
+
   it('줄 중간의 예금주도 찾는다', () => {
     const r = findLabeledNames('입금 계좌 가상은행 000-000000-00000 예금주 김철수');
     expect(r[0]).toMatchObject({ value: '김철수', role: 'ACCOUNT_HOLDER' });
@@ -72,6 +76,23 @@ describe('PART 2 주소 탐지', () => {
   it('시·군·구 없이 시·도 이름만 있으면 잡지 않는다', () => {
     expect(findAddresses('서울특별시 조례에 따라')).toHaveLength(0);
   });
+
+  it('줄여 쓴 시·도 이름도 찾는다', () => {
+    expect(findAddresses('소재지 서울 중구 필동로 00')[0].value).toBe('서울 중구 필동로 00');
+    expect(findAddresses('경기 수원시 팔달구 효원로 00')[0].value).toBe('경기 수원시 팔달구 효원로 00');
+    expect(findAddresses('광주 북구 용봉로 00')[0].value).toBe('광주 북구 용봉로 00');
+  });
+
+  it('"광주시"로 시작하는 주소는 어느 광주든 찾는다 (구분은 하지 않는다)', () => {
+    expect(findAddresses('광주시 북구 용봉로 00')[0].value).toBe('광주시 북구 용봉로 00');
+    expect(findAddresses('광주시 오포읍 00')).toHaveLength(0); // 읍·면은 아직 시·군·구로 안 봄
+  });
+
+  it('약칭과 겹치는 일상 단어는 주소로 잡지 않는다', () => {
+    expect(findAddresses('경기 도구를 챙긴다')).toHaveLength(0);
+    expect(findAddresses('경기 지시에 따라')).toHaveLength(0);
+    expect(findAddresses('남서울 중구')).toHaveLength(0);
+  });
 });
 
 describe('PART 2 사람 정보 (extractFields 재료)', () => {
@@ -90,5 +111,17 @@ describe('PART 2 사람 정보 (extractFields 재료)', () => {
 
   it('이름 앞에 있는 번호는 쓰지 않는다', () => {
     expect(findPeople('계좌 000-000000-00000 예금주 김철수')[0].birthDate).toBeNull();
+  });
+
+  it('다음 줄 사람의 번호는 가져오지 않는다', () => {
+    const r = findPeople('예금주 김철수\n임대인 이영희 750315-2******');
+    expect(r[0]).toMatchObject({ value: '김철수', birthDate: null });
+    expect(r[1]).toMatchObject({ value: '이영희', birthDate: '750315' });
+  });
+
+  it('같은 줄의 다음 사람 번호는 가져오지 않는다', () => {
+    const r = findPeople('임대인 김철수 임차인 이영희 750315-2******');
+    expect(r[0]).toMatchObject({ value: '김철수', birthDate: null });
+    expect(r[1]).toMatchObject({ value: '이영희', birthDate: '750315' });
   });
 });

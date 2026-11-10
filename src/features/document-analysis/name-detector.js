@@ -29,7 +29,8 @@ const NOT_NAMES = new Set(rules.notNames);
  * - 한글 2-4자 (뒤에 한글이 더 붙어 있으면 이름이 아니다. 예: "임대인은")
  * - 영문 대문자로 시작하는 단어 1-4개 (예: NGUYEN VAN A)
  */
-const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:\\s+[A-Z][A-Za-z\'-]*){0,3})';
+// 영문 단어 사이는 [ \t]만 허용한다. \s를 쓰면 줄바꿈을 넘어 다음 줄 단어(예: "Tel")까지 이름에 붙는다.
+const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:[ \\t]+[A-Z][A-Za-z\'-]*){0,3})';
 
 /**
  * 라벨 하나에 대한 정규식을 만든다.
@@ -70,9 +71,11 @@ export function findLabeledNames(text) {
  * 주소 찾기: 시·도 이름 + 공백 + 시·군·구로 시작하는 부분부터 줄 끝(또는 괄호 앞)까지.
  * 예: "소재지 서울특별시 중구 필동로 00, 101호" → "서울특별시 중구 필동로 00, 101호"
  * 등기부처럼 라벨 없이 주소만 있는 줄도 찾는다.
+ * "서울 중구"처럼 줄여 쓴 시·도 이름도 찾는다. 약칭("경기", "강원")은 일상 단어와 겹치므로
+ * 시·도 이름 앞과 시·군·구 뒤에 한글이 붙어 있으면 주소로 보지 않는다. (예: "경기 도구를", "남서울")
  */
 const ADDRESS_REGEX = new RegExp(
-  `(?:${rules.addressRegions.map(escapeRegex).join('|')})\\s+[가-힣]+(?:시|군|구)(?:[^\\n(]*[^\\s\\n(])?`,
+  `(?<![가-힣])(?:${rules.addressRegions.map(escapeRegex).join('|')})\\s+[가-힣]+(?:시|군|구)(?![가-힣])(?:[^\\n(]*[^\\s\\n(])?`,
   'g',
 );
 
@@ -96,13 +99,19 @@ export function findAddresses(text) {
 /**
  * 사람 정보(이름 + 역할 + 생년월일)를 찾는다. extractFields()가 쓸 재료다.
  * 생년월일은 같은 줄에서 이름 뒤에 처음 나오는 주민·외국인등록번호의 앞 6자리다.
+ * 찾는 범위는 줄 끝 또는 다음 사람의 이름 중 먼저 오는 곳까지다.
+ * (다른 사람의 번호를 가져오면 계좌주 확인이 "확인 불가" 대신 "같은 사람"으로 잘못 나올 수 있다.)
  * 번호가 없으면 birthDate는 null이다. (못 읽음 = null 규칙)
  * @param {string} text
  */
 export function findPeople(text) {
   const ids = findIdNumbers(text);
-  return findLabeledNames(text).map((person) => {
-    const id = ids.find((i) => i.start >= person.end);
+  const people = findLabeledNames(text);
+  return people.map((person, idx) => {
+    const lineEnd = text.indexOf('\n', person.end);
+    const next = people[idx + 1];
+    const limit = Math.min(lineEnd === -1 ? text.length : lineEnd, next ? next.start : text.length);
+    const id = ids.find((i) => i.start >= person.end && i.start < limit);
     const birthDate = id ? id.value.replace(/\D/g, '').slice(0, 6) || null : null;
     return { ...person, birthDate: birthDate && birthDate.length === 6 ? birthDate : null };
   });
