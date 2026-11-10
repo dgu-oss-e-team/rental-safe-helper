@@ -45,6 +45,24 @@ describe('PART 4 동일 인물 판별 matchPeople()', () => {
     expect(groups.find((g) => g.findingIds.includes('C')).status).toBe('AMBIGUOUS');
   });
 
+  it('순서가 바뀌어도 생년월일 없는 사람은 AMBIGUOUS (리뷰 2번)', () => {
+    const fields = makeFields({
+      owners: [{ findingId: 'C', name: '김철수', birthDate: null, role: 'OWNER' }],
+      landlords: [{ findingId: 'B', name: '김철수', birthDate: '750315', role: 'LANDLORD' }],
+    });
+    const groups = matchPeople(fields).data;
+    expect(groups.find((g) => g.findingIds.includes('C')).status).toBe('AMBIGUOUS');
+  });
+
+  it('이름은 다른데 생년월일이 같으면 OCR 오타일 수 있어 둘 다 AMBIGUOUS (리뷰 1번)', () => {
+    const fields = makeFields({
+      owners: [{ findingId: 'A', name: '김철수', birthDate: '800101', role: 'OWNER' }],
+      landlords: [{ findingId: 'B', name: '김철슈', birthDate: '800101', role: 'LANDLORD' }],
+    });
+    const groups = matchPeople(fields).data;
+    expect(groups.map((g) => g.status)).toEqual(['AMBIGUOUS', 'AMBIGUOUS']);
+  });
+
   it('띄어쓰기가 달라도 같은 이름으로 본다', () => {
     expect(normalizeName('김 철수')).toBe(normalizeName('김철수'));
     expect(normalizeName('Nguyen Van A')).toBe('NGUYENVANA');

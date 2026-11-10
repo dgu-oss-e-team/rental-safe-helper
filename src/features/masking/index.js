@@ -12,8 +12,10 @@
  * 규칙: 고유식별정보(주민·외국인등록번호, 여권번호)는 모든 목적에서 가린다.
  *       같은 사람 = 같은 가명, 동명이인 = 다른 가명. 생년월일은 판정에만 쓰고 AI로 보내지 않는다.
  *
- * TODO(PART 4): matchPeople()을 Fuse.js 이름 유사도 + 생년월일 판정으로 교체 (person-matcher.js, alias-manager.js).
- *               아래 createMaskingPlan/applyMaskingPlan은 흐름 연결용 기본 구현이니 자유롭게 고쳐도 된다.
+ * 구현 상태
+ *   완료: matchPeople() 이름 + 생년월일 판정 (person-matcher.js, alias-manager.js)
+ *   TODO(PART 4): Fuse.js 이름 유사도, 목적별 마스킹 규칙(masking-policy.json) 정리,
+ *                 createMaskingPlan/applyMaskingPlan 파일 분리.
  */
 
 import {
@@ -49,7 +51,6 @@ const ROLE_MEANING = {
  */
 export function matchPeople(fields) {
   if (!fields) return fail(ERROR_CODE.INVALID_INPUT, 'Extracted fields are missing.');
-  // TODO(PART 4): 실제 판정으로 교체
   const people = collectPeople(fields);
   const groups = groupPeople(people);
   return ok(assignAliases(groups));
