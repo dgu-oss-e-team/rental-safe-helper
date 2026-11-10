@@ -1,175 +1,151 @@
 // @ts-check
 /**
- * PART 5. 앱 시작점과 최소 화면 (스켈레톤)
+ * PART 5. 앱 시작점: 단계별 화면과 상태 연결
  *
- * 화면 문구는 영어(제안서 기준). 서류 텍스트를 innerHTML에 넣지 않는다(textContent만 사용).
- * TODO(PART 5): 단계별 화면(업로드 → OCR 확인 → 결과 → 목적 선택 → 보내기 전 확인 → 상담)으로 나누고,
- *               각 파트가 만든 UI 요소(ocr-editor, risk-result-ui, masking-review-ui)를 연결한다.
+ * 단계: ① 서류 올리기 → ② 위험 점검 결과 → ③ 목적 선택 → ④ 보내기 전 확인 → ⑤ 다운로드·AI 상담
+ * 화면 문구는 영어(제안서 기준). 서류 텍스트는 textContent로만 넣는다(ui.js의 el()).
+ * 다른 파트 UI(위험 결과 카드, 마스킹 확인, OCR 수정)는 slots.js의 자리에 연결한다.
+ * TODO(PART 5): PART 1 ocr-editor가 생기면 ①과 ② 사이에 "OCR 결과 확인" 단계를 넣는다 (사진 업로드일 때만).
  */
 
 import './style.css';
-import { runPipeline } from './pipeline.js';
-import { appState } from './app-state.js';
-import { MASKING_PURPOSE } from '../shared/document-model.js';
+import { analyzeDocuments, prepareForAi, exportMaskedPdfs } from './pipeline.js';
+import { appState, initialState } from './app-state.js';
+import { el, button, stepper, disclaimer, card, actions } from './ui.js';
+import { uploadScreen } from './screens/upload.js';
+import { resultsScreen } from './screens/results.js';
+import { purposeScreen } from './screens/purpose.js';
+import { reviewScreen } from './screens/review.js';
+import { doneScreen } from './screens/done.js';
+
+/** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
+const STEP_TEXT = {
+  input: 'choosing files',
+  readDocument: 'reading the documents',
+  classifyDocument: 'recognizing the document type',
+  detectPII: 'finding personal information',
+  extractFields: 'reading the document items',
+  matchPeople: 'matching people',
+  assessRisks: 'checking risks',
+  createMaskingPlan: 'hiding personal information',
+  applyMaskingPlan: 'hiding personal information',
+  validateMaskedText: 'checking that nothing is left',
+  buildPrompt: 'writing the AI prompt',
+};
 
 /**
- * @param {string} tag
- * @param {Record<string, string>} [attrs]
- * @param {(Node | string)[]} [children]
+ * 화면에서 부르는 동작 모음
+ * @typedef {Object} Actions
+ * @property {(patch: Partial<{ registry: File | null, lease: File | null }>) => void} setFiles
+ * @property {() => Promise<void>} analyze
+ * @property {() => Promise<void>} analyzeSample
+ * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
+ * @property {(purpose: string) => void} setPurpose
+ * @property {() => void} prepare
+ * @property {(checked: boolean) => void} setReviewed
+ * @property {() => Promise<void>} finish
+ * @property {() => void} restart
  */
-function el(tag, attrs = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  for (const c of children) node.append(c);
-  return node;
+
+/**
+ * 실패 결과를 화면 상태로 바꾼다. (메시지에는 개인정보가 들어가지 않도록 각 파트가 영어 안내만 넣는다)
+ * @param {{ step?: string, error: { code: string, message: string } }} r
+ */
+const toError = (r) => ({ step: r.step, ...r.error });
+
+/** @param {File[]} files */
+async function runAnalysis(files) {
+  appState.setState({ busy: 'Reading your documents and checking risks…', error: null });
+  const r = await analyzeDocuments({ files });
+  if (r.ok) appState.setState({ busy: null, analysis: r.data, prepared: null, pdfs: null, reviewed: false, step: 'results' });
+  else appState.setState({ busy: null, error: toError(r) });
 }
+
+/** @type {Actions} */
+const act = {
+  setFiles(patch) {
+    appState.setState({ files: { ...appState.getState().files, ...patch }, error: null });
+  },
+  async analyze() {
+    const { registry, lease } = appState.getState().files;
+    await runAnalysis(/** @type {File[]} */ ([registry, lease].filter(Boolean)));
+  },
+  async analyzeSample() {
+    // 빈 파일 = 샘플 데이터 (PART 1이 가상 등기부·계약서를 돌려준다)
+    await runAnalysis([
+      new File([''], 'sample-registry.pdf', { type: 'application/pdf' }),
+      new File([''], 'sample-lease.pdf', { type: 'application/pdf' }),
+    ]);
+  },
+  goTo(step) {
+    appState.setState({ step, error: null });
+  },
+  setPurpose(purpose) {
+    // 목적이 바뀌면 이전에 만든 마스킹 결과는 버린다
+    appState.setState({ purpose, prepared: null, pdfs: null, reviewed: false });
+  },
+  prepare() {
+    const { analysis, purpose } = appState.getState();
+    if (!analysis) return;
+    const r = prepareForAi(analysis, purpose);
+    if (r.ok) appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
+    else appState.setState({ error: toError(r) });
+  },
+  setReviewed(checked) {
+    appState.setState({ reviewed: checked });
+  },
+  async finish() {
+    const { analysis, prepared } = appState.getState();
+    if (!analysis || !prepared) return;
+    appState.setState({ busy: 'Creating the masked PDF…', error: null });
+    const pdfs = await exportMaskedPdfs(analysis, prepared.maskingPlan);
+    appState.setState({ busy: null, pdfs, step: 'done' });
+  },
+  restart() {
+    appState.setState(initialState());
+  },
+};
+
+const SCREENS = {
+  upload: uploadScreen,
+  results: resultsScreen,
+  purpose: purposeScreen,
+  review: reviewScreen,
+  done: doneScreen,
+};
 
 const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
 
-const registryInput = /** @type {HTMLInputElement} */ (
-  el('input', { type: 'file', id: 'registry-file', accept: '.pdf,.jpg,.jpeg,.png' })
-);
-const leaseInput = /** @type {HTMLInputElement} */ (
-  el('input', { type: 'file', id: 'lease-file', accept: '.pdf,.jpg,.jpeg,.png' })
-);
-const purposeSelect = /** @type {HTMLSelectElement} */ (el('select', { id: 'purpose' }));
-for (const [value, label] of [
-  [MASKING_PURPOSE.FRAUD_CHECK, 'Check fraud risks'],
-  [MASKING_PURPOSE.CLAUSE_EXPLANATION, 'Explain clauses and terms'],
-  [MASKING_PURPOSE.CONTRACT_EXPLANATION, 'Explain contract conditions'],
-]) {
-  purposeSelect.append(el('option', { value }, [label]));
-}
-
-const runButton = el('button', { type: 'button', id: 'run' }, ['Check my documents']);
-const sampleButton = el('button', { type: 'button', id: 'run-sample', class: 'secondary' }, ['Try with sample data']);
-const output = el('div', { id: 'output' });
-
-app.append(
-  el('header', {}, [
-    el('h1', {}, ['Rental Safety Helper']),
-    el('p', { class: 'notice' }, [
-      'Your documents stay in this browser. This is not legal advice. (Skeleton version: results are sample data.)',
-    ]),
-  ]),
-  el('section', { class: 'card' }, [
-    el('label', { for: 'registry-file' }, ['Property register (등기부등본)']),
-    registryInput,
-    el('label', { for: 'lease-file' }, ['Lease contract (임대차계약서)']),
-    leaseInput,
-    el('label', { for: 'purpose' }, ['What do you want to ask AI?']),
-    purposeSelect,
-    el('div', { class: 'actions' }, [runButton, sampleButton]),
-  ]),
-  output,
-);
-
-/**
- * @param {string} title
- * @param {unknown} data
- */
-function jsonSection(title, data) {
-  return el('section', { class: 'card' }, [el('h2', {}, [title]), el('pre', {}, [JSON.stringify(data, null, 2)])]);
-}
-
-/** 다운로드 링크용 주소. 다시 그릴 때 이전 주소를 풀어 메모리를 돌려준다 */
-let downloadUrls = [];
-
-/**
- * 마스킹 PDF 다운로드 영역 (PART 5)
- * @param {{ documentId: string, documentType: string, result: any }[]} pdfs
- */
-function pdfSection(pdfs) {
-  const section = el('section', { class: 'card' }, [el('h2', {}, ['7. Masked PDF (PART 5)'])]);
-  for (const p of pdfs) {
-    if (p.result.ok) {
-      const url = URL.createObjectURL(p.result.data.blob);
-      downloadUrls.push(url);
-      section.append(
-        el('a', { class: 'download', href: url, download: p.result.data.fileName }, [
-          `Download ${p.result.data.fileName} (${p.result.data.pageCount} page${p.result.data.pageCount > 1 ? 's' : ''})`,
-        ]),
-      );
-    } else {
-      section.append(el('p', { class: 'error' }, [`${p.documentId}: ${p.result.error.message}`]));
-    }
-  }
-  section.append(
-    el('p', { class: 'notice' }, ['The PDF is rebuilt from page images, so the original text cannot be copied from it.']),
+/** @param {{ step?: string, code: string, message: string }} error */
+function errorCard(error) {
+  return card(
+    'Something went wrong',
+    [
+      el('p', {}, [`We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}.`]),
+      el('p', { class: 'hint' }, [`${error.message} (${error.code})`]),
+      actions([button('Start over', () => act.restart(), { variant: 'secondary' })]),
+    ],
+    'error-card',
   );
-  return section;
-}
-
-/**
- * 서류 종류를 알 수 없을 때 안내 (PART 2가 UNKNOWN을 돌려준 경우)
- * @param {{ documentType: string }[]} documents
- */
-function unknownTypeNotice(documents) {
-  const count = documents.filter((d) => d.documentType === 'UNKNOWN').length;
-  if (count === 0) return [];
-  return [
-    el('p', { class: 'error' }, [
-      `We could not tell the type of ${count} document(s). Please check that you uploaded a property register or a lease contract.`,
-    ]),
-  ];
 }
 
 function render() {
-  const { status, result, error } = appState.getState();
-  downloadUrls.forEach((url) => URL.revokeObjectURL(url));
-  downloadUrls = [];
-  output.replaceChildren();
-  if (status === 'running') output.append(el('p', {}, ['Working…']));
-  if (status === 'error' && error) {
-    output.append(el('p', { class: 'error' }, [`Stopped at ${error.step ?? 'unknown step'}: ${error.message}`]));
-  }
-  if (status !== 'done' || !result) return;
-
-  const promptBox = /** @type {HTMLTextAreaElement} */ (el('textarea', { rows: '14', readonly: '' }));
-  promptBox.value = result.prompt;
-  const copyButton = el('button', { type: 'button' }, ['Copy prompt']);
-  copyButton.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(result.prompt);
-      copyButton.textContent = 'Copied';
-    } catch {
-      promptBox.select();
-      copyButton.textContent = 'Press Ctrl+C to copy';
-    }
-  });
-
-  output.append(
-    ...unknownTypeNotice(result.documents),
-    jsonSection('1. Documents (PART 1·2)', result.documents.map((d) => ({ id: d.documentId, type: d.documentType }))),
-    jsonSection('2. Personal information found (PART 2)', result.findings.map((f) => ({ id: f.id, type: f.type }))),
-    jsonSection('3. Risk check (PART 3)', result.riskResults),
-    jsonSection('4. Masking plan (PART 4)', result.maskingPlan),
-    jsonSection('5. Masked text (PART 4)', result.maskedText),
-    el('section', { class: 'card' }, [el('h2', {}, ['6. Prompt for AI (PART 3)']), promptBox, copyButton]),
-    pdfSection(result.pdfs),
-  );
+  const state = appState.getState();
+  const screen = SCREENS[state.step] ?? uploadScreen;
+  const parts = [
+    el('header', {}, [el('h1', {}, ['Rental Safety Helper']), disclaimer()]),
+    stepper(state.step),
+    state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
+    state.error ? errorCard(state.error) : null,
+    state.busy ? null : screen(state, act),
+  ];
+  app.replaceChildren(.../** @type {HTMLElement[]} */ (parts.filter(Boolean)));
+  // 단계가 바뀌면 화면 맨 위로 (휴대폰에서 다음 단계가 아래에 숨지 않게)
+  if (render.lastStep !== state.step) window.scrollTo({ top: 0 });
+  render.lastStep = state.step;
 }
+/** @type {string | undefined} */
+render.lastStep = undefined;
 
 appState.subscribe(render);
-
-/** @param {File[]} files */
-async function run(files) {
-  appState.setState({ status: 'running', result: null, error: null });
-  const r = await runPipeline({ files, purpose: purposeSelect.value });
-  if (r.ok) appState.setState({ status: 'done', result: r.data });
-  else appState.setState({ status: 'error', error: { step: r.step, ...r.error } });
-}
-
-runButton.addEventListener('click', () => {
-  const files = [registryInput.files?.[0], leaseInput.files?.[0]].filter((f) => f !== undefined);
-  run(/** @type {File[]} */ (files));
-});
-
-sampleButton.addEventListener('click', () => {
-  run([
-    new File([''], 'sample-registry.pdf', { type: 'application/pdf' }),
-    new File([''], 'sample-lease.pdf', { type: 'application/pdf' }),
-  ]);
-});
-
 render();

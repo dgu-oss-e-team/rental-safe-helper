@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runPipeline } from '../src/app/pipeline.js';
+import { runPipeline, analyzeDocuments, prepareForAi, exportMaskedPdfs } from '../src/app/pipeline.js';
 import { checkPlanCoordinates } from '../src/features/pdf-export/index.js';
 import { MASKING_PURPOSE } from '../src/shared/document-model.js';
 
@@ -36,5 +36,37 @@ describe('PART 5 전체 파이프라인 (Mock 연결)', () => {
     expect(checkPlanCoordinates(plan).ok).toBe(false);
   });
 
-  // TODO(PART 5): 실제 PDF 생성 후 텍스트·메타데이터가 남지 않는지 검증하는 테스트
+  // 실제 PDF 생성·검증은 tests/part5-pdf-export.test.js에서 한다
+});
+
+describe('PART 5 화면 단계별 파이프라인', () => {
+  it('분석 → 목적 선택 → AI 준비를 나눠 실행해도 한 번에 실행한 결과와 같다', async () => {
+    const analyzed = await analyzeDocuments({ files: sampleFiles() });
+    expect(analyzed.ok).toBe(true);
+    const prepared = prepareForAi(analyzed.data, MASKING_PURPOSE.FRAUD_CHECK);
+    const all = await runPipeline({ files: sampleFiles(), purpose: MASKING_PURPOSE.FRAUD_CHECK });
+    expect(prepared.data.prompt).toBe(all.data.prompt);
+    expect(prepared.data.maskingPlan).toEqual(all.data.maskingPlan);
+  });
+
+  it('한 번 분석한 결과로 목적만 바꿔서 다시 준비할 수 있다 (서류를 다시 읽지 않음)', async () => {
+    const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
+    const fraud = prepareForAi(analyzed, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const clause = prepareForAi(analyzed, MASKING_PURPOSE.CLAUSE_EXPLANATION).data;
+    expect(fraud.prompt).toContain('Role legend');
+    expect(clause.prompt).not.toContain('Role legend');
+  });
+
+  it('알 수 없는 목적이면 어느 단계에서 멈췄는지 알려준다', async () => {
+    const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
+    expect(prepareForAi(analyzed, 'WHATEVER')).toMatchObject({ ok: false, step: 'createMaskingPlan' });
+  });
+
+  it('PDF는 서류마다 결과가 하나씩 나오고, 실패해도 오류를 던지지 않는다 (Node에는 캔버스가 없음)', async () => {
+    const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
+    const prepared = prepareForAi(analyzed, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const pdfs = await exportMaskedPdfs(analyzed, prepared.maskingPlan);
+    expect(pdfs).toHaveLength(2);
+    for (const p of pdfs) expect(p.result).toHaveProperty('ok');
+  });
 });
