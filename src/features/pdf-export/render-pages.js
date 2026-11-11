@@ -140,6 +140,20 @@ export async function canvasToJpeg(canvas) {
 }
 
 /**
+ * 캔버스를 줄인 새 캔버스를 만든다. (화면 미리보기용. 이미 가린 캔버스를 줄이므로 원본 글자가 다시 나오지 않는다)
+ * @param {HTMLCanvasElement | OffscreenCanvas} canvas
+ * @param {number} maxWidth
+ * @returns {HTMLCanvasElement | OffscreenCanvas}
+ */
+export function scaleCanvas(canvas, maxWidth) {
+  if (canvas.width <= maxWidth) return canvas;
+  const ratio = maxWidth / canvas.width;
+  const small = createCanvas(maxWidth, Math.round(canvas.height * ratio));
+  context2d(small).drawImage(/** @type {CanvasImageSource} */ (canvas), 0, 0, small.width, small.height);
+  return small;
+}
+
+/**
  * 원본 종류에 맞게 페이지를 그린다.
  * @param {DocumentModel} document
  * @param {Blob | undefined} file

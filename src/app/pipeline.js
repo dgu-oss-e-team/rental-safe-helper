@@ -22,7 +22,7 @@ import {
   applyMaskingPlan,
   validateMaskedText,
 } from '../features/masking/index.js';
-import { exportMaskedPDF } from '../features/pdf-export/index.js';
+import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 
 /**
@@ -162,6 +162,25 @@ export async function exportMaskedPdfs(analysis, maskingPlan) {
     });
   }
   return pdfs;
+}
+
+/**
+ * ④ 확인 화면용: 서류마다 마스킹된 페이지 미리보기 이미지를 만든다. (PDF와 같은 방법으로 그림)
+ * 한 서류가 실패해도 나머지는 계속 만든다.
+ * @param {Analysis} analysis
+ * @param {import('../shared/document-model.js').MaskingPlan} maskingPlan
+ */
+export async function previewMaskedPdfs(analysis, maskingPlan) {
+  const previews = [];
+  for (const [i, doc] of analysis.documents.entries()) {
+    const docPlan = { ...maskingPlan, items: maskingPlan.items.filter((item) => item.documentId === doc.documentId) };
+    previews.push({
+      documentId: doc.documentId,
+      documentType: doc.documentType,
+      result: await previewMaskedPages(doc, docPlan, { file: analysis.files[i] }),
+    });
+  }
+  return previews;
 }
 
 /**

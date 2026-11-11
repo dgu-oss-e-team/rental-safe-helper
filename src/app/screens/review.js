@@ -2,7 +2,43 @@
 /** PART 5. ④ 보내기 전 확인 화면 (확인 내용은 PART 4 자리) */
 
 import { el, button, card, actions } from '../ui.js';
-import { slots } from '../slots.js';
+import { slots, DOCUMENT_TEXT } from '../slots.js';
+
+/**
+ * 마스킹 PDF 미리보기 (PDF와 같은 방법으로 그린 페이지 이미지)
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ */
+function pdfPreview(state) {
+  const ready = state.previews && state.previews.forPrepared === state.prepared;
+  if (!ready) {
+    return el('p', { class: 'busy', role: 'status' }, [
+      el('span', { class: 'spinner', 'aria-hidden': 'true' }),
+      'Drawing the masked pages…',
+    ]);
+  }
+  return el(
+    'div',
+    { class: 'page-previews' },
+    /** @type {NonNullable<typeof state.previews>} */ (state.previews).docs.map((doc) => {
+      const name = DOCUMENT_TEXT[doc.documentType] ?? doc.documentType;
+      return el('div', {}, [
+        el('h3', {}, [name]),
+        doc.error
+          ? el('p', { class: 'warning' }, [`Preview not available: ${doc.error.message}`])
+          : null,
+        ...doc.pages.map((pg) =>
+          el('img', {
+            class: 'page-preview',
+            src: pg.url,
+            width: String(pg.width),
+            height: String(pg.height),
+            alt: `Masked page ${pg.pageIndex + 1} of the ${name}`,
+          }),
+        ),
+      ]);
+    }),
+  );
+}
 
 /**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
@@ -27,7 +63,14 @@ export function reviewScreen(state, act) {
         edits: state.maskingEdits,
         onChange: (edits) => act.setMaskingEdits(edits),
       }),
-      el('label', { class: 'confirm', for: 'reviewed' }, [confirm, ' I checked that no personal information is left.']),
+    ]),
+    card('How the masked PDF will look', [
+      el('p', {}, ['The PDF you download is made from these page images. Black boxes and role names replace the hidden parts.']),
+      pdfPreview(state),
+    ]),
+    el('label', { class: 'confirm', for: 'reviewed' }, [
+      confirm,
+      ' I checked the text and the pages above. No personal information is left.',
     ]),
     actions([
       button('Create masked PDF and AI prompt', () => act.finish(), { disabled: !state.reviewed }),
