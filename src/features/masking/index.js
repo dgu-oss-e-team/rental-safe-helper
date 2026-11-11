@@ -5,9 +5,10 @@
  *
  * 공개 함수
  *   matchPeople(fields)                                  → Result<PersonGroup[]>
- *   createMaskingPlan(findings, personGroups, purpose)   → Result<MaskingPlan>
- *   applyMaskingPlan(documents, plan, findings, personGroups) → Result<{ maskedText, legend }>   (PART 3 프롬프트용)
- *   validateMaskedText(maskedText, findings, plan)       → Result<{ checked: number }>     (외부 전달 전 검사)
+ *   createMaskingPlan(findings, personGroups, purpose, edits?)   → Result<MaskingPlan>
+ *   applyMaskingPlan(documents, plan, findings, personGroups, edits?) → Result<{ maskedText, legend }>   (PART 3 프롬프트용)
+ *   validateMaskedText(maskedText, findings, plan, edits?)       → Result<{ checked: number }>     (외부 전달 전 검사)
+ *   edits(사용자 수정) 규칙은 user-edits.js
  *
  * 규칙: 고유식별정보(주민·외국인등록번호, 여권번호)는 모든 목적에서 가린다.
  *       같은 사람 = 같은 가명, 동명이인 = 다른 가명. 생년월일은 판정에만 쓰고 AI로 보내지 않는다.
@@ -15,6 +16,7 @@
  * 구현 상태
  *   완료: matchPeople() 이름 + 생년월일 판정 (person-matcher.js, alias-manager.js)
  *   완료: 주소 시·구(동)까지 남기기 (coarsenAddress, 줄임말, 두 줄 주소 groupId)
+ *   완료: 사용자 수정 edits (remove 규칙 3가지, add 가리기·검사)
  *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, masking-review-ui.
  */
 
@@ -28,6 +30,7 @@ import {
 } from '../../shared/document-model.js';
 import { collectPeople, groupPeople } from './person-matcher.js';
 import { assignAliases } from './alias-manager.js';
+import { resolveRemovals, addEditsToItems, hasInvalidAddPosition, maskAddsInBlock, validAdds } from './user-edits.js';
 import policy from '../../config/masking/masking-policy.json';
 // 시·도 이름 목록 (정식 이름 + 줄임말). PART 2가 관리하는 설정 파일을 같이 읽는다.
 import personLabels from '../../config/templates/person-labels.json';
@@ -96,8 +99,8 @@ export function coarsenAddress(address) {
   if (kept.length === 0) return '';
 
   // 3) 바로 다음이 동·읍·면이면 하나 더 남긴다: "정자동", "필동2가", "봉담읍"
-    //    "101동", "래미안101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
-    //    → 한글 뒤에 숫자는 한 자리까지만 허용 ("역삼1동", "필동2가"는 남김)
+  //    "101동", "래미안101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+  //    → 한글 뒤에 숫자는 한 자리까지만 허용 ("역삼1동", "필동2가"는 남김)
   const next = tokens[i];
   if (next && /^[가-힣]+[0-9]?(동|가|읍|면)$/.test(next)) kept.push(next);
   else if (refDong) kept.push(refDong);
@@ -110,14 +113,20 @@ export function coarsenAddress(address) {
  * @param {PiiFinding[]} findings
  * @param {PersonGroup[]} personGroups
  * @param {string} purpose  MASKING_PURPOSE 값
+ * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자 수정 (없으면 빈 값)
  */
-export function createMaskingPlan(findings, personGroups, purpose) {
+export function createMaskingPlan(findings, personGroups, purpose, edits) {
   if (!Object.values(MASKING_PURPOSE).includes(purpose)) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Unknown purpose.');
   }
   if (!Array.isArray(findings) || !Array.isArray(personGroups)) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Findings or person groups are missing.');
   }
+  // 사용자가 더 가린 글자는 PDF 위치가 꼭 있어야 한다 (빼면 PDF에서 안 가려짐)
+  if (hasInvalidAddPosition(edits)) {
+    return fail(ERROR_CODE.COORDINATE_INVALID, 'A user-selected area has no valid position.');
+  }
+
 
   /** @type {Record<string, string>} */
   const rules = policy[/** @type {keyof typeof policy} */ (purpose)];
@@ -137,8 +146,12 @@ export function createMaskingPlan(findings, personGroups, purpose) {
     else addressGroups.set(f.groupId, { firstId: f.id, text: f.value });
   }
 
+  // 사용자가 해제한 것 (규칙 적용 후)
+  const keepIds = resolveRemovals(findings, personGroups, edits);
+
   const items = findings.map((f) => {
     let action = rules[f.type] ?? MASKING_ACTION.REDACT; // 모르는 종류는 안전하게 가림
+    if (keepIds.has(f.id)) action = MASKING_ACTION.KEEP;
     /** @type {string | null} */
     let replacement = REDACTED;
 
@@ -174,6 +187,9 @@ export function createMaskingPlan(findings, personGroups, purpose) {
     };
   });
 
+  // 사용자가 더 가린 글자는 항상 REDACT로 뒤에 붙인다
+  items.push(...addEditsToItems(edits));
+
   return ok({ purpose, items });
 }
 
@@ -183,8 +199,9 @@ export function createMaskingPlan(findings, personGroups, purpose) {
  * @param {MaskingPlan} plan
  * @param {PiiFinding[]} findings
  * @param {PersonGroup[]} personGroups
+ * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자가 더 가린 글자(add)도 가린다
  */
-export function applyMaskingPlan(documents, plan, findings, personGroups) {
+export function applyMaskingPlan(documents, plan, findings, personGroups, edits) {
   if (!Array.isArray(documents) || !plan?.items) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Documents or masking plan are missing.');
   }
@@ -203,6 +220,7 @@ export function applyMaskingPlan(documents, plan, findings, personGroups) {
           if (item.action === MASKING_ACTION.KEEP) continue;
           text = text.split(f.value).join(item.replacement ?? REDACTED);
         }
+        text = maskAddsInBlock(text, doc.documentId, block.blockId, edits);
         lines.push(text);
       }
     }
@@ -243,15 +261,20 @@ function findSpans(text, words) {
  * @param {Record<string, string>} maskedText
  * @param {PiiFinding[]} findings
  * @param {MaskingPlan} plan
+ * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자가 더 가린 글자(add)도 검사한다
  */
-export function validateMaskedText(maskedText, findings, plan) {
+export function validateMaskedText(maskedText, findings, plan, edits) {
   const all = Object.values(maskedText).join('\n');
   // 일부러 남긴 글자(가명, 줄인 주소)가 있는 자리. 원래 값이 이 자리 "안에서만" 보이면 새어 나간 게 아니다.
   // 예: 두 줄 주소 조각 "서울특별시"는 줄인 주소 "서울특별시 중구" 안에 들어 있다.
-  const allowedSpans = findSpans(
-    all,
-    plan.items.filter((i) => i.action === MASKING_ACTION.REPLACE && i.replacement).map((i) => String(i.replacement)),
-  );
+  // 사용자가 해제한(KEEP) 값도 일부러 보이는 글자다. 같은 글자의 다른 항목(예: 동명이인)이 이 자리 때문에 걸리지 않게 한다.
+  const findingById = new Map(findings.map((f) => [f.id, f]));
+  const allowedTexts = plan.items.flatMap((i) => {
+    if (i.action === MASKING_ACTION.REPLACE && i.replacement) return [String(i.replacement)];
+    if (i.action === MASKING_ACTION.KEEP) return [findingById.get(i.findingId)?.value ?? ''];
+    return [];
+  });
+  const allowedSpans = findSpans(all, allowedTexts);
   // 하이픈·공백을 뺀 숫자열로도 비교한다 (줄 단위로 비교해 다른 줄의 숫자가 이어 붙지 않게 함)
   const digitLines = all.split('\n').map((line) => line.replace(/[^0-9]/g, ''));
   const actionById = new Map(plan.items.map((i) => [i.findingId, i.action]));
@@ -267,6 +290,13 @@ export function validateMaskedText(maskedText, findings, plan) {
     if (leaked) {
       // 메시지에 실제 값을 넣지 않는다
       return fail(ERROR_CODE.INVALID_INPUT, `Masking check failed: a ${f.type} value is still visible.`);
+    }
+  }
+  // 사용자가 더 가린 글자도 남아 있으면 안 된다
+  for (const a of validAdds(edits)) {
+    checked += 1;
+    if (findSpans(all, [a.value]).some(([x0, x1]) => !allowedSpans.some(([x, y]) => x <= x0 && x1 <= y))) {
+      return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a user-selected value is still visible.');
     }
   }
   return ok({ checked });

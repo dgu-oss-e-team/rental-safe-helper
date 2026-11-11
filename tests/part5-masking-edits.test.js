@@ -25,7 +25,10 @@ const sampleFiles = () => [
 // 가상 데이터만 사용
 const someEdits = () => ({
   remove: ['PII_TEST_001'],
-  add: [{ id: 'USER_001', documentId: 'DOC_TEST', blockId: 'BLOCK_001', value: 'Sample text' }],
+  add: [{
+    id: 'USER_001', documentId: 'DOC_TEST', blockId: 'BLOCK_001', value: 'Sample text',
+    pageIndex: 0, bbox: { x: 0.1, y: 0.1, width: 0.3, height: 0.03 }, // INTERFACES.md 8번: add에 PDF 위치 필수
+  }],
 });
 
 describe('PART 5 사용자 수정(maskingEdits) 상태', () => {

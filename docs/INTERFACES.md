@@ -180,13 +180,16 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
     id: 'USER_001',
     documentId: 'DOC_002',
     blockId: 'BLOCK_014',
-    value: '선택한 글자'
+    value: '선택한 글자',
+    pageIndex: 0,                  // 그 block이 있는 페이지 (PART 4 확인 화면이 채움)
+    bbox: { x: 0.1, y: 0.62, width: 0.5, height: 0.03 }  // 그 block의 bbox (PDF에서 가릴 자리)
   }]
 }
 ```
 
 - **흐름**: PART 4 `masking-review-ui`가 바뀔 때마다 `onChange(edits)`로 **edits 전체**를 넘긴다(바뀐 부분만 X). PART 5는 상태(`maskingEdits`)에 저장하고 `createMaskingPlan` → `applyMaskingPlan` → `validateMaskedText`에 **모두 edits를 넘겨** 미리보기를 갱신한다(9번 표). 규칙 적용은 모두 PART 4가 한다.
-- **add**: 항상 `REDACT`. AI로 보내는 글(maskedText)에서는 `value`를 가리고, PDF용 `bbox`는 PART 4가 그 block 위치로 채운다.
+- **add**: 항상 `REDACT`. AI로 보내는 글(maskedText)에서는 `value`를 가리고, PDF용 `pageIndex`·`bbox`는 PART 4 확인 화면이 add를 만들 때 그 block 위치로 채운다.
+  `pageIndex`·`bbox`가 없거나 `isValidBBox`가 아니면 `createMaskingPlan`이 그 항목을 빼지 않고 `COORDINATE_INVALID`로 **실패**한다(빼면 AI 글에서는 가려지는데 PDF에서는 안 가려짐). PART 5는 실패하면 이전 상태를 유지하고 오류를 보여 준다.
   findings에 없는 글자이므로 `applyMaskingPlan`·`validateMaskedText`는 edits의 `add`를 보고 가리고 검사한다.
   계획(위 items)에는 이렇게 들어간다: `{ findingId: 'USER_001', action: 'REDACT', replacement: '[REDACTED]', documentId, pageIndex, bbox: 그 block의 bbox }` (findingId = add의 `id`)
 - **remove**: 해제할 수 없는 종류는 무시한다: `RESIDENT_ID`, `FOREIGNER_ID`, `PASSPORT_ID`, `PHONE_NUMBER`, `BANK_ACCOUNT`.
