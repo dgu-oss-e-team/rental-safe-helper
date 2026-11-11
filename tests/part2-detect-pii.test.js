@@ -81,11 +81,18 @@ describe('PART 2 detectPII 실제 탐지', () => {
     expect(findings.some((f) => f.value.includes('50,000,000'))).toBe(false);
   });
 
-  it('이름은 이슈 ④ 전까지 기존 ID를 유지한다 (PART 4 연결)', () => {
-    const ids = findings.map((f) => f.id);
-    expect(ids).toContain('PII_L02');
-    expect(ids).toContain('PII_L04');
-    expect(ids).toContain('PII_L08');
+  it('이름·주소도 진짜로 찾고, 문서에 나오는 순서대로 ID를 붙인다', () => {
+    const byId = Object.fromEntries(findings.map((f) => [f.id, `${f.type}:${f.value}`]));
+    expect(byId).toEqual({
+      PII_DOC_LEASE_001: 'ADDRESS:서울특별시 중구 필동로 00, 101호',
+      PII_DOC_LEASE_002: 'PERSON_NAME:김철수',
+      PII_DOC_LEASE_003: 'RESIDENT_ID:750315-1******',
+      PII_DOC_LEASE_004: 'PERSON_NAME:NGUYEN VAN A',
+      PII_DOC_LEASE_005: 'FOREIGNER_ID:990505-5******',
+      PII_DOC_LEASE_006: 'PHONE_NUMBER:010-0000-0000',
+      PII_DOC_LEASE_007: 'BANK_ACCOUNT:000-000000-00000',
+      PII_DOC_LEASE_008: 'PERSON_NAME:김철수',
+    });
   });
 
   it('모든 결과의 id가 서로 다르다', () => {

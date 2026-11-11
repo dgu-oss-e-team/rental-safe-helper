@@ -68,8 +68,23 @@
   blockId: 'BLOCK_001',
   bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 },
   confidence: 0.98,
-  reviewStatus: 'DETECTED'      // DETECTED | NEEDS_REVIEW | CONFIRMED | USER_ADDED | REJECTED
+  reviewStatus: 'DETECTED',     // DETECTED | NEEDS_REVIEW | CONFIRMED | USER_ADDED | REJECTED
+  groupId: 'ADDR_DOC_001_1'     // 선택. 두 줄 이상에 걸친 주소 조각에만 붙는다 (아래 설명)
 }
+```
+
+### 두 줄 주소: `groupId` (선택 필드, PR #28에서 PART 2·4·5 합의)
+
+- 주소가 줄이나 block을 넘어가면 **줄마다 결과를 하나씩** 만든다. 조각마다 자기 `blockId`·`bbox`를 가진다.
+- 같은 주소의 조각에는 **같은 `groupId`** 를 붙인다. 순서는 결과 순서(문서에 나오는 순서)와 같다.
+- **한 줄 주소에는 `groupId`가 없다.** 없으면 혼자인 주소로 본다.
+- PART 4: 같은 `groupId` 조각을 이어 붙인 뒤 한 번만 줄이고, 첫 조각에만 결과를 넣고 나머지 조각은 가린다.
+- PART 5: 조각마다 따로 상자를 그린다. 조각이 하나라도 마스킹 계획에서 빠지면 그 줄이 안 가려지므로, 모든 조각이 계획에 들어와야 한다.
+
+예: `소재지 서울특별시 중구 필동로 00,` / `101동 1001호` (두 block)
+```js
+{ id: 'PII_DOC_LEASE_001', type: 'ADDRESS', value: '서울특별시 중구 필동로 00,', blockId: 'L_002', groupId: 'ADDR_DOC_LEASE_1', ... }
+{ id: 'PII_DOC_LEASE_002', type: 'ADDRESS', value: '101동 1001호',              blockId: 'L_003', groupId: 'ADDR_DOC_LEASE_1', ... }
 ```
 
 | 개인정보 | 코드 |
