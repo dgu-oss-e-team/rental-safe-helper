@@ -83,7 +83,17 @@ export async function readPdfText(buffer) {
         // Sort items left-to-right within the line
         group.sort((a, b) => a.x - b.x);
 
-        const joinedText = group.map((item) => item.text).join(' ').trim();
+        // Gap-aware join: insert space only when horizontal gap exceeds 20% of text height
+        const joinedText = group
+          .reduce((acc, item, i) => {
+            if (i === 0) return item.text;
+            const prev = group[i - 1];
+            const gap = item.x - (prev.x + prev.w);
+            return acc + (gap > Math.min(prev.h, item.h) * 0.2 ? ' ' : '') + item.text;
+          }, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
         pageText += joinedText + '\n';
 
         // Bounding box union [minX, minY, maxX, maxY]
