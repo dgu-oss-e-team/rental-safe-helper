@@ -132,6 +132,86 @@ describe('PART 2 extractFields 사람 정보·주소', () => {
   });
 });
 
+describe('PART 2 extractFields 보증금·월세·특약·등기부 권리', () => {
+  const HEAD = '주택임대차계약서 보증금 특약';
+  const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('Mock 문서에서 보증금·월세·특약·권리를 실제로 읽는다', () => {
+    const r = extractFields([mockRegistryDocument, mockLeaseDocument], []);
+    expect(r.data.registry.rights).toEqual([
+      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null },
+    ]);
+    expect(r.data.contract.deposit).toBe(50000000);
+    expect(r.data.contract.monthlyRent).toBe(500000);
+    expect(r.data.contract.specialTerms).toEqual(['월세는 현금으로 지급한다.']);
+  });
+
+  it('계약서에 적힌 값을 그대로 읽는다 (Mock 값이 아니다)', () => {
+    const r = extractFields(
+      [leaseDoc([HEAD, '보증금 금70,000,000원 월세 금300,000원', '특약사항: 반려동물을 키울 수 없다.'])],
+      [],
+    );
+    expect(r.data.contract.deposit).toBe(70000000);
+    expect(r.data.contract.monthlyRent).toBe(300000);
+    expect(r.data.contract.specialTerms).toEqual(['반려동물을 키울 수 없다.']);
+  });
+
+  it('한 블록 안에서 줄이 나뉘어 있어도 줄마다 읽는다', () => {
+    const r = extractFields(
+      [leaseDoc([HEAD, '특약사항\n월세는 현금으로 지급한다.\n본 계약을 증명하기 위하여 서명한다.'])],
+      [],
+    );
+    expect(r.data.contract.specialTerms).toEqual(['월세는 현금으로 지급한다.']);
+  });
+
+  it('계약서에 금액·특약이 없으면 null (못 읽음)', () => {
+    const r = extractFields([leaseDoc([HEAD])], []);
+    expect(r.data.contract.deposit).toBeNull();
+    expect(r.data.contract.monthlyRent).toBeNull();
+    expect(r.data.contract.specialTerms).toBeNull();
+  });
+
+  it('계약서가 없으면 보증금·월세·특약은 null', () => {
+    const r = extractFields([mockRegistryDocument], []);
+    expect(r.data.contract.deposit).toBeNull();
+    expect(r.data.contract.monthlyRent).toBeNull();
+    expect(r.data.contract.specialTerms).toBeNull();
+  });
+
+  it('등기부가 없으면 권리는 null (압류 없음으로 보이지 않게)', () => {
+    const r = extractFields([mockLeaseDocument], []);
+    expect(r.data.registry.rights).toBeNull();
+  });
+
+  it('갑구 제목만 읽히면 권리는 null이다', () => {
+    const r = extractFields([leaseDoc([REGISTRY_HEAD, GAP, '1 압류'])], []);
+    expect(r.data.registry.rights).toBeNull();
+  });
+
+  it('갑구·을구를 둘 다 읽고 권리가 없으면 [] (없음)', () => {
+    const r = extractFields([leaseDoc([REGISTRY_HEAD, GAP, EUL])], []);
+    expect(r.data.registry.rights).toEqual([]);
+  });
+
+  it('별도 줄의 말소는 해당 권리를 cancelled: true로 바꾼다', () => {
+    const r = extractFields(
+      [leaseDoc([REGISTRY_HEAD, GAP, '2 가압류', '3 2번가압류등기말소', EUL, '1 근저당권설정 채권최고액 금100,000,000원'])],
+      [],
+    );
+    expect(r.data.registry.rights).toEqual([
+      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null },
+      { kind: 'MORTGAGE', maxClaimAmount: 100000000, cancelled: false, receivedAt: null },
+    ]);
+  });
+
+  it('어느 권리가 말소됐는지 모르면 그 구의 권리는 cancelled: null (확인 필요)', () => {
+    const r = extractFields([leaseDoc([REGISTRY_HEAD, GAP, '2 압류', '가압류등기말소', EUL])], []);
+    expect(r.data.registry.rights.map((x) => [x.kind, x.cancelled])).toEqual([['SEIZURE', null]]);
+  });
+});
+
 describe('PART 2 두 줄 주소 (groupId)', () => {
   const HEAD = '주택임대차계약서 보증금 특약';
   /** @param {string[]} lines */

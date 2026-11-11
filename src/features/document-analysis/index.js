@@ -10,8 +10,7 @@
  *
  * 현재 상태: detectPII()는 번호류(pii-patterns.js) + 이름·주소(name-detector.js)를 실제로 찾는다.
  *           classifyDocument()는 키워드 개수 비교(띄어쓰기 무시, 동점이면 UNKNOWN).
- *           extractFields()는 사람 정보·주소를 실제 탐지 결과에서 만들고, 보증금·월세·특약·권리는 아직 Mock.
- * TODO(PART 2): field-extractor.js(PR #30)가 병합되면 extractFields()의 남은 Mock을 교체한다.
+ *           extractFields()는 사람 정보·주소(탐지 결과)와 보증금·월세·특약·권리(field-extractor.js)를 실제 문서에서 만든다.
  */
 
 import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS } from '../../shared/document-model.js';
@@ -25,7 +24,7 @@ import {
   findTrailingRegion,
   reachesLineEnd,
 } from './name-detector.js';
-import { mockExtractedFields } from '../../shared/mock-data.js';
+import { findDeposit, findMonthlyRent, findSpecialTerms, findRegistryRights } from './field-extractor.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
@@ -234,6 +233,15 @@ function collectPeople(hits, rejectedIds) {
 const PROPERTY_ADDRESS_LABEL = /소\s*재\s*지|도\s*로\s*명\s*주\s*소|지\s*번\s*주\s*소/;
 
 /**
+ * 문서의 모든 블록 글자를 줄 단위로 나눈다. (field-extractor.js의 함수들이 줄 목록을 받는다)
+ * @param {DocumentModel} document
+ * @returns {string[]}
+ */
+function linesOf(document) {
+  return document.pages.flatMap((p) => p.blocks.flatMap((b) => b.text.split('\n')));
+}
+
+/**
  * 계약·등기 대상 집의 주소를 고른다.
  * 1순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
  * 2순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
@@ -267,7 +275,7 @@ function pickPropertyAddress(hits) {
  *   TODO(PART 2): 사용자가 직접 추가(USER_ADDED)한 이름은 역할을 알 수 없어서 아직 넣지 않는다.
  *   PART 5 검토 화면에서 역할을 고르게 되면 그때 반영한다.
  * - 문서가 없으면 그 문서의 항목은 null (못 읽음), 문서는 있는데 사람이 없으면 [] (없음)
- * TODO(PART 2): 등기부 권리(rights), 보증금·월세·특약은 아직 Mock 값이다. field-extractor.js(PR #30) 병합 후 교체.
+ * - 등기부 권리, 보증금·월세·특약: field-extractor.js의 함수로 실제 문서에서 읽는다. 못 읽으면 null.
  * @param {DocumentModel[]} documents
  * @param {PiiFinding[]} findings
  */
@@ -291,7 +299,6 @@ export function extractFields(documents, findings) {
   /** @param {any[]} people @param {string} role */
   const byRole = (people, role) => people.filter((p) => p.role === role);
 
-  const mock = structuredClone(mockExtractedFields);
   /** @type {{ documentId: string | null, address: string | null, owners: Person[] | null, rights: any[] | null }} */
   let registry = { documentId: null, address: null, owners: null, rights: null };
   if (registryDoc) {
@@ -301,7 +308,7 @@ export function extractFields(documents, findings) {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
       owners: byRole(people, 'OWNER'),
-      rights: mock.registry.rights, // TODO(PART 2): PR #30 병합 후 findRegistryRights()
+      rights: findRegistryRights(linesOf(registryDoc)),
     };
   }
 
@@ -323,15 +330,16 @@ export function extractFields(documents, findings) {
   if (leaseDoc) {
     const hits = scanDocument(leaseDoc);
     const people = collectPeople(hits, rejectedIds);
+    const lines = linesOf(leaseDoc);
     contract = {
       documentId: leaseDoc.documentId,
       address: pickPropertyAddress(hits),
       landlords: byRole(people, 'LANDLORD'),
       tenants: byRole(people, 'TENANT'),
       accountHolders: byRole(people, 'ACCOUNT_HOLDER'),
-      deposit: mock.contract.deposit, // TODO(PART 2): PR #30 병합 후 findDeposit()
-      monthlyRent: mock.contract.monthlyRent, // TODO(PART 2): PR #30 병합 후 findMonthlyRent()
-      specialTerms: mock.contract.specialTerms, // TODO(PART 2): PR #30 병합 후 findSpecialTerms()
+      deposit: findDeposit(lines),
+      monthlyRent: findMonthlyRent(lines),
+      specialTerms: findSpecialTerms(lines),
     };
   }
 
