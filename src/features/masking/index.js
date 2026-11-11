@@ -127,7 +127,6 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
     return fail(ERROR_CODE.COORDINATE_INVALID, 'A user-selected area has no valid position.');
   }
 
-
   /** @type {Record<string, string>} */
   const rules = policy[/** @type {keyof typeof policy} */ (purpose)];
   /** @type {Map<string, string>} findingId → 가명 */
