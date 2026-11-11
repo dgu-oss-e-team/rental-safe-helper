@@ -9,6 +9,7 @@
  *   applyMaskingPlan(documents, plan, findings, personGroups, edits?) → Result<{ maskedText, legend }>   (PART 3 프롬프트용)
  *   validateMaskedText(maskedText, findings, plan, edits?)       → Result<{ checked: number }>     (외부 전달 전 검사)
  *   edits(사용자 수정) 규칙은 user-edits.js
+ *   renderMaskingReview({ analysis, prepared, edits, onChange }) → HTMLElement  (④ 확인 화면, PART 5 slots.js에 연결)
  *
  * 규칙: 고유식별정보(주민·외국인등록번호, 여권번호)는 모든 목적에서 가린다.
  *       같은 사람 = 같은 가명, 동명이인 = 다른 가명. 생년월일은 판정에만 쓰고 AI로 보내지 않는다.
@@ -17,8 +18,9 @@
  *   완료: matchPeople() 이름 + 생년월일 판정 (person-matcher.js, alias-manager.js)
  *   완료: 주소 시·구(동)까지 남기기 (coarsenAddress, 줄임말, 두 줄 주소 groupId)
  *   완료: 사용자 수정 edits (remove 규칙 3가지, add 가리기·검사)
- *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, masking-review-ui.
- */
+ *   완료: 확인 화면 1단계 (가린 항목 목록, 해제, 범례, 미리보기)
+ *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, 확인 화면 더 가리기(add)·"같은 사람인가요?".
+*/
 
 import {
   ok,
@@ -34,6 +36,9 @@ import { resolveRemovals, addEditsToItems, hasInvalidAddPosition, maskAddsInBloc
 import policy from '../../config/masking/masking-policy.json';
 // 시·도 이름 목록 (정식 이름 + 줄임말). PART 2가 관리하는 설정 파일을 같이 읽는다.
 import personLabels from '../../config/templates/person-labels.json';
+
+// ④ 확인 화면 (PART 5 slots.js의 maskingReview 자리)
+export { renderMaskingReview } from './masking-review-ui.js';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */

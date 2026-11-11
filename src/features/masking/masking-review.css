@@ -1,0 +1,80 @@
+/* PART 4. 확인 화면 (masking-review-ui.js). 클래스 이름은 mr-로 시작한다. */
+.mr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.mr-table th,
+.mr-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #e3e0d8;
+  text-align: left;
+  vertical-align: top;
+}
+
+.mr-table th {
+  font-size: 12px;
+  color: #6b6860;
+  font-weight: 600;
+}
+
+.mr-original {
+  color: #6b6860;
+  word-break: break-word;
+}
+
+.mr-result {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mr-result-alias,
+.mr-result-partial {
+  background: #e7efe9;
+}
+
+.mr-result-hidden {
+  background: #ecebe6;
+}
+
+.mr-result-shown {
+  background: #fbe9d7;
+}
+
+.mr-row-shown td {
+  background: #fff8f0;
+}
+
+.mr-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.mr-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-locked {
+  color: #6b6860;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mr-note {
+  margin: 0;
+  font-size: 13px;
+  color: #6b6860;
+}
