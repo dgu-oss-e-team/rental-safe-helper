@@ -385,6 +385,28 @@ textarea:focus-visible {
   height: 20px;
 }
 
+/* 마스킹 PDF 미리보기 */
+.page-previews {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-previews > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
 pre,
 textarea {
   margin: 0;

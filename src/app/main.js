@@ -86,6 +86,42 @@ async function pipeline() {
   }
 }
 
+/** 미리보기 이미지 주소(blob:). 새로 만들거나 처음부터 다시 할 때 이전 주소를 풀어 메모리를 돌려준다 */
+/** @type {string[]} */
+let previewUrls = [];
+function releasePreviews() {
+  previewUrls.forEach((u) => URL.revokeObjectURL(u));
+  previewUrls = [];
+}
+
+/**
+ * ④ 확인 화면의 마스킹 PDF 미리보기를 만든다. 화면은 먼저 보여 주고 이미지는 다 되면 채운다.
+ * 만드는 동안 마스킹이 또 바뀌면(사용자 수정) 이 결과는 버린다.
+ */
+async function refreshPreviews() {
+  const { analysis, prepared } = appState.getState();
+  if (!analysis || !prepared) return;
+  const p = await pipeline();
+  if (!p) return;
+  const results = await p.previewMaskedPdfs(analysis, prepared.maskingPlan);
+  if (appState.getState().prepared !== prepared) return;
+
+  releasePreviews();
+  const docs = results.map((d) => ({
+    documentId: d.documentId,
+    documentType: d.documentType,
+    error: d.result.ok ? null : d.result.error,
+    pages: d.result.ok
+      ? d.result.data.pages.map((pg) => {
+          const url = URL.createObjectURL(pg.blob);
+          previewUrls.push(url);
+          return { pageIndex: pg.pageIndex, url, width: pg.width, height: pg.height };
+        })
+      : [],
+  }));
+  appState.setState({ previews: { forPrepared: prepared, docs } });
+}
+
 /** @param {File[]} files */
 async function runAnalysis(files) {
   appState.setState({ busy: 'Reading your documents and checking risks…', error: null });
@@ -93,17 +129,19 @@ async function runAnalysis(files) {
   if (!p) return;
   const r = await p.analyzeDocuments({ files });
   // 새 서류면 findingId·blockId가 달라지므로 이전 수정(maskingEdits)도 비운다
-  if (r.ok)
+  if (r.ok) {
+    releasePreviews();
     appState.setState({
       busy: null,
       analysis: r.data,
       prepared: null,
+      previews: null,
       maskingEdits: emptyEdits(),
       pdfs: null,
       reviewed: false,
       step: 'results',
     });
-  else appState.setState({ busy: null, error: toError(r) });
+  } else appState.setState({ busy: null, error: toError(r) });
 }
 
 /** @type {Actions} */
@@ -145,8 +183,10 @@ const act = {
     const p = await pipeline();
     if (!p) return;
     const r = p.prepareForAi(analysis, purpose, maskingEdits);
-    if (r.ok) appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
-    else appState.setState({ error: toError(r) });
+    if (r.ok) {
+      appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
+      refreshPreviews();
+    } else appState.setState({ error: toError(r) });
   },
   async setMaskingEdits(edits) {
     const { analysis, purpose } = appState.getState();
@@ -157,8 +197,10 @@ const act = {
     // 수정할 때마다 다시 가려서 미리보기를 바꾼다. 바뀐 내용은 다시 확인해야 하므로 체크를 푼다.
     const r = p.prepareForAi(analysis, purpose, next);
     // 실패하면(예: 남은 개인정보 검사 실패) 이전 수정과 미리보기를 그대로 두고 오류만 보여 준다
-    if (r.ok) appState.setState({ maskingEdits: next, prepared: r.data, reviewed: false, pdfs: null, error: null });
-    else appState.setState({ error: toError(r) });
+    if (r.ok) {
+      appState.setState({ maskingEdits: next, prepared: r.data, reviewed: false, pdfs: null, error: null });
+      refreshPreviews();
+    } else appState.setState({ error: toError(r) });
   },
   setReviewed(checked) {
     appState.setState({ reviewed: checked });
@@ -173,6 +215,7 @@ const act = {
     appState.setState({ busy: null, pdfs, step: 'done' });
   },
   restart() {
+    releasePreviews();
     appState.setState(initialState());
   },
 };

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { buildImageOnlyPdf } from '../src/features/pdf-export/export-pdf.js';
 import { validateMaskedPdf } from '../src/features/pdf-export/validate-pdf.js';
-import { exportMaskedPDF, pagesWithText } from '../src/features/pdf-export/index.js';
+import { exportMaskedPDF, previewMaskedPages, pagesWithText } from '../src/features/pdf-export/index.js';
 import { mockLeaseDocument } from '../src/shared/mock-data.js';
 import { toPixelRect, planRedactions, fitFontSize, drawRedactions } from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
@@ -150,6 +150,31 @@ describe('PART 5 exportMaskedPDF() 안전장치', () => {
 
   it('pagesWithText()는 글자가 있는 페이지만 돌려준다', () => {
     expect([...pagesWithText(mockLeaseDocument)]).toEqual([0]);
+  });
+});
+
+describe('PART 5 previewMaskedPages() 미리보기 (PDF와 같은 안전장치)', () => {
+  const plan = { purpose: 'FRAUD_CHECK', items: [] };
+
+  it('서류나 계획이 없으면 INVALID_INPUT', async () => {
+    expect(await previewMaskedPages(null, plan)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+  });
+
+  it('글자를 하나도 읽지 못한 문서는 미리보기도 만들지 않는다 (LOW_CONFIDENCE)', async () => {
+    const scanned = structuredClone(mockLeaseDocument);
+    scanned.pages[0].blocks = [{ blockId: 'B', text: '  ', bbox: { x: 0, y: 0, width: 1, height: 1 }, confidence: null }];
+    expect(await previewMaskedPages(scanned, plan)).toMatchObject({ ok: false, error: { code: 'LOW_CONFIDENCE' } });
+  });
+
+  it('좌표가 규칙을 벗어나면 COORDINATE_INVALID', async () => {
+    const bad = { purpose: 'FRAUD_CHECK', items: [item({ bbox: { x: 100, y: 0, width: 10, height: 10 } })] };
+    const r = await previewMaskedPages(structuredClone(mockLeaseDocument), bad);
+    expect(r).toMatchObject({ ok: false, error: { code: 'COORDINATE_INVALID' } });
+  });
+
+  it('그릴 수 없는 환경(캔버스 없음)에서도 오류를 던지지 않는다', async () => {
+    const r = await previewMaskedPages(structuredClone(mockLeaseDocument), plan);
+    expect(r).toMatchObject({ ok: false, error: { code: 'PDF_EXPORT_FAILED' } });
   });
 });
 

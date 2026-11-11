@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runPipeline, analyzeDocuments, prepareForAi, exportMaskedPdfs } from '../src/app/pipeline.js';
+import { runPipeline, analyzeDocuments, prepareForAi, exportMaskedPdfs, previewMaskedPdfs } from '../src/app/pipeline.js';
 import { checkPlanCoordinates } from '../src/features/pdf-export/index.js';
 import { MASKING_PURPOSE } from '../src/shared/document-model.js';
 
@@ -68,5 +68,13 @@ describe('PART 5 화면 단계별 파이프라인', () => {
     const pdfs = await exportMaskedPdfs(analyzed, prepared.maskingPlan);
     expect(pdfs).toHaveLength(2);
     for (const p of pdfs) expect(p.result).toHaveProperty('ok');
+  });
+
+  it('④ 미리보기도 서류마다 결과가 하나씩 나오고, 실패해도 오류를 던지지 않는다', async () => {
+    const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
+    const prepared = prepareForAi(analyzed, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const previews = await previewMaskedPdfs(analyzed, prepared.maskingPlan);
+    expect(previews.map((p) => p.documentId)).toEqual(analyzed.documents.map((d) => d.documentId));
+    for (const p of previews) expect(p.result).toHaveProperty('ok');
   });
 });

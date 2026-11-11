@@ -31,6 +31,15 @@ export function createStore(initial) {
   };
 }
 
+/**
+ * 서류 하나의 미리보기. url은 브라우저 안의 이미지 주소(blob:)라 밖으로 나가지 않는다.
+ * @typedef {Object} PreviewDoc
+ * @property {string} documentId
+ * @property {string} documentType
+ * @property {{ pageIndex: number, url: string, width: number, height: number }[]} pages
+ * @property {{ code: string, message: string } | null} error
+ */
+
 /** 처음 상태 (다시 시작할 때도 이 값으로 되돌린다) */
 export function initialState() {
   return {
@@ -52,6 +61,12 @@ export function initialState() {
     prepared: null,
     /** ④에서 사용자가 해제·추가한 마스킹 (서류를 새로 분석하면 비운다) */
     maskingEdits: emptyEdits(),
+    /**
+     * ④에서 보여 줄 마스킹 PDF 미리보기. prepared가 바뀌면 다시 만든다.
+     * forPrepared가 지금 prepared와 다르면 아직 만드는 중이다.
+     * @type {{ forPrepared: import('./pipeline.js').Prepared, docs: PreviewDoc[] } | null}
+     */
+    previews: null,
     /** 사용자가 "가려진 내용을 확인했다"고 체크했는지 */
     reviewed: false,
     /** exportMaskedPdfs() 결과 */
