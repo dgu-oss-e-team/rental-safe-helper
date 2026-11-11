@@ -5,12 +5,19 @@ import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
 
 /**
+ * 지금 마스킹 결과(prepared)에 맞는 미리보기가 다 그려졌는지
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ */
+function isPreviewReady(state) {
+  return Boolean(state.previews && state.previews.forPrepared === state.prepared);
+}
+
+/**
  * 마스킹 PDF 미리보기 (PDF와 같은 방법으로 그린 페이지 이미지)
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  */
 function pdfPreview(state) {
-  const ready = state.previews && state.previews.forPrepared === state.prepared;
-  if (!ready) {
+  if (!isPreviewReady(state)) {
     return el('p', { class: 'busy', role: 'status' }, [
       el('span', { class: 'spinner', 'aria-hidden': 'true' }),
       'Drawing the masked pages…',
@@ -49,8 +56,10 @@ export function reviewScreen(state, act) {
   const prepared = /** @type {import('../pipeline.js').Prepared} */ (state.prepared);
 
   // 제안서: 가린 결과를 미리 보여 주고, 사용자가 확인한 뒤에만 활용한다
+  // "위 페이지를 확인했다"는 문구와 맞게, 미리보기가 다 그려진 뒤에만 체크할 수 있다
+  const ready = isPreviewReady(state);
   const confirm = /** @type {HTMLInputElement} */ (
-    el('input', { type: 'checkbox', id: 'reviewed', checked: state.reviewed })
+    el('input', { type: 'checkbox', id: 'reviewed', checked: state.reviewed, disabled: !ready })
   );
   confirm.addEventListener('change', () => act.setReviewed(confirm.checked));
 
@@ -72,6 +81,7 @@ export function reviewScreen(state, act) {
       confirm,
       ' I checked the text and the pages above. No personal information is left.',
     ]),
+    ready ? null : el('p', { class: 'hint' }, ['You can tick this after the page preview is ready.']),
     actions([
       button('Create masked PDF and AI prompt', () => act.finish(), { disabled: !state.reviewed }),
       button('Back', () => act.goTo('purpose'), { variant: 'secondary' }),

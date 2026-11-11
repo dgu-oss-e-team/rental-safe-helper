@@ -8,7 +8,6 @@
  * 공개 함수: previewMaskedPages(document, plan, { file }) → Result<{ pages: { pageIndex, blob, width, height }[] }>
  *   - ④ 확인 화면용 미리보기. PDF와 똑같이 그린 페이지를 줄인 JPEG 이미지. (PART 5 화면에서만 씀)
  *
-
  * 규칙: 원본 PDF 위에 검은 상자만 덮지 않는다.
  *   1) 페이지를 이미지로 렌더링 (render-pages.js, pdf.js)
  *   2) plan.items의 bbox(0~1 정규화)를 픽셀로 바꿔 이미지에 직접 마스킹·가명 표시 (apply-redactions.js)

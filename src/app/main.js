@@ -94,6 +94,20 @@ function releasePreviews() {
   previewUrls = [];
 }
 
+/** 사용자가 가릴 항목을 연달아 바꿀 때, 마지막 수정 뒤 이만큼 기다렸다가 한 번만 그린다 (휴대폰에서 느려지지 않게) */
+const PREVIEW_DELAY_MS = 300;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let previewTimer;
+
+/**
+ * 미리보기를 다시 그리도록 예약한다. 기다리는 동안 또 부르면 앞의 예약은 취소된다.
+ * @param {number} delayMs  0이면 바로 그린다 (④에 처음 들어올 때)
+ */
+function schedulePreviews(delayMs) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(refreshPreviews, delayMs);
+}
+
 /**
  * ④ 확인 화면의 마스킹 PDF 미리보기를 만든다. 화면은 먼저 보여 주고 이미지는 다 되면 채운다.
  * 만드는 동안 마스킹이 또 바뀌면(사용자 수정) 이 결과는 버린다.
@@ -185,7 +199,7 @@ const act = {
     const r = p.prepareForAi(analysis, purpose, maskingEdits);
     if (r.ok) {
       appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
-      refreshPreviews();
+      schedulePreviews(0);
     } else appState.setState({ error: toError(r) });
   },
   async setMaskingEdits(edits) {
@@ -199,7 +213,8 @@ const act = {
     // 실패하면(예: 남은 개인정보 검사 실패) 이전 수정과 미리보기를 그대로 두고 오류만 보여 준다
     if (r.ok) {
       appState.setState({ maskingEdits: next, prepared: r.data, reviewed: false, pdfs: null, error: null });
-      refreshPreviews();
+      // 연달아 바꾸면 마지막 수정만 그린다
+      schedulePreviews(PREVIEW_DELAY_MS);
     } else appState.setState({ error: toError(r) });
   },
   setReviewed(checked) {
@@ -215,6 +230,7 @@ const act = {
     appState.setState({ busy: null, pdfs, step: 'done' });
   },
   restart() {
+    clearTimeout(previewTimer);
     releasePreviews();
     appState.setState(initialState());
   },
