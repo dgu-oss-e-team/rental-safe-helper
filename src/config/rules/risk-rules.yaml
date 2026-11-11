@@ -5,6 +5,11 @@
 #   실제 이름은 절대 쓰지 않는다. 이 문구는 AI 프롬프트에 그대로 들어가기 때문이다.
 # - evidence: 화면에만 보여 주는 근거 칸의 제목 (프롬프트에는 넣지 않는다).
 
+# - {maxClaim}, {deposit}, {months}: 금액·기간. 개인정보가 아니라서 설명에 넣어도 된다.
+# - results 키는 상태(STOP 등) 또는 "상태.변형"(예: CHECK.cancel_unknown)이다.
+#   같은 상태라도 이유가 다를 때(말소 여부 모름, 금액 못 읽음 등) 문구를 따로 쓰려고 쓴다.
+# - params: 판정 로직이 읽는 설정값 (예: 최근 소유권 이전 기준 개월 수)
+
 rules:
   OWNER_MISMATCH:
     title: Registered owner and landlord do not match
@@ -74,3 +79,134 @@ rules:
       UNVERIFIABLE:
         explanation: We could not read the address on the registry or on the contract.
         action: Compare the address on the registry and the contract yourself, including the unit number.
+
+
+  TRUST_REGISTERED:
+    title: Trust registration (신탁)
+    evidence:
+      left: Registry trust entries
+      right: Entries with unclear status
+    results:
+      STOP:
+        explanation: >-
+          The registry shows an active trust registration. In a trust, the trust company
+          may be the real owner, and a lease signed without its consent may not be valid.
+        action: >-
+          Do not sign until you have the trust register (신탁원부) and written consent to
+          the lease from the trustee.
+      CHECK.cancel_unknown:
+        explanation: >-
+          The registry shows a trust entry, but we could not tell whether it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry. If the trust is still active, ask for
+          the trust register (신탁원부) and written consent from the trustee.
+      NO_FLAG:
+        explanation: >-
+          No active trust registration was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: We could not read the parts of the registry that show trust registrations.
+        action: >-
+          Check the registry for a trust entry yourself. If there is one, ask for the trust
+          register (신탁원부) and written consent from the trustee.
+
+  SEIZURE_ACTIVE:
+    title: Active seizure or provisional seizure on the registry
+    evidence:
+      left: Registry active entries
+      right: Entries with unclear status
+    results:
+      STOP:
+        explanation: >-
+          The registry shows an active seizure or provisional seizure. It means a creditor or
+          the government has a claim on this home. It can be sold at auction and your deposit
+          may be at risk.
+        action: Do not sign until you confirm in writing that the seizure has been cleared.
+      CHECK.cancel_unknown:
+        explanation: >-
+          The registry shows a seizure or provisional seizure entry, but we could not tell
+          whether it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry for it. Do not sign until you are sure
+          it has been cleared.
+      NO_FLAG:
+        explanation: >-
+          No active seizure or provisional seizure was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not read the parts of the registry that show seizures and provisional seizures.
+        action: >-
+          Check the registry for seizures (압류) and provisional seizures (가압류) yourself.
+          Do not sign until you are sure there are none.
+
+  MORTGAGE_EXISTS:
+    title: Mortgage (근저당) registered
+    evidence:
+      left: Maximum secured amount (채권최고액)
+      right: Your deposit
+    results:
+      CHECK:
+        explanation: >-
+          A mortgage is registered on this home. Maximum secured amount: {maxClaim}.
+          Your deposit: {deposit}. If the home is sold at auction, the mortgage is paid
+          before your deposit.
+        action: Compare the two amounts with the likely price of the home and ask the agent to explain.
+      CHECK.deposit_unknown:
+        explanation: >-
+          A mortgage is registered on this home (maximum secured amount: {maxClaim}).
+          We could not read your deposit, so we did not compare the two amounts.
+          If the home is sold at auction, the mortgage is paid before your deposit.
+        action: >-
+          Check the deposit on the contract, then compare it and the maximum secured amount
+          with the likely price of the home.
+      CHECK.amount_unknown:
+        explanation: >-
+          A mortgage is registered on this home, but we could not read the maximum secured
+          amount, so we did not compare it with your deposit. If the home is sold at auction,
+          the mortgage is paid before your deposit.
+        action: >-
+          Read the maximum secured amount (채권최고액) on the registry and compare it and your
+          deposit with the likely price of the home.
+      CHECK.cancel_unknown:
+        explanation: >-
+          The registry shows a mortgage entry, but we could not tell whether it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry. If the mortgage is still active, compare
+          the maximum secured amount and your deposit with the likely price of the home.
+      NO_FLAG:
+        explanation: >-
+          No active mortgage was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: We could not read the parts of the registry that show mortgages.
+        action: >-
+          Check the registry for a mortgage (근저당) yourself and compare the maximum secured
+          amount with your deposit.
+
+  RECENT_OWNERSHIP_CHANGE:
+    title: Ownership changed recently
+    params:
+      withinMonths: 6
+    evidence:
+      left: Last transfer date on registry
+      right: Contract date
+    results:
+      CHECK:
+        explanation: >-
+          The ownership of this home was transferred within {months} months before the
+          contract date. A very recent sale can be a sign of a risky deal or a quick resale.
+        action: Look at the date of the last ownership transfer. If it is recent, ask why the home was sold.
+      NO_FLAG:
+        explanation: >-
+          The last ownership transfer was more than {months} months before the contract date.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check.
+      UNVERIFIABLE:
+        explanation: We could not read the date of the last ownership transfer or the contract date.
+        action: >-
+          Look at the date of the last ownership transfer on the registry. If it is recent,
+          ask why the home was sold.
