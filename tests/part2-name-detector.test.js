@@ -168,6 +168,36 @@ describe('PART 2 주소 탐지', () => {
   });
 });
 
+describe('PART 2 조사가 붙은 주소', () => {
+  it('시·군·구 뒤에 조사가 붙어도 주소로 찾고, 값은 조사 앞까지만 잡는다', () => {
+    expect(findAddresses('서울 강남구에서 계약한다')[0].value).toBe('서울 강남구');
+    expect(findAddresses('서울특별시 중구에 있는 집')[0].value).toBe('서울특별시 중구');
+    expect(findAddresses('경기도 수원시의 아파트')[0].value).toBe('경기도 수원시');
+    expect(findAddresses('서울 중구로 이사했다')[0].value).toBe('서울 중구');
+    expect(findAddresses('부산광역시 해운대구는 넓다')[0].value).toBe('부산광역시 해운대구');
+  });
+
+  it('값의 start·end가 조사 앞에서 끝난다', () => {
+    const text = '임차인은 서울 강남구에서 산다';
+    const [a] = findAddresses(text);
+    expect(text.slice(a.start, a.end)).toBe('서울 강남구');
+  });
+
+  it('조사가 없는 기존 주소는 그대로 줄 끝까지 잡는다', () => {
+    expect(findAddresses('서울특별시 중구 필동로 00, 101호')[0].value).toBe('서울특별시 중구 필동로 00, 101호');
+  });
+
+  it('조사가 아닌 글자가 붙은 단어는 주소로 보지 않는다', () => {
+    expect(findAddresses('서울 마포구청 앞')).toHaveLength(0);
+  });
+
+  it('일상 단어와 겹치는 약칭(경기·대구·세종)은 조사가 붙어도 주소로 보지 않는다', () => {
+    expect(findAddresses('경기 지시에 따라')).toHaveLength(0);
+    expect(findAddresses('대구 지시에 따라')).toHaveLength(0);
+    expect(findAddresses('세종 지시에 따라')).toHaveLength(0);
+  });
+});
+
 describe('PART 2 사람 정보 (extractFields 재료)', () => {
   it('같은 줄의 주민번호에서 생년월일을 가져온다', () => {
     const r = findPeople('임대인 김철수 750315-1******');
