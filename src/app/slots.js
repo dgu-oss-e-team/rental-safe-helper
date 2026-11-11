@@ -13,6 +13,8 @@
 
 import { el } from './ui.js';
 import { RISK_STATUS, DOCUMENT_TYPE } from '../shared/document-model.js';
+import { renderMaskingReview } from '../features/masking/index.js';
+
 
 /** @typedef {import('../shared/document-model.js').RiskResult} RiskResult */
 
@@ -110,5 +112,5 @@ export const slots = {
   /** PART 3: (riskResults: RiskResult[]) => HTMLElement */
   riskResults: defaultRiskResults,
   /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement */
-  maskingReview: defaultMaskingReview,
+  maskingReview: renderMaskingReview,
 };

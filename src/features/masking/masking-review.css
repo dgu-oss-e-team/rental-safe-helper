@@ -1,0 +1,96 @@
+/* PART 4. 확인 화면 (masking-review-ui.js). 클래스 이름은 mr-로 시작한다. */
+.mr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.mr-table th,
+.mr-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #e3e0d8;
+  text-align: left;
+  vertical-align: top;
+}
+
+.mr-table th {
+  font-size: 12px;
+  color: #6b6860;
+  font-weight: 600;
+}
+
+.mr-original {
+  color: #6b6860;
+  word-break: break-word;
+}
+
+.mr-result {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mr-result-alias,
+.mr-result-partial {
+  background: #e7efe9;
+}
+
+.mr-result-hidden {
+  background: #ecebe6;
+}
+
+.mr-result-shown {
+  background: #fbe9d7;
+}
+
+.mr-row-shown td {
+  background: #fff8f0;
+}
+
+.mr-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.mr-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-locked {
+  color: #6b6860;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mr-note {
+  margin: 0;
+  font-size: 13px;
+  color: #6b6860;
+}
+/* 휴대폰: 표 대신 줄마다 카드처럼 쌓는다 (가로로 넘치지 않게) */
+@media (max-width: 560px) {
+  .mr-table thead { display: none; }
+  .mr-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e3e0d8;
+  }
+  .mr-table td { padding: 0; border: 0; }
+  .mr-table td:nth-child(2),
+  .mr-table td:nth-child(3) { grid-column: 1; }
+  .mr-table td:nth-child(4) { grid-column: 2; grid-row: 1; align-self: start; }
+  .mr-result { white-space: normal; }
+}
