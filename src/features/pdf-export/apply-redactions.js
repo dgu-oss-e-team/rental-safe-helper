@@ -8,6 +8,7 @@
  * 그리는 순서: REDACT(검은 상자) → REPLACE(흰 상자 + 가명 글자).
  *   PART 2가 블록 전체 좌표를 쓰기 때문에, 한 블록에 이름과 주민번호가 함께 있으면 두 상자가 겹친다.
  *   검은 상자를 먼저 그리고 가명을 위에 그려야 가명이 보이고, 주민번호는 그대로 가려진다.
+ *   한 블록에 이름이 둘이면(서명란 "임대인 … 임차인 …") 가명을 이어서 한 상자에 그린다.
  */
 
 import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
@@ -24,6 +25,9 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
 
 /** 상자를 글자보다 조금 넓게 그려서 글자 가장자리가 새지 않게 한다 (페이지 크기 대비 비율) */
 const PADDING = 0.002;
+
+/** 같은 자리에 가명이 여러 개일 때 이어 붙이는 구분자 */
+export const LABEL_SEPARATOR = ' / ';
 
 /** 가명 글자가 이보다 작아지면 읽을 수 없으므로 가명 대신 검은 상자로 그린다 (px) */
 const MIN_LABEL_FONT = 6;
@@ -81,16 +85,28 @@ export function planRedactions(plan, page) {
 
   /** @type {DrawItem[]} */
   const boxes = [];
-  /** @type {DrawItem[]} */
-  const labels = [];
+  /** 같은 자리(픽셀 상자)에 그릴 가명 모음. 순서는 계획 순서(= 문서에서 나온 순서) */
+  /** @type {Map<string, { rect: DrawItem['rect'], texts: string[] }>} */
+  const labelsByRect = new Map();
   for (const item of items) {
     const rect = toPixelRect(item.bbox, page.width, page.height);
     if (item.action === MASKING_ACTION.REPLACE && item.replacement) {
-      labels.push({ kind: 'label', rect, text: item.replacement });
+      const key = `${rect.x},${rect.y},${rect.width},${rect.height}`;
+      const label = labelsByRect.get(key) ?? { rect, texts: [] };
+      if (!label.texts.includes(item.replacement)) label.texts.push(item.replacement);
+      labelsByRect.set(key, label);
     } else {
       boxes.push({ kind: 'box', rect });
     }
   }
+  // 한 줄(block)에 가명이 여러 개면 위치가 같아서, 따로 그리면 마지막 가명만 보인다.
+  // 같은 자리의 가명은 "[Landlord_A] / [Tenant_B]"처럼 이어서 한 번만 그린다.
+  /** @type {DrawItem[]} */
+  const labels = [...labelsByRect.values()].map(({ rect, texts }) => ({
+    kind: 'label',
+    rect,
+    text: texts.join(LABEL_SEPARATOR),
+  }));
   return [...boxes, ...labels];
 }
 

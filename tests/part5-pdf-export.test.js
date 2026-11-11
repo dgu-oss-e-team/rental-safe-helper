@@ -64,6 +64,42 @@ describe('PART 5 그릴 목록 (planRedactions)', () => {
     };
     expect(planRedactions(plan, page)).toHaveLength(1);
   });
+
+  it('한 줄에 가명이 둘이면 겹쳐 그리지 않고 이어서 한 번만 그린다 (서명란 "임대인 … 임차인 …")', () => {
+    const plan = {
+      purpose: 'FRAUD_CHECK',
+      items: [
+        item({ findingId: 'LANDLORD', action: 'REPLACE', replacement: '[Landlord_A]' }),
+        item({ findingId: 'RRN', action: 'REDACT' }),
+        item({ findingId: 'TENANT', action: 'REPLACE', replacement: '[Tenant_B]' }),
+      ],
+    };
+    const labels = planRedactions(plan, page).filter((d) => d.kind === 'label');
+    expect(labels).toHaveLength(1);
+    expect(labels[0].text).toBe('[Landlord_A] / [Tenant_B]');
+  });
+
+  it('같은 줄에 같은 사람이 두 번 나오면 가명도 한 번만 쓴다', () => {
+    const plan = {
+      purpose: 'FRAUD_CHECK',
+      items: [
+        item({ findingId: 'N1', action: 'REPLACE', replacement: '[Landlord_A]' }),
+        item({ findingId: 'N2', action: 'REPLACE', replacement: '[Landlord_A]' }),
+      ],
+    };
+    expect(planRedactions(plan, page).map((d) => d.text)).toEqual(['[Landlord_A]']);
+  });
+
+  it('다른 줄의 가명은 각자 따로 그린다', () => {
+    const plan = {
+      purpose: 'FRAUD_CHECK',
+      items: [
+        item({ findingId: 'N1', action: 'REPLACE', replacement: '[Owner_A]' }),
+        item({ findingId: 'N2', action: 'REPLACE', replacement: '[Landlord_B]', bbox: { x: 0.1, y: 0.5, width: 0.3, height: 0.05 } }),
+      ],
+    };
+    expect(planRedactions(plan, page).map((d) => d.text)).toEqual(['[Owner_A]', '[Landlord_B]']);
+  });
 });
 
 describe('PART 5 새 PDF 만들기와 검증', () => {
