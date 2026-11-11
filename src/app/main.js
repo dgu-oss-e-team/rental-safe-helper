@@ -9,7 +9,6 @@
  */
 
 import './style.css';
-import { analyzeDocuments, prepareForAi, exportMaskedPdfs } from './pipeline.js';
 import { appState, initialState } from './app-state.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
@@ -21,6 +20,7 @@ import { doneScreen } from './screens/done.js';
 
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
+  loading: 'loading the document tools',
   input: 'choosing files',
   readDocument: 'reading the documents',
   classifyDocument: 'recognizing the document type',
@@ -42,8 +42,8 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} analyzeSample
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
  * @property {(purpose: string) => void} setPurpose
- * @property {() => void} prepare
- * @property {(edits: import('./masking-edits.js').MaskingEdits) => void} setMaskingEdits  PART 4 확인 화면의 onChange
+ * @property {() => Promise<void>} prepare
+ * @property {(edits: import('./masking-edits.js').MaskingEdits) => Promise<void>} setMaskingEdits  PART 4 확인 화면의 onChange
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
  * @property {() => void} restart
@@ -55,10 +55,43 @@ const STEP_TEXT = {
  */
 const toError = (r) => ({ step: r.step, ...r.error });
 
+/**
+ * 처리 코드(파이프라인)는 처음 쓸 때 불러온다.
+ * PDF·OCR 도구가 커서(약 600KB) 처음부터 실으면 휴대폰에서 첫 화면이 늦게 뜬다.
+ * 파일을 고르기 시작하면 미리 받아 두고, 실패하면 다음에 다시 시도한다.
+ * @type {Promise<typeof import('./pipeline.js')> | undefined}
+ */
+let pipelineModule;
+function loadPipeline() {
+  pipelineModule ??= import('./pipeline.js').catch((e) => {
+    pipelineModule = undefined;
+    throw e;
+  });
+  return pipelineModule;
+}
+
+/**
+ * 파이프라인을 불러와서 쓴다. 불러오지 못하면(인터넷 끊김 등) 오류 화면을 보여 주고 null을 돌려준다.
+ * @returns {Promise<typeof import('./pipeline.js') | null>}
+ */
+async function pipeline() {
+  try {
+    return await loadPipeline();
+  } catch {
+    appState.setState({
+      busy: null,
+      error: { step: 'loading', code: 'LOAD_FAILED', message: 'Please check your internet connection and try again.' },
+    });
+    return null;
+  }
+}
+
 /** @param {File[]} files */
 async function runAnalysis(files) {
   appState.setState({ busy: 'Reading your documents and checking risks…', error: null });
-  const r = await analyzeDocuments({ files });
+  const p = await pipeline();
+  if (!p) return;
+  const r = await p.analyzeDocuments({ files });
   // 새 서류면 findingId·blockId가 달라지므로 이전 수정(maskingEdits)도 비운다
   if (r.ok)
     appState.setState({
@@ -77,6 +110,8 @@ async function runAnalysis(files) {
 const act = {
   setFiles(patch) {
     appState.setState({ files: { ...appState.getState().files, ...patch }, error: null });
+    // 분석 버튼을 누르기 전에 처리 코드를 미리 받아 둔다 (실패는 분석할 때 다시 처리)
+    loadPipeline().catch(() => {});
   },
   async analyze() {
     const { registry, lease } = appState.getState().files;
@@ -104,19 +139,23 @@ const act = {
       reviewed: false,
     });
   },
-  prepare() {
+  async prepare() {
     const { analysis, purpose, maskingEdits } = appState.getState();
     if (!analysis) return;
-    const r = prepareForAi(analysis, purpose, maskingEdits);
+    const p = await pipeline();
+    if (!p) return;
+    const r = p.prepareForAi(analysis, purpose, maskingEdits);
     if (r.ok) appState.setState({ prepared: r.data, reviewed: false, pdfs: null, step: 'review', error: null });
     else appState.setState({ error: toError(r) });
   },
-  setMaskingEdits(edits) {
+  async setMaskingEdits(edits) {
     const { analysis, purpose } = appState.getState();
     if (!analysis) return;
     const next = normalizeEdits(edits);
+    const p = await pipeline();
+    if (!p) return;
     // 수정할 때마다 다시 가려서 미리보기를 바꾼다. 바뀐 내용은 다시 확인해야 하므로 체크를 푼다.
-    const r = prepareForAi(analysis, purpose, next);
+    const r = p.prepareForAi(analysis, purpose, next);
     // 실패하면(예: 남은 개인정보 검사 실패) 이전 수정과 미리보기를 그대로 두고 오류만 보여 준다
     if (r.ok) appState.setState({ maskingEdits: next, prepared: r.data, reviewed: false, pdfs: null, error: null });
     else appState.setState({ error: toError(r) });
@@ -128,7 +167,9 @@ const act = {
     const { analysis, prepared } = appState.getState();
     if (!analysis || !prepared) return;
     appState.setState({ busy: 'Creating the masked PDF…', error: null });
-    const pdfs = await exportMaskedPdfs(analysis, prepared.maskingPlan);
+    const p = await pipeline();
+    if (!p) return;
+    const pdfs = await p.exportMaskedPdfs(analysis, prepared.maskingPlan);
     appState.setState({ busy: null, pdfs, step: 'done' });
   },
   restart() {
