@@ -34,12 +34,21 @@ describe('PART 4 applyPersonAnswers', () => {
     expect(byId(r.data, 'P4')).toEqual({ ...byId(groups, 'P4'), status: 'CONFIRMED' });
   });
 
-  it('답을 따라간다: P4→P2, P2→P1이면 셋 다 P1로 합친다', () => {
-    const r = applyPersonAnswers(groups, { P4: 'P2', P2: 'P1' });
+  it('답을 따라간다: P4·P2가 둘 다 AMBIGUOUS이고 P4→P2, P2→P1이면 셋 다 P1로 합친다', () => {
+    const unsure = groups.map((g) => (g.personId === 'P2' ? { ...g, status: 'AMBIGUOUS' } : g));
+    const r = applyPersonAnswers(unsure, { P4: 'P2', P2: 'P1' });
     expect(r.data.map((g) => g.personId)).toEqual(['P1', 'P3']);
     expect(byId(r.data, 'P1').findingIds).toEqual(
       [...byId(groups, 'P1').findingIds, ...byId(groups, 'P2').findingIds, ...byId(groups, 'P4').findingIds],
     );
+  });
+
+  it('이미 CONFIRMED인 사람의 답은 받지 않는다 (생년월일이 다른 소유자·임대인이 합쳐져 STOP이 사라지지 않게)', () => {
+    for (const bad of [{ P2: 'P1' }, { P2: null }, { P4: 'P2', P2: 'P1' }]) {
+      const r = applyPersonAnswers(groups, bad);
+      expect(r.ok).toBe(false);
+      expect(r.error.code).toBe(ERROR_CODE.INVALID_INPUT);
+    }
   });
 
   it('없는 사람, 자기 자신, 서로 가리키는 답, 잘못된 모양은 실패한다', () => {
