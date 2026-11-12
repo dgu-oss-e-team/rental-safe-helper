@@ -12,7 +12,7 @@
 
 rules:
   OWNER_MISMATCH:
-    title: Registered owner and landlord do not match
+    title: Owner and landlord check
     evidence:
       left: Registry owner
       right: Contract landlord
@@ -25,6 +25,12 @@ rules:
         action: >-
           Ask to see the landlord's ID and compare the name and birth date with the
           owner on the registry.
+      CHECK.co_owner:
+        explanation: >-
+          This home has more than one registered owner ({owner}), but only {landlord} signs
+          as the landlord. The other owners may also need to agree to the lease.
+        action: >-
+          Ask for written consent from the other owners, or ask all owners to sign the contract.
       NO_FLAG:
         explanation: >-
           The registered owner and the landlord appear to be the same person ({landlord}).
@@ -38,7 +44,7 @@ rules:
           Ask to see the landlord's ID and compare it with the owner on the registry yourself.
 
   ACCOUNT_HOLDER_MISMATCH:
-    title: Bank account holder is not the landlord
+    title: Account holder check
     evidence:
       left: Contract account holder
       right: Contract landlord
@@ -62,7 +68,7 @@ rules:
           to confirm the account holder.
 
   ADDRESS_MISMATCH:
-    title: Property address does not match
+    title: Property address check
     evidence:
       left: Registry address
       right: Contract address
@@ -82,7 +88,7 @@ rules:
 
 
   TRUST_REGISTERED:
-    title: Trust registration (신탁)
+    title: Trust (신탁)
     evidence:
       left: Registry trust entries
       right: Entries with unclear status
@@ -112,7 +118,7 @@ rules:
           register (신탁원부) and written consent from the trustee.
 
   SEIZURE_ACTIVE:
-    title: Active seizure or provisional seizure on the registry
+    title: Seizure and provisional seizure (압류·가압류)
     evidence:
       left: Registry active entries
       right: Entries with unclear status
@@ -143,7 +149,7 @@ rules:
           Do not sign until you are sure there are none.
 
   MORTGAGE_EXISTS:
-    title: Mortgage (근저당) registered
+    title: Mortgage (근저당)
     evidence:
       left: Maximum secured amount (채권최고액)
       right: Your deposit
@@ -188,7 +194,7 @@ rules:
           amount with your deposit.
 
   RECENT_OWNERSHIP_CHANGE:
-    title: Ownership changed recently
+    title: Recent ownership change
     params:
       withinMonths: 6
     evidence:

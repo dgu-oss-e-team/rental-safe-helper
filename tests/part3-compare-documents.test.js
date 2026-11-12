@@ -206,3 +206,84 @@ describe('PART 3 규칙 파일(YAML) 검사', () => {
     expect(parseRiskRules(noAction).ok).toBe(false);
   });
 });
+
+
+/** 공동 소유 상황: 소유자를 한 명 더 추가한다 (P5, 이영희) */
+function addSecondOwner(f, list) {
+  f.registry.owners.push({ findingId: 'PII_R99', name: '이영희', birthDate: '790202', role: 'OWNER' });
+  list.push({ personId: 'P5', alias: '[Owner_E]', roles: ['OWNER'], findingIds: ['PII_R99'], status: 'CONFIRMED' });
+}
+
+describe('PART 3 공동 소유 (OWNER_MISMATCH, CHECK.co_owner)', () => {
+  it('소유자 2명 중 1명만 임대인이면 CHECK (다른 소유자의 동의 필요)', () => {
+    const f = fields();
+    const g = mergeOwnerAndLandlord(groups()); // 김철수가 소유자이자 임대인
+    addSecondOwner(f, g);
+    const r = compareOwnerAndLandlord(f, g);
+    expect(r.data.status).toBe(RISK_STATUS.CHECK);
+    expect(r.data.explanation).toContain('[Owner_A]');
+    expect(r.data.explanation).toContain('[Owner_E]');
+    expect(r.data.explanation).toContain('other owners');
+    expect(r.data.explanation).not.toContain('이영희');
+  });
+
+  it('소유자 2명이 모두 임대인으로 서명하면 NO_FLAG', () => {
+    const f = fields();
+    const g = mergeOwnerAndLandlord(groups());
+    addSecondOwner(f, g);
+    f.contract.landlords.push({ findingId: 'PII_L99', name: '이영희', birthDate: '790202', role: 'LANDLORD' });
+    const second = g.find((x) => x.personId === 'P5');
+    second.roles.push('LANDLORD');
+    second.findingIds.push('PII_L99');
+    expect(compareOwnerAndLandlord(f, g).data.status).toBe(RISK_STATUS.NO_FLAG);
+  });
+
+  it('공동 소유인데 임대인이 소유자가 아니면 STOP', () => {
+    const f = fields();
+    const g = groups(); // 임대인(P2)은 소유자(P1)와 다른 사람
+    addSecondOwner(f, g);
+    expect(compareOwnerAndLandlord(f, g).data.status).toBe(RISK_STATUS.STOP);
+  });
+
+  it('공동 소유자 중 한 명이 AMBIGUOUS면 UNVERIFIABLE', () => {
+    const f = fields();
+    const g = mergeOwnerAndLandlord(groups());
+    addSecondOwner(f, g);
+    g.find((x) => x.personId === 'P5').status = 'AMBIGUOUS';
+    expect(compareOwnerAndLandlord(f, g).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('소유자가 1명이면 NO_FLAG 그대로', () => {
+    expect(compareOwnerAndLandlord(fields(), mergeOwnerAndLandlord(groups())).data.status).toBe(
+      RISK_STATUS.NO_FLAG,
+    );
+  });
+
+  it('임대인이 2명이어도 예금주가 그중 한 명이면 NO_FLAG (공동 소유 CHECK는 소유자 비교에만 쓴다)', () => {
+    const f = fields();
+    const g = confirmAccountHolderIsLandlord(groups());
+    f.contract.landlords.push({ findingId: 'PII_L98', name: '이영희', birthDate: '790202', role: 'LANDLORD' });
+    g.push({ personId: 'P6', alias: '[Landlord_F]', roles: ['LANDLORD'], findingIds: ['PII_L98'], status: 'CONFIRMED' });
+    expect(compareAccountHolderAndLandlord(f, g).data.status).toBe(RISK_STATUS.NO_FLAG);
+  });
+});
+
+describe('PART 3 카드 제목은 상태와 상관없이 중립적이다', () => {
+  it('"일치하지 않음", "등록됨" 같은 결과를 단정하는 말이 제목에 없다', () => {
+    const r = assessRisks(fields(), groups());
+    expect(r.ok).toBe(true);
+    expect(r.data.length).toBe(7);
+    for (const risk of r.data) {
+      expect(risk.title).not.toContain('not');
+      expect(risk.title).not.toContain('mismatch');
+      expect(risk.title).not.toContain('registered');
+      expect(risk.title).not.toContain('changed');
+      expect(risk.title).not.toContain('Active');
+    }
+  });
+
+  it('제목 7개가 모두 다르다', () => {
+    const r = assessRisks(fields(), groups());
+    expect(new Set(r.data.map((x) => x.title)).size).toBe(7);
+  });
+});
