@@ -5,8 +5,11 @@
  * null 규칙: 항목을 못 찾으면 null(못 읽음), 찾았는데 내용이 없으면 [](없음).
  */
 
+/** @type {Record<string, number>} */
 const KOREAN_DIGITS = { 일: 1, 이: 2, 삼: 3, 사: 4, 오: 5, 육: 6, 칠: 7, 팔: 8, 구: 9 };
+/** @type {Record<string, number>} */
 const SMALL_UNITS = { 십: 10, 백: 100, 천: 1000 };
+/** @type {Record<string, number>} */
 const BIG_UNITS = { 만: 1e4, 억: 1e8, 조: 1e12 };
 
 /**
@@ -251,4 +254,180 @@ export function findRegistryRights(lines) {
     if (r.cancelled === false && unknownCancelSections.has(places[i].section)) r.cancelled = null;
   });
   return rights;
+}
+
+/**
+ * 날짜 한 덩어리: "2025년 3월 5일", "2025.03.05", "2025. 3. 5.", "2025-03-05"
+ * 앞뒤에 숫자가 붙어 있으면 날짜가 아니다. (고유번호 "0000-0000-000000", 주민번호 "800101-1…")
+ */
+const DATE_REGEX = /(?<!\d)(\d{4})\s*(?:년\s*|[.\-/]\s*)(\d{1,2})\s*(?:월\s*|[.\-/]\s*)(\d{1,2})(?!\d)/g;
+
+/**
+ * 연·월·일이 실제로 있는 날짜면 'YYYY-MM-DD', 아니면 null. (2월 30일, 13월은 null)
+ * @param {string} y @param {string} m @param {string} d
+ */
+function toIsoDate(y, m, d) {
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  if (year < 1900 || year > 2100) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * 글자에서 처음 나오는 날짜를 'YYYY-MM-DD'로 읽는다. 없는 날짜(2월 30일 등)는 건너뛴다. 못 찾으면 null.
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function parseDate(text) {
+  for (const m of text.matchAll(DATE_REGEX)) {
+    const iso = toIsoDate(m[1], m[2], m[3]);
+    if (iso) return iso;
+  }
+  return null;
+}
+
+/**
+ * 갑구 한 줄의 등기목적이 소유권이전인지. (순위번호를 뗀 나머지의 맨 앞을 본다)
+ * "소유권이전", "소유권일부이전", "공유자전원지분전부이전"은 센다.
+ * "소유권이전청구권가등기"는 아직 소유권이 넘어간 게 아니라서 세지 않는다.
+ * "소유권이전등기말소"는 소유권이전이 아니라 말소 줄이다.
+ */
+const TRANSFER_PURPOSE =
+  /^\s*(?:소\s*유\s*권\s*(?:일\s*부\s*)?이\s*전|[가-힣]{0,10}지\s*분\s*(?:전\s*부\s*|일\s*부\s*)?이\s*전)(?!\s*청\s*구\s*권|\s*가\s*등\s*기|\s*(?:등\s*기\s*)?말\s*소)/;
+/** 말소 줄이 맨 앞에 가리키는 순위번호: "3번소유권이전등기말소" */
+const CANCEL_LINE = /^\s*(\d{1,3})\s*번[^\n]*?말\s*소/;
+/** 소유권이전이 아닌 다른 등기를 말소하는 줄 (신탁등기말소, 가압류등기말소 등). 소유권이전과 상관없다. */
+const OTHER_CANCEL = /신\s*탁|압\s*류|가\s*등\s*기|가\s*처\s*분|경\s*매|등\s*기\s*명\s*의\s*인/;
+/** 소유권이전 줄에 접수일이 없을 때, 이어지는 줄을 몇 줄까지 볼지 */
+const MAX_DATE_LOOKAHEAD = 3;
+
+/**
+ * 등기부 갑구에서 마지막 소유권이전의 접수일을 'YYYY-MM-DD'로 읽는다. (PART 3 최근 소유권 이전 점검용)
+ * - 갑구 표의 칸 순서가 [순위번호, 등기목적, 접수, 등기원인, …]이라서, 소유권이전 줄의 첫 날짜를 접수일로 본다.
+ *   줄에 날짜가 없으면 이어지는 줄(다음 순위번호 전까지, 최대 3줄)에서 찾는다.
+ * - 신탁으로 인한 소유권이전, 지분 이전도 센다. 소유권이전청구권가등기는 세지 않는다.
+ * - 말소된 소유권이전("3번소유권이전등기말소")은 빼고 그 전 소유권이전을 쓴다.
+ *   어느 순위번호를 말소했는지 모르면 추측하지 않고 null. (신탁·가압류 등 다른 등기의 말소는 상관없다)
+ * - 소유권보존만 있으면 null. (소유권이 바뀐 적 없음. 신축을 "최근 바뀜"으로 보이지 않게)
+ * - 마지막 소유권이전의 접수일을 못 읽으면 null. (그 전 날짜로 대신하면 최근 이전을 놓친다)
+ * - 갑구 제목을 못 찾으면 null. 을구와 끝의 요약표는 보지 않는다.
+ * @param {string[]} lines
+ * @returns {string | null}
+ */
+export function findLastTransferDate(lines) {
+  /** @type {Array<{ rank: string | null, isTransfer: boolean, date: string | null, cancelled: boolean }>} */
+  const rows = [];
+  /** @type {Array<string | null>} 말소 줄이 가리키는 순위번호 (모르면 null) */
+  const cancelTargets = [];
+  /** 접수일을 아직 못 찾은 소유권이전 줄과, 그 뒤로 본 줄 수 */
+  /** @type {{ row: { date: string | null }, seen: number } | null} */
+  let waiting = null;
+  let seenGap = false;
+  /** @type {string | null} */
+  let section = null;
+
+  for (const line of lines) {
+    if (SUMMARY_HEADING.test(line)) break;
+    const heading = SECTION_HEADING.exec(line);
+    if (heading) {
+      section = heading[1];
+      if (section === '갑') seenGap = true;
+      waiting = null;
+      continue;
+    }
+    if (section !== '갑') continue;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch && rankMatch[2]) {
+      waiting = null; // 부기등기: 소유권이전이 아니고, 이 줄의 날짜를 앞 줄에 붙이지도 않는다.
+      continue;
+    }
+    const rank = rankMatch ? rankMatch[1] : null;
+    const rest = rankMatch ? line.slice(rankMatch[0].length) : line;
+
+    if (TRANSFER_PURPOSE.test(rest)) {
+      const row = { rank, isTransfer: true, date: parseDate(rest), cancelled: false };
+      rows.push(row);
+      waiting = row.date === null ? { row, seen: 0 } : null;
+      continue;
+    }
+    if (/말\s*소/.test(rest)) {
+      waiting = null;
+      if (OTHER_CANCEL.test(rest)) continue;
+      const target = CANCEL_LINE.exec(rest);
+      cancelTargets.push(target ? target[1] : null);
+      continue;
+    }
+    if (rank !== null) {
+      rows.push({ rank, isTransfer: false, date: null, cancelled: false });
+      waiting = null;
+      continue;
+    }
+    // 순위번호 없는 이어지는 줄: 접수일을 기다리는 소유권이전이 있으면 여기서 찾는다.
+    if (waiting && waiting.seen < MAX_DATE_LOOKAHEAD) {
+      waiting.seen += 1;
+      waiting.row.date = parseDate(line);
+      if (waiting.row.date !== null) waiting = null;
+    }
+  }
+
+  if (!seenGap) return null;
+
+  for (const target of cancelTargets) {
+    if (target === null) return null;
+    const row = rows.find((r) => r.rank === target);
+    if (!row) return null;
+    if (row.isTransfer) row.cancelled = true;
+  }
+
+  const transfers = rows.filter((r) => r.isTransfer && !r.cancelled);
+  if (transfers.length === 0) return null;
+  return transfers[transfers.length - 1].date;
+}
+
+/** "계약일", "계약일자", "계약체결일" 라벨. 바로 뒤에 날짜가 와야 한다. ("계약일로부터 30일"은 아니다) */
+const CONTRACT_DATE_LABEL = /계\s*약\s*(?:체\s*결\s*)?일\s*(?:자\s*)?[:：]?\s*/g;
+/** 글자 맨 앞에 있는 날짜 (라벨 바로 뒤 날짜를 읽을 때) */
+const DATE_AT_START = new RegExp(`^${DATE_REGEX.source}`);
+/** 서명란 문장: "본 계약을 증명하기 위하여 … 서명·날인 후 각 1통씩 보관한다." 그 뒤 날짜가 계약(서명)일이다. */
+const SIGNATURE_SENTENCE = /본\s*계\s*약\s*을\s*증\s*명/;
+/** 서명란 문장 뒤로 계약일을 찾아볼 줄 수 */
+const MAX_SIGNATURE_LOOKAHEAD = 5;
+
+/**
+ * 계약서의 계약일을 'YYYY-MM-DD'로 읽는다. (PART 3 최근 소유권 이전 점검용)
+ * 1순위: "계약일", "계약일자", "계약체결일" 라벨 바로 뒤 날짜
+ * 2순위: 서명란 문장("본 계약을 증명하기 위하여 …") 뒤에 나오는 날짜 (같은 줄 또는 다음 5줄 안)
+ * 잔금일·입주일·임대차 시작일 등 다른 날짜는 읽지 않는다. 못 찾으면 null.
+ * @param {string[]} lines
+ * @returns {string | null}
+ */
+export function findContractDate(lines) {
+  for (const line of lines) {
+    for (const m of line.matchAll(CONTRACT_DATE_LABEL)) {
+      const after = line.slice(m.index + m[0].length);
+      const date = DATE_AT_START.exec(after);
+      if (date) {
+        const iso = toIsoDate(date[1], date[2], date[3]);
+        if (iso) return iso;
+      }
+    }
+  }
+
+  const start = lines.findIndex((line) => SIGNATURE_SENTENCE.test(line));
+  if (start === -1) return null;
+  const first = lines[start];
+  const sentence = SIGNATURE_SENTENCE.exec(first);
+  const candidates = [
+    first.slice((sentence?.index ?? 0) + (sentence?.[0].length ?? 0)),
+    ...lines.slice(start + 1, start + 1 + MAX_SIGNATURE_LOOKAHEAD),
+  ];
+  for (const text of candidates) {
+    const iso = parseDate(text);
+    if (iso) return iso;
+  }
+  return null;
 }

@@ -107,18 +107,22 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
   registry: {
     documentId, address,
     owners: [{ findingId, name, birthDate, role: 'OWNER' }],
-    rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }]
+    rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
+    lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
   },
   contract: {
     documentId, address,
     landlords: [{ findingId, name, birthDate, role: 'LANDLORD' }],
     tenants: [...], accountHolders: [...],
-    deposit, monthlyRent, specialTerms: ['...']
+    deposit, monthlyRent, specialTerms: ['...'],
+    contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
   }
 }
 ```
 
 `birthDate`는 동일 인물 판정에만 쓰고 AI로 보내지 않는다. 읽지 못한 값은 `null`로 두고 추측하지 않는다.
+
+날짜(`lastTransferDate`, `contractDate`)는 `'YYYY-MM-DD'` 문자열이다. 못 읽으면 `null`이다. (PART 3 최근 소유권 이전 점검용, 이슈 #44)
 
 ### 값이 없을 때: `null`과 `[]` 구분 (모든 파트 공통)
 

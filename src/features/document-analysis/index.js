@@ -24,7 +24,14 @@ import {
   findTrailingRegion,
   reachesLineEnd,
 } from './name-detector.js';
-import { findDeposit, findMonthlyRent, findSpecialTerms, findRegistryRights } from './field-extractor.js';
+import {
+  findDeposit,
+  findMonthlyRent,
+  findSpecialTerms,
+  findRegistryRights,
+  findLastTransferDate,
+  findContractDate,
+} from './field-extractor.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
@@ -276,6 +283,7 @@ function pickPropertyAddress(hits) {
  *   PART 5 검토 화면에서 역할을 고르게 되면 그때 반영한다.
  * - 문서가 없으면 그 문서의 항목은 null (못 읽음), 문서는 있는데 사람이 없으면 [] (없음)
  * - 등기부 권리, 보증금·월세·특약: field-extractor.js의 함수로 실제 문서에서 읽는다. 못 읽으면 null.
+ * - 마지막 소유권이전 접수일(registry.lastTransferDate), 계약일(contract.contractDate): 'YYYY-MM-DD' 문자열, 못 읽으면 null.
  * @param {DocumentModel[]} documents
  * @param {PiiFinding[]} findings
  */
@@ -299,23 +307,29 @@ export function extractFields(documents, findings) {
   /** @param {any[]} people @param {string} role */
   const byRole = (people, role) => people.filter((p) => p.role === role);
 
-  /** @type {{ documentId: string | null, address: string | null, owners: Person[] | null, rights: any[] | null }} */
-  let registry = { documentId: null, address: null, owners: null, rights: null };
+  /**
+   * @type {{ documentId: string | null, address: string | null, owners: Person[] | null, rights: any[] | null,
+   *   lastTransferDate: string | null }}
+   */
+  let registry = { documentId: null, address: null, owners: null, rights: null, lastTransferDate: null };
   if (registryDoc) {
     const hits = scanDocument(registryDoc);
     const people = collectPeople(hits, rejectedIds);
+    const lines = linesOf(registryDoc);
     registry = {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
       owners: byRole(people, 'OWNER'),
-      rights: findRegistryRights(linesOf(registryDoc)),
+      rights: findRegistryRights(lines),
+      lastTransferDate: findLastTransferDate(lines),
     };
   }
 
   /**
    * @type {{ documentId: string | null, address: string | null,
    *   landlords: Person[] | null, tenants: Person[] | null, accountHolders: Person[] | null,
-   *   deposit: number | null, monthlyRent: number | null, specialTerms: string[] | null }}
+   *   deposit: number | null, monthlyRent: number | null, specialTerms: string[] | null,
+   *   contractDate: string | null }}
    */
   let contract = {
     documentId: null,
@@ -326,6 +340,7 @@ export function extractFields(documents, findings) {
     deposit: null,
     monthlyRent: null,
     specialTerms: null,
+    contractDate: null,
   };
   if (leaseDoc) {
     const hits = scanDocument(leaseDoc);
@@ -340,6 +355,7 @@ export function extractFields(documents, findings) {
       deposit: findDeposit(lines),
       monthlyRent: findMonthlyRent(lines),
       specialTerms: findSpecialTerms(lines),
+      contractDate: findContractDate(lines),
     };
   }
 
