@@ -137,9 +137,20 @@ export function findLabeledNames(text, inheritedRole = null) {
  * 등기부처럼 라벨 없이 주소만 있는 줄도 찾는다.
  * "서울 중구"처럼 줄여 쓴 시·도 이름도 찾는다. 약칭("경기", "강원")은 일상 단어와 겹치므로
  * 시·도 이름 앞과 시·군·구 뒤에 한글이 붙어 있으면 주소로 보지 않는다. (예: "경기 도구를", "남서울")
+ * 단, 시·군·구 바로 뒤에 조사(에서·에·의·로 등)가 붙은 경우는 조사 앞까지만 주소로 본다.
+ * 예: "서울 강남구에서 계약한다" → "서울 강남구" (조사부터는 주소가 아니므로 값에 넣지 않는다)
+ * 경기·대구·세종은 일상 단어와 겹치므로("경기 지시에", "대구 지시에") 조사가 붙은 경우를 주소로 보지 않는다.
  */
+const SIGUNGU_WORD = '[가-힣]+(?:시|군|구)';
+const PARTICLE = '(?:에서|에|의|으로|로|은|는|이|가|을|를|도|와|과)(?:은|는|도|만)?';
+const REGION_ANY = rules.addressRegions.map(escapeRegex).join('|');
+const REGION_WITH_PARTICLE = rules.addressRegions
+  .filter((r) => !rules.regionsWithoutParticle.includes(r))
+  .map(escapeRegex)
+  .join('|');
 const ADDRESS_REGEX = new RegExp(
-  `(?<![가-힣])(?:${rules.addressRegions.map(escapeRegex).join('|')})\\s+[가-힣]+(?:시|군|구)(?![가-힣])(?:[^\\n(]*[^\\s\\n(])?`,
+  `(?<![가-힣])(?:(?:${REGION_ANY})\\s+${SIGUNGU_WORD}(?![가-힣])(?:[^\\n(]*[^\\s\\n(])?` +
+    `|(?:${REGION_WITH_PARTICLE})\\s+${SIGUNGU_WORD}(?=${PARTICLE}(?![가-힣])))`,
   'g',
 );
 

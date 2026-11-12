@@ -15,6 +15,7 @@
 
 import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS } from '../../shared/document-model.js';
 import { findPatternPII } from './pii-patterns.js';
+import { toFormalAddress } from './address-normalizer.js';
 import {
   findPeople,
   findAddresses,
@@ -245,6 +246,8 @@ function linesOf(document) {
  * 1순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
  * 2순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
  * 두 줄에 걸친 주소면 같은 groupId 조각을 순서대로 이어 붙인다. (PART 3이 동·호수까지 비교하므로)
+ * 시·도 이름은 정식 이름으로 바꾼다. ("서울 중구" → "서울특별시 중구", PART 3이 글자 그대로 비교하므로)
+ * 바꿀 수 없는 주소는 원문 그대로 둔다. 탐지 결과(findings)의 주소 값은 마스킹용이라 원문 그대로 둔다.
  * 주소가 하나도 없으면 null (못 읽음)
  * @param {any[]} hits scanDocument() 결과
  */
@@ -255,11 +258,13 @@ function pickPropertyAddress(hits) {
   );
   const picked = labelled ?? addresses[0];
   if (!picked) return null;
-  if (!picked.groupId) return picked.value;
-  return addresses
-    .filter((h) => h.groupId === picked.groupId)
-    .map((h) => h.value.trim())
-    .join(' ');
+  if (!picked.groupId) return toFormalAddress(picked.value);
+  return toFormalAddress(
+    addresses
+      .filter((h) => h.groupId === picked.groupId)
+      .map((h) => h.value.trim())
+      .join(' '),
+  );
 }
 
 /**

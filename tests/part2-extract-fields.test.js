@@ -285,3 +285,37 @@ describe('PART 2 두 줄 주소 (groupId)', () => {
     expect(r.data.contract.address).toBe('서울특별시 중구 필동로 00, 101동 1001호');
   });
 });
+
+describe('PART 2 extractFields 주소 정식 이름', () => {
+  const HEAD = '주택임대차계약서 보증금 특약';
+
+  it('fields의 주소는 시·도 정식 이름으로 바꾸고, findings의 주소 값은 원문 그대로다', () => {
+    const doc = leaseDoc([HEAD, '소재지 서울 중구 필동로 00, 101호']);
+    const r = extractFields([doc], []);
+    expect(r.data.contract.address).toBe('서울특별시 중구 필동로 00, 101호');
+    const found = detectPII(doc).data.filter((f) => f.type === 'ADDRESS');
+    expect(found.map((f) => f.value)).toEqual(['서울 중구 필동로 00, 101호']);
+  });
+
+  it('두 줄 주소의 윗줄이 줄임말 시·도 이름뿐이어도 이어 붙인 뒤 정식 이름으로 바꾼다', () => {
+    const r = extractFields([leaseDoc([HEAD, '소재지 서울', '중구 필동로 00, 101호'])], []);
+    expect(r.data.contract.address).toBe('서울특별시 중구 필동로 00, 101호');
+  });
+
+  it('옛 이름과 광주도 바꾼다', () => {
+    const a = extractFields([leaseDoc([HEAD, '소재지 강원도 춘천시 00'])], []);
+    expect(a.data.contract.address).toBe('강원특별자치도 춘천시 00');
+    const b = extractFields([leaseDoc([HEAD, '소재지 광주 북구 용봉로 00'])], []);
+    expect(b.data.contract.address).toBe('광주광역시 북구 용봉로 00');
+  });
+
+  it('조사가 붙은 주소도 찾아서 조사 앞까지 정식 이름으로 만든다', () => {
+    const r = extractFields([leaseDoc([HEAD, '임차인은 서울 강남구에서 산다'])], []);
+    expect(r.data.contract.address).toBe('서울특별시 강남구');
+  });
+
+  it('시·군·구가 없는 광주 주소는 주소로 잡지 않으므로 null이다 (추측해서 바꾸지 않는다)', () => {
+    const r = extractFields([leaseDoc([HEAD, '소재지 광주 필동로 00'])], []);
+    expect(r.data.contract.address).toBeNull();
+  });
+});
