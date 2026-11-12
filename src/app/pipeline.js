@@ -7,6 +7,7 @@
  *
  * 화면 단계에 맞춰 세 부분으로 나눈다.
  *   1) analyzeDocuments(): 서류 읽기 → 판별 → 개인정보 탐지 → 인물 판별 → 위험 점검   (목적 선택 전)
+ *   1-1) recheckPeople():  ② "같은 사람인가요?" 답으로 사람 그룹을 합치고 위험 점검 다시 하기
  *   2) prepareForAi():     목적별 마스킹 → 남은 개인정보 검사 → AI 상담 프롬프트        (목적 선택 후)
  *   3) exportMaskedPdfs(): 마스킹 PDF 생성 (실패해도 나머지 결과는 유지)
  * runPipeline()은 세 부분을 한 번에 실행한다 (테스트·스크립트용).
@@ -18,6 +19,7 @@ import { classifyDocument, detectPII, extractFields } from '../features/document
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
   matchPeople,
+  applyPersonAnswers,
   createMaskingPlan,
   applyMaskingPlan,
   validateMaskedText,
@@ -103,6 +105,30 @@ export async function analyzeDocuments({ files }) {
     riskResults: risks.data,
   };
   return ok(analysis);
+}
+
+/**
+ * @typedef {Object} Checked  recheckPeople()의 결과 ("같은 사람인가요?" 답을 반영한 판정)
+ * @property {any[]} personGroups  답으로 합친 그룹
+ * @property {import('../shared/document-model.js').RiskResult[]} riskResults  합친 그룹으로 다시 점검한 결과
+ */
+
+/**
+ * 1-1) ② 화면의 "같은 사람인가요?" 답으로 사람 그룹을 합치고 위험 점검을 다시 한다. (docs/INTERFACES.md 6번)
+ * 서류를 다시 읽지 않는다. 원래 analysis.personGroups·riskResults는 바꾸지 않는다 (답을 바꾸면 원래 판정에서 다시 계산).
+ * @param {Analysis} analysis
+ * @param {Record<string, string | null>} personAnswers  { P4: 'P2' } 같은 사람 / { P4: null } 다른 사람 / 키 없음 = 안 답함
+ */
+export function recheckPeople(analysis, personAnswers) {
+  const merged = applyPersonAnswers(analysis.personGroups, personAnswers);
+  if (!merged.ok) return stoppedAt('applyPersonAnswers', merged);
+
+  const risks = assessRisks(analysis.fields, merged.data);
+  if (!risks.ok) return stoppedAt('assessRisks', risks);
+
+  /** @type {Checked} */
+  const checked = { personGroups: merged.data, riskResults: risks.data };
+  return ok(checked);
 }
 
 /**
