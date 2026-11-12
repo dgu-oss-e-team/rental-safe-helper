@@ -33,14 +33,20 @@ const NOT_NAMES = new Set(rules.notNames);
 const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:[ \\t]+[A-Z][A-Za-z\'-]*){0,3})';
 
 /**
+ * 등기부 공유자의 지분 표기: "지분 2분의 1", "지분 1/2". 라벨과 이름 사이에 온다.
+ * 예: "공유자 지분 2분의 1 김철수" → 이름은 "김철수" ("지분"이 아니다)
+ */
+const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
+
+/**
  * 라벨 하나에 대한 정규식을 만든다.
- * 라벨 → (성명) → (:) → 공백이나 콜론 1개 이상 → 이름
+ * 라벨 → (성명) → (지분 표기) → (:) → 공백이나 콜론 1개 이상 → 이름
  * 라벨과 이름 사이에 구분(공백이나 :)이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
  * @param {string} label
  */
 function labelRegex(label) {
   return new RegExp(
-    `${spaced(label)}(?:\\s*(?:${NAME_FIELD}))?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+    `${spaced(label)}(?:\\s*(?:${NAME_FIELD}))?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
     'g',
   );
 }
