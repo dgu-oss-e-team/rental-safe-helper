@@ -4,6 +4,7 @@ import {
   findAddresses,
   findPeople,
   lastRoleIn,
+  findAddressContinuation,
 } from '../src/features/document-analysis/name-detector.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
@@ -195,6 +196,59 @@ describe('PART 2 조사가 붙은 주소', () => {
     expect(findAddresses('경기 지시에 따라')).toHaveLength(0);
     expect(findAddresses('대구 지시에 따라')).toHaveLength(0);
     expect(findAddresses('세종 지시에 따라')).toHaveLength(0);
+  });
+});
+
+describe('PART 2 붙여 쓴 주소 (이슈 #72)', () => {
+  it('시·도로 끝나는 이름 뒤에 시·군·구가 붙어 있어도 주소로 찾는다 (값은 원문 그대로)', () => {
+    expect(findAddresses('소재지 서울특별시중구 필동로 00, 101호')[0].value).toBe('서울특별시중구 필동로 00, 101호');
+    expect(findAddresses('경기도수원시 팔달구 효원로 00')[0].value).toBe('경기도수원시 팔달구 효원로 00');
+    expect(findAddresses('서울시중구 필동로 00')[0].value).toBe('서울시중구 필동로 00');
+    expect(findAddresses('경기도광주시 오포읍 00')[0].value).toBe('경기도광주시 오포읍 00');
+  });
+
+  it('붙여 쓴 주소 뒤에 조사가 붙어도 조사 앞까지 찾는다', () => {
+    expect(findAddresses('서울특별시중구에서 계약한다')[0].value).toBe('서울특별시중구');
+  });
+
+  it('줄여 쓴 이름("서울", "경기")은 붙여 쓰면 주소로 보지 않는다 (일상 문장과 헷갈림)', () => {
+    expect(findAddresses('서울중구 필동로 00')).toHaveLength(0);
+    expect(findAddresses('경기수원시 00')).toHaveLength(0);
+  });
+
+  it('시·도 이름 뒤에 붙은 다른 단어는 주소가 아니다', () => {
+    expect(findAddresses('서울시청 앞에서 만나자')).toHaveLength(0);
+    expect(findAddresses('경기도교육청 공문')).toHaveLength(0);
+    expect(findAddresses('제주도시 여행')).toHaveLength(0);
+    expect(findAddresses('부산시민 모두')).toHaveLength(0);
+  });
+});
+
+describe('PART 2 시·군·구로 끝나는 일상 단어 (이슈 #72)', () => {
+  it('일상 단어는 시·도 이름 뒤에 와도 주소로 보지 않는다', () => {
+    expect(findAddresses('서울 친구와 함께 산다')).toHaveLength(0);
+    expect(findAddresses('서울 친구 집에서 지낸다')).toHaveLength(0);
+    expect(findAddresses('부산 가구를 옮긴다')).toHaveLength(0);
+    expect(findAddresses('인천 입구에서 만나자')).toHaveLength(0);
+    expect(findAddresses('서울 역시 비싸다')).toHaveLength(0);
+    expect(findAddresses('서울 다시 가자')).toHaveLength(0);
+    expect(findAddresses('부산 도시는 크다')).toHaveLength(0);
+  });
+
+  it('진짜 시·군·구는 그대로 찾는다 (중구·동구·남구처럼 짧은 이름 포함)', () => {
+    expect(findAddresses('서울 중구 필동로 00')[0].value).toBe('서울 중구 필동로 00');
+    expect(findAddresses('부산 동구에서 계약한다')[0].value).toBe('부산 동구');
+    expect(findAddresses('인천광역시 남동구 00')[0].value).toBe('인천광역시 남동구 00');
+    expect(findAddresses('경기도 시흥시 00')[0].value).toBe('경기도 시흥시 00');
+  });
+
+  it('일상 단어로 시작하는 긴 단어는 막지 않는다 (단어 전체가 같을 때만 뺀다)', () => {
+    expect(findAddresses('경기도 도구시 00')[0].value).toBe('경기도 도구시 00'); // 가상의 지명
+  });
+
+  it('두 줄 주소의 아랫줄이 일상 단어로 시작하면 주소 조각으로 보지 않는다', () => {
+    expect(findAddressContinuation('친구 집에서 지낸다', true)).toBeNull();
+    expect(findAddressContinuation('중구 필동로 00', true)?.value).toBe('중구 필동로 00');
   });
 });
 
