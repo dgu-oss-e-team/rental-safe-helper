@@ -40,6 +40,10 @@ import personLabels from '../../config/templates/person-labels.json';
 // ④ 확인 화면 (PART 5 slots.js의 maskingReview 자리)
 export { renderMaskingReview } from './masking-review-ui.js';
 
+// "같은 사람인가요?" 답 반영과 ② 결과 화면 질문 (PART 5 slots.js의 personQuestions 자리, INTERFACES.md 6번)
+export { applyPersonAnswers } from './person-answers.js';
+export { renderPersonQuestions } from './person-questions-ui.js';
+
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */

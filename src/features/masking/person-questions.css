@@ -1,0 +1,42 @@
+/* PART 4. "같은 사람인가요?" 질문 (person-questions-ui.js). 클래스 이름은 pq-로 시작한다. */
+.pq {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pq-card {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #ecd9b8;
+  border-radius: 8px;
+  background: #fffaf2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pq-card legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.pq-text {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pq-option {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pq-option input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
