@@ -9,7 +9,6 @@
  * applyPersonAnswers(personGroups, personAnswers) → Result<PersonGroup[]>
  *   - 같은 사람: 답의 대상(P2)의 personId·가명을 남기고, P4의 역할·findingIds를 합친다. 합친 그룹은 CONFIRMED.
  *   - 다른 사람: 그 그룹을 CONFIRMED로만 바꾼다.
- * 
  *   - 답의 키는 원래 AMBIGUOUS인 사람만 된다. (CONFIRMED인 사람을 합치면 근거 없이 STOP이 사라질 수 있음)
  *   - 없는 personId, 자기 자신, 서로 가리키는 답(P2→P4, P4→P2), CONFIRMED인 사람의 답은 실패 → PART 5가 이전 상태를 유지한다.
  *   - 원래 personGroups는 바꾸지 않는다. (답을 바꾸거나 취소하면 원래 그룹에서 다시 계산)

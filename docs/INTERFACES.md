@@ -160,7 +160,6 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   - 다른 사람(`{ P4: null }`): 그 그룹을 `CONFIRMED`로만 바꾼다.
   - 답의 키는 **원래 `AMBIGUOUS`인 사람만** 된다. `CONFIRMED`인 사람(예: 생년월일이 다른 소유자·임대인)을 합치면 근거 없이 STOP이 사라질 수 있어서다.
   - 없는 `personId`, 자기 자신, 서로 가리키는 답(`{ P2: 'P4', P4: 'P2' }`), `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
-  
 - PART 5는 합친 그룹으로 PART 3 `assessRisks(fields, 합친 그룹)`과 PART 4 마스킹(`prepareForAi`)을 다시 계산한다.
 - 질문 화면: PART 4 `renderPersonQuestions({ analysis, personGroups, personAnswers, onChange })` → `HTMLElement | null` (slots.js `personQuestions`)
   - 질문은 원래 판정(`analysis.personGroups`) 기준이라 답한 뒤에도 남는다. 후보는 이름이 같거나 생년월일이 같은 다른 사람.
