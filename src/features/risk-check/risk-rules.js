@@ -18,7 +18,8 @@ import { ok, fail, ERROR_CODE, RISK_STATUS } from '../../shared/document-model.j
  * @typedef {Object} Rule
  * @property {string} title
  * @property {{ left: string, right: string }} [evidence]
- * @property {Record<string, RuleText>} results  상태별 문구
+ * @property {Record<string, any>} [params]  판정 로직이 읽는 설정값 (예: withinMonths)
+ * @property {Record<string, RuleText>} results  상태별 문구. 키는 "STOP" 또는 "CHECK.cancel_unknown"처럼 "상태.변형"
  */
 
 /**
@@ -44,12 +45,14 @@ export function parseRiskRules(text) {
     if (typeof rule?.title !== 'string' || !rule.results || typeof rule.results !== 'object') {
       return fail(ERROR_CODE.INVALID_INPUT, `Rule ${ruleId} needs a title and results.`);
     }
-    for (const [status, text] of Object.entries(rule.results)) {
-      if (!validStatuses.includes(status)) {
+        for (const [key, text] of Object.entries(rule.results)) {
+      // 키는 "STOP" 또는 "CHECK.cancel_unknown"처럼 "상태" 또는 "상태.변형"
+      const [status, variant, ...rest] = key.split('.');
+      if (!validStatuses.includes(status) || variant === '' || rest.length > 0) {
         return fail(ERROR_CODE.INVALID_INPUT, `Rule ${ruleId} has an unknown status.`);
       }
       if (typeof text?.explanation !== 'string' || typeof text?.action !== 'string') {
-        return fail(ERROR_CODE.INVALID_INPUT, `Rule ${ruleId} (${status}) needs explanation and action.`);
+        return fail(ERROR_CODE.INVALID_INPUT, `Rule ${ruleId} (${key}) needs explanation and action.`);
       }
     }
   }
@@ -62,4 +65,17 @@ let cached = null;
 export function getRiskRules() {
   if (!cached) cached = parseRiskRules(rulesText);
   return cached;
+}
+
+
+/**
+ * 규칙 하나의 설정값(params)을 읽는다. 규칙 파일을 못 읽었거나 값이 없으면 fallback.
+ * @param {string} ruleId
+ * @param {string} key
+ * @param {any} fallback
+ */
+export function getRuleParam(ruleId, key, fallback) {
+  const rules = getRiskRules();
+  if (!rules.ok) return fallback;
+  return rules.data[ruleId]?.params?.[key] ?? fallback;
 }

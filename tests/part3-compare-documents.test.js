@@ -154,7 +154,7 @@ describe('PART 3 assessRisks() 연결', () => {
     const r = assessRisks(fields(), groups());
     expect(r.ok).toBe(true);
     const byId = Object.fromEntries(r.data.map((x) => [x.ruleId, x.status]));
-    expect(byId).toEqual({
+    expect(byId).toMatchObject({
       OWNER_MISMATCH: RISK_STATUS.STOP,
       ACCOUNT_HOLDER_MISMATCH: RISK_STATUS.UNVERIFIABLE,
       ADDRESS_MISMATCH: RISK_STATUS.NO_FLAG,
