@@ -263,6 +263,59 @@ describe('PART 2 extractFields 등기부 소유자는 지금 소유자만', () =
   });
 });
 
+describe('PART 2 extractFields 예전 소유자 (registry.previousOwners)', () => {
+  const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+  const registryOf = (/** @type {string[]} */ lines) => extractFields([leaseDoc(lines)], []).data.registry;
+
+  it('갑구의 예전 소유자를 role PREVIOUS_OWNER로 따로 넣는다 (owners에는 지금 소유자만)', () => {
+    const r = registryOf([
+      REGISTRY_HEAD,
+      GAP,
+      '1 소유권보존 2015년1월20일 소유자 최민수 650505-1******',
+      '2 소유권이전 2018년6월1일 매매 소유자 박영수 700101-1******',
+      '3 소유권이전 2024년5월10일 매매 소유자 김철수 800101-1******',
+      EUL,
+    ]);
+    expect(r.owners.map((/** @type {any} */ p) => [p.name, p.role])).toEqual([['김철수', 'OWNER']]);
+    expect(r.previousOwners.map((/** @type {any} */ p) => [p.name, p.birthDate, p.role])).toEqual([
+      ['최민수', '650505', 'PREVIOUS_OWNER'],
+      ['박영수', '700101', 'PREVIOUS_OWNER'],
+    ]);
+  });
+
+  it('예전 소유자의 findingId는 탐지 결과의 id와 같다 (PART 4가 가명을 붙일 수 있게)', () => {
+    const doc = leaseDoc([REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', EUL]);
+    const prev = extractFields([doc], []).data.registry.previousOwners;
+    const finding = detectPII(doc).data.find((f) => f.value === '박영수');
+    expect(prev.map((/** @type {any} */ p) => p.findingId)).toEqual([finding?.id]);
+  });
+
+  it('사용자가 해제(REJECTED)한 예전 소유자는 넣지 않는다', () => {
+    const doc = leaseDoc([REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', EUL]);
+    const findings = detectPII(doc).data.map((f) =>
+      f.value === '박영수' ? { ...f, reviewStatus: REVIEW_STATUS.REJECTED } : f,
+    );
+    expect(extractFields([doc], findings).data.registry.previousOwners).toEqual([]);
+  });
+
+  it('소유권 기록이 하나뿐이면 [] (예전 소유자 없음)', () => {
+    expect(registryOf([REGISTRY_HEAD, GAP, '1 소유권보존 2015년1월20일 소유자 최민수', EUL]).previousOwners).toEqual([]);
+  });
+
+  it('지금 소유자를 정할 수 없으면 owners·previousOwners 둘 다 null', () => {
+    const r = registryOf([REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년7월7일 신탁 수탁자 ○○신탁', EUL]);
+    expect(r.owners).toBeNull();
+    expect(r.previousOwners).toBeNull();
+  });
+
+  it('순위번호가 없는 등기부(Mock)·등기부가 없으면 previousOwners는 null', () => {
+    expect(extractFields([mockRegistryDocument], []).data.registry.previousOwners).toBeNull();
+    expect(extractFields([], []).data.registry.previousOwners).toBeNull();
+  });
+});
+
 describe('PART 2 extractFields 최근 소유권이전 접수일·계약일', () => {
   const HEAD = '주택임대차계약서 보증금 특약';
   const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';

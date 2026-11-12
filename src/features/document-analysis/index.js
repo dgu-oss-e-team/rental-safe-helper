@@ -32,6 +32,7 @@ import {
   findLastTransferDate,
   findContractDate,
   findCurrentOwnerLines,
+  findPreviousOwnerLines,
 } from './field-extractor.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
@@ -297,25 +298,33 @@ function lineIndexById(document, hits) {
 }
 
 /**
- * 등기부 소유자 중 지금 소유자만 남긴다. 갑구에 남아 있는 예전 소유자(이미 판 사람)는 뺀다.
+ * 등기부 소유자를 지금 소유자와 예전 소유자(갑구에 남아 있는, 이미 판 사람)로 나눈다.
  * (예전 소유자가 임대인으로 서명해도 "소유자와 같음"으로 보이지 않게, 공동 소유로 잘못 보이지 않게)
- * - 지금 소유자 줄을 정할 근거가 없으면('ALL') 지금처럼 전부 쓴다. (예: 순위번호 없는 등기부, Mock)
- * - 지금 소유자를 정할 수 없거나 그 줄에서 소유자 이름을 못 찾으면 null (못 읽음, 추측하지 않음)
- * 빠진 예전 소유자의 이름도 탐지 결과(findings)에는 그대로 있어서 마스킹에서 가려진다.
- * @param {Person[]} owners
+ * - current: 지금 소유자 줄을 정할 근거가 없으면('ALL') 지금처럼 전부 쓴다. (예: 순위번호 없는 등기부, Mock)
+ *   지금 소유자를 정할 수 없거나 그 줄에서 소유자 이름을 못 찾으면 null (못 읽음, 추측하지 않음)
+ * - previous: 지금 소유자를 정했을 때만 만든다. 없으면 [], current가 정해지지 않았거나 'ALL'이면 null.
+ *   role은 'PREVIOUS_OWNER' (PART 4가 [PrevOwner_E] 같은 가명을 붙인다)
+ * 예전 소유자의 이름은 탐지 결과(findings)에도 그대로 있어서 마스킹에서 가려진다.
+ * @param {Person[]} owners role이 OWNER인 사람 전부
  * @param {DocumentModel} document
  * @param {any[]} hits
  * @param {string[]} lines
- * @returns {Person[] | null}
+ * @returns {{ current: Person[] | null, previous: Person[] | null }}
  */
-function currentOwners(owners, document, hits, lines) {
-  const ownerLines = findCurrentOwnerLines(lines);
-  if (ownerLines === 'ALL') return owners;
-  if (ownerLines === null) return null;
+function splitOwners(owners, document, hits, lines) {
+  const currentLines = findCurrentOwnerLines(lines);
+  if (currentLines === 'ALL') return { current: owners, previous: null };
+  if (currentLines === null) return { current: null, previous: null };
   const lineOf = lineIndexById(document, hits);
-  const wanted = new Set(ownerLines);
-  const current = owners.filter((p) => wanted.has(/** @type {number} */ (lineOf.get(p.findingId))));
-  return current.length > 0 ? current : null;
+  /** @param {number[] | null} wantedLines */
+  const onLines = (wantedLines) => {
+    const wanted = new Set(wantedLines ?? []);
+    return owners.filter((p) => wanted.has(/** @type {number} */ (lineOf.get(p.findingId))));
+  };
+  const current = onLines(currentLines);
+  if (current.length === 0) return { current: null, previous: null };
+  const previous = onLines(findPreviousOwnerLines(lines)).map((p) => ({ ...p, role: 'PREVIOUS_OWNER' }));
+  return { current, previous };
 }
 
 /**
@@ -323,9 +332,10 @@ function currentOwners(owners, document, hits, lines) {
  * 노션 함수 표에는 없지만 assessRisks()의 입력("비교용 추출 데이터")을 만들기 위해 추가한 함수 (docs/INTERFACES.md 참고)
  * - 사람 정보와 주소: 실제 탐지 결과에서 만든다. (findingId = detectPII() 결과의 id)
  * - 사용자가 해제(REJECTED)한 이름은 사람 목록에서 뺀다.
- * - 등기부 소유자(registry.owners)는 지금 소유자만 넣는다. 갑구의 예전 소유자는 뺀다. (currentOwners 참고)
  *   TODO(PART 2): 사용자가 직접 추가(USER_ADDED)한 이름은 역할을 알 수 없어서 아직 넣지 않는다.
  *   PART 5 검토 화면에서 역할을 고르게 되면 그때 반영한다.
+ * - 등기부 소유자(registry.owners)는 지금 소유자만 넣고, 갑구의 예전 소유자는
+ *   registry.previousOwners(role 'PREVIOUS_OWNER')로 따로 넣는다. (splitOwners 참고)
  * - 문서가 없으면 그 문서의 항목은 null (못 읽음), 문서는 있는데 사람이 없으면 [] (없음)
  * - 등기부 권리, 보증금·월세·특약: field-extractor.js의 함수로 실제 문서에서 읽는다. 못 읽으면 null.
  * - 마지막 소유권이전 접수일(registry.lastTransferDate), 계약일(contract.contractDate): 'YYYY-MM-DD' 문자열, 못 읽으면 null.
@@ -353,18 +363,27 @@ export function extractFields(documents, findings) {
   const byRole = (people, role) => people.filter((p) => p.role === role);
 
   /**
-   * @type {{ documentId: string | null, address: string | null, owners: Person[] | null, rights: any[] | null,
-   *   lastTransferDate: string | null }}
+   * @type {{ documentId: string | null, address: string | null, owners: Person[] | null,
+   *   previousOwners: Person[] | null, rights: any[] | null, lastTransferDate: string | null }}
    */
-  let registry = { documentId: null, address: null, owners: null, rights: null, lastTransferDate: null };
+  let registry = {
+    documentId: null,
+    address: null,
+    owners: null,
+    previousOwners: null,
+    rights: null,
+    lastTransferDate: null,
+  };
   if (registryDoc) {
     const hits = scanDocument(registryDoc);
     const people = collectPeople(hits, rejectedIds);
     const lines = linesOf(registryDoc);
+    const owners = splitOwners(byRole(people, 'OWNER'), registryDoc, hits, lines);
     registry = {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
-      owners: currentOwners(byRole(people, 'OWNER'), registryDoc, hits, lines),
+      owners: owners.current,
+      previousOwners: owners.previous,
       rights: findRegistryRights(lines),
       lastTransferDate: findLastTransferDate(lines),
     };
