@@ -1,6 +1,6 @@
-// @ts-check
+﻿// @ts-check
 import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, SOURCE_TYPE } from '../../shared/document-model.js';
-import { readPdfText } from './pdf-reader.js';
+import { readPdfText, renderPdfToImages } from './pdf-reader.js';
 import { recognizeImageText } from './ocr.js';
 import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
 
@@ -79,6 +79,67 @@ export function normalizePagesAndBlocks(textPages, ocrConfidence = null) {
 }
 
 /**
+ * Fallback pipeline for scanned/image-only PDFs with no embedded text stream.
+ * Renders PDF pages to images and runs OCR per page.
+ * @param {ArrayBuffer} buffer
+ * @returns {Promise<import('../../shared/document-model.js').Page[] | null>}
+ */
+async function extractScannedPdfPages(buffer) {
+  try {
+    const pageImages = await renderPdfToImages(buffer);
+    if (!pageImages || pageImages.length === 0) {
+      return null;
+    }
+
+    /** @type {import('../../shared/document-model.js').Page[]} */
+    const ocrPages = [];
+
+    for (const pageImg of pageImages) {
+      const ocrRes = await recognizeImageText(pageImg.buffer);
+      const ocrConfidence = typeof ocrRes.confidence === 'number' ? ocrRes.confidence : null;
+      const pageWidth = ocrRes.width || pageImg.width || 1000;
+      const pageHeight = ocrRes.height || pageImg.height || 1414;
+
+      if (ocrRes.blocks && ocrRes.blocks.length > 0) {
+        ocrPages.push({
+          pageIndex: pageImg.pageIndex,
+          width: pageWidth,
+          height: pageHeight,
+          blocks: ocrRes.blocks.map((b, idx) => ({
+            blockId: `p${pageImg.pageIndex}_b${idx}`,
+            text: b.text,
+            bbox: b.bbox,
+            confidence: ocrConfidence,
+          })),
+        });
+      } else {
+        const trimmed = (ocrRes.text || '').trim();
+        const lines = trimmed ? trimmed.split('\n').filter((l) => l.trim().length > 0) : [];
+        ocrPages.push({
+          pageIndex: pageImg.pageIndex,
+          width: pageWidth,
+          height: pageHeight,
+          blocks: lines.map((line, idx) => ({
+            blockId: `p${pageImg.pageIndex}_b${idx}`,
+            text: line.trim(),
+            bbox: { x: 0, y: 0, width: 1, height: 1 },
+            confidence: ocrConfidence,
+          })),
+        });
+      }
+    }
+
+    const hasExtractedText = ocrPages.some((p) =>
+      p.blocks.some((b) => b.text && b.text.trim().length > 0)
+    );
+
+    return hasExtractedText ? ocrPages : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Public Entry Point: Processes uploaded lease or registry documents.
  * Extracts text via PDF parser or OCR engine, deriving real normalized coordinates (bbox)
  * and dynamic page dimensions to construct a valid DocumentModel.
@@ -108,10 +169,23 @@ export async function readDocument(file) {
     if (isPdf) {
       const pdfRes = await readPdfText(buffer);
       
-      // Scanned PDF check: if no text found, trigger LOW_CONFIDENCE error per Issue #32
+      // Scanned PDF check: if no embedded text stream, run OCR fallback or return LOW_CONFIDENCE safety error
       const hasText = pdfRes.pages && pdfRes.pages.some((p) => p.blocks.length > 0);
       if (!hasText && pdfRes.textPages.every((t) => t.trim().length === 0)) {
-        return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
+        const scannedPages = await extractScannedPdfPages(buffer);
+        if (!scannedPages) {
+          return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
+        }
+
+        /** @type {import('../../shared/document-model.js').DocumentModel} */
+        const scannedDocumentModel = {
+          documentId: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          documentType: DOCUMENT_TYPE.UNKNOWN,
+          sourceType: SOURCE_TYPE.IMAGE_PDF,
+          pages: scannedPages,
+        };
+
+        return ok(scannedDocumentModel);
       }
 
       const pages = pdfRes.pages && pdfRes.pages.length > 0

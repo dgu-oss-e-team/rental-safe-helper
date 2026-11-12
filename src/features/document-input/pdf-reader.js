@@ -1,10 +1,104 @@
-// @ts-check
+﻿// @ts-check
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 // @ts-ignore
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+}
+
+/**
+ * Creates a 2D canvas in browser or OffscreenCanvas environments.
+ * @param {number} width
+ * @param {number} height
+ * @returns {HTMLCanvasElement | OffscreenCanvas}
+ */
+function createRenderCanvas(width, height) {
+  if (typeof globalThis.document !== 'undefined') {
+    const canvas = globalThis.document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height);
+  }
+  throw new Error('CANVAS_UNAVAILABLE');
+}
+
+/**
+ * Converts a rendered canvas to a PNG ArrayBuffer.
+ * @param {HTMLCanvasElement | OffscreenCanvas} canvas
+ * @returns {Promise<ArrayBuffer>}
+ */
+async function canvasToPngBuffer(canvas) {
+  if ('convertToBlob' in canvas && typeof canvas.convertToBlob === 'function') {
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return blob.arrayBuffer();
+  }
+  if ('toBlob' in canvas && typeof canvas.toBlob === 'function') {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('CANVAS_TO_BLOB_FAILED'));
+          return;
+        }
+        resolve(blob.arrayBuffer());
+      }, 'image/png');
+    });
+  }
+  throw new Error('CANVAS_UNAVAILABLE');
+}
+
+/**
+ * Renders each page of a PDF buffer into PNG image buffers for OCR fallback.
+ * @param {ArrayBuffer} buffer
+ * @param {number} [scale=2.0]
+ * @returns {Promise<Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>>}
+ */
+export async function renderPdfToImages(buffer, scale = 2.0) {
+  if (!buffer || buffer.byteLength === 0) {
+    return [];
+  }
+
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+  const pdfDocument = await loadingTask.promise;
+  /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
+  const renderedPages = [];
+
+  for (let i = 1; i <= pdfDocument.numPages; i++) {
+    const page = await pdfDocument.getPage(i);
+    const viewport = page.getViewport({ scale });
+    const width = Math.ceil(viewport.width) || 1000;
+    const height = Math.ceil(viewport.height) || 1414;
+
+    const canvas = createRenderCanvas(width, height);
+    const ctx = /** @type {CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null} */ (
+      canvas.getContext('2d')
+    );
+    if (!ctx) {
+      throw new Error('CANVAS_UNAVAILABLE');
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    await page.render({
+      canvas: /** @type {any} */ (canvas),
+      canvasContext: /** @type {any} */ (ctx),
+      viewport,
+    }).promise;
+
+    const pngBuffer = await canvasToPngBuffer(canvas);
+    renderedPages.push({
+      pageIndex: i - 1,
+      buffer: pngBuffer,
+      width,
+      height,
+    });
+  }
+
+  return renderedPages;
 }
 
 /**
