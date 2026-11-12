@@ -176,7 +176,7 @@ describe('PART 3 assessRisks() 연결', () => {
       purpose: MASKING_PURPOSE.FRAUD_CHECK,
       riskResults: r.data,
       maskedText: { DOC_LEASE: '임대인 [Landlord_B]' },
-      legend: { '[Landlord_B]': 'landlord on the contract' },
+            legend: { '[Owner_A]': 'owner on the register', '[Landlord_B]': 'landlord on the contract' },
     });
     expect(p.ok).toBe(true);
     expect(p.data).not.toContain('김철수');
