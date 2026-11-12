@@ -9,6 +9,7 @@
  *  - 값이 null이거나 비어 있으면 UNVERIFIABLE (읽지 못한 것을 "문제없음"으로 판단하지 않는다)
  *  - 같은 사람인지는 이름을 직접 비교하지 않고 PART 4의 personGroups 결과를 쓴다
  *  - personGroups에서 판정이 AMBIGUOUS인 사람이 있으면 UNVERIFIABLE
+ *  - 공동 소유(소유자 2명 이상)인데 일부만 임대인으로 서명했으면 CHECK (나머지 소유자의 동의 필요) 
  *  - 문구에는 실제 이름 대신 역할 가명(alias)만 쓴다
  */
 
@@ -57,9 +58,10 @@ const joinAliases = (groups) => [...new Set(groups.map((g) => g.alias))].join(' 
  * @param {string} p.memberKey  문구의 {자리} 이름 (members용)
  * @param {string} p.allowedKey  문구의 {자리} 이름 (allowed용)
  * @param {any[]} p.personGroups
- * @param {{ left: any[] | null | undefined, right: any[] | null | undefined }} p.display  근거 칸 (왼쪽, 오른쪽)
+  * @param {{ left: any[] | null | undefined, right: any[] | null | undefined }} p.display  근거 칸 (왼쪽, 오른쪽)
+ * @param {boolean} [p.coOwnerCheck]  true면 allowed가 2명 이상인데 members가 일부뿐일 때 CHECK (소유자 비교용)
  */
-function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, personGroups, display }) {
+function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, personGroups, display, coOwnerCheck = false }) {
   const memberGroups = resolveGroups(members, personGroups);
   const allowedGroups = resolveGroups(allowed, personGroups);
   const values = { left: describePeople(display.left), right: describePeople(display.right) };
@@ -68,13 +70,21 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values });
   }
 
-  const allowedIds = new Set(allowedGroups.map((g) => g.personId));
-  const same = memberGroups.every((g) => allowedIds.has(g.personId));
+    const allowedIds = new Set(allowedGroups.map((g) => g.personId));
+  const memberIds = new Set(memberGroups.map((g) => g.personId));
+  const same = [...memberIds].every((id) => allowedIds.has(id));
   const aliases = {
     [memberKey]: joinAliases(memberGroups),
     [allowedKey]: joinAliases(allowedGroups),
   };
-  return buildRiskResult(ruleId, same ? RISK_STATUS.NO_FLAG : RISK_STATUS.STOP, { aliases, values });
+  if (!same) return buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values });
+
+  // 공동 소유: 소유자가 2명 이상인데 그중 일부만 임대인으로 서명했다면 나머지 소유자의 동의가 필요하다
+  const everyOwnerSigns = [...allowedIds].every((id) => memberIds.has(id));
+  if (coOwnerCheck && !everyOwnerSigns) {
+    return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'co_owner', aliases, values });
+  }
+  return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { aliases, values });
 }
 
 /** 등기부 소유자 ↔ 계약서 임대인 */
@@ -89,6 +99,7 @@ export function compareOwnerAndLandlord(fields, personGroups) {
     allowedKey: 'owner',
     personGroups,
     display: { left: owners, right: landlords },
+    coOwnerCheck: true,
   });
 }
 
