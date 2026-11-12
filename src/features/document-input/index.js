@@ -5,6 +5,7 @@ import { recognizeImageText } from './ocr.js';
 import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
 
 export const MIN_OCR_CONFIDENCE = 0.6;
+export const MIN_DIGIT_LINE_CONFIDENCE = 0.8;
 
 /**
  * Validates if the file format is supported (.pdf, .jpg, .jpeg, .png)
@@ -82,7 +83,8 @@ export function normalizePagesAndBlocks(textPages, ocrConfidence = null) {
 
 /**
  * Validates OCR output for a single page and converts positioned OCR blocks into a Page.
- * Rejects pages without positioned blocks (avoiding full-page 0,0,1,1 masks) or below confidence threshold.
+ * Rejects pages without positioned blocks (avoiding full-page 0,0,1,1 masks),
+ * pages below MIN_OCR_CONFIDENCE, or digit-bearing lines below MIN_DIGIT_LINE_CONFIDENCE.
  * @param {{ text: string, confidence: number, blocks?: Array<{ text: string, confidence?: number, bbox: { x: number, y: number, width: number, height: number } }>, width?: number, height?: number }} ocrRes
  * @param {number} pageIndex
  * @param {number} defaultWidth
@@ -113,16 +115,29 @@ function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
     );
   }
 
+  const normalizedBlocks = positionedBlocks.map((b, idx) => ({
+    blockId: `p${pageIndex}_b${idx}`,
+    text: b.text.trim(),
+    bbox: b.bbox,
+    confidence: typeof b.confidence === 'number' ? b.confidence : pageConfidence,
+  }));
+
+  // Guard against partially mangled numeric IDs (e.g. RRN/Foreigner ID) passing page-level threshold
+  const hasLowConfidenceDigits = normalizedBlocks.some(
+    (b) => /\d/.test(b.text) && b.confidence < MIN_DIGIT_LINE_CONFIDENCE
+  );
+  if (hasLowConfidenceDigits) {
+    return fail(
+      ERROR_CODE.LOW_CONFIDENCE,
+      'Numeric OCR confidence is too low to safely mask personal information.'
+    );
+  }
+
   return ok({
     pageIndex,
     width: ocrRes.width || defaultWidth || 1000,
     height: ocrRes.height || defaultHeight || 1414,
-    blocks: positionedBlocks.map((b, idx) => ({
-      blockId: `p${pageIndex}_b${idx}`,
-      text: b.text.trim(),
-      bbox: b.bbox,
-      confidence: typeof b.confidence === 'number' ? b.confidence : pageConfidence,
-    })),
+    blocks: normalizedBlocks,
   });
 }
 
@@ -200,7 +215,8 @@ export async function readDocument(file) {
     const isPdf = fileName.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
 
     if (isPdf) {
-      const pdfRes = await readPdfText(buffer);
+      // Pass a copy so pdf.js worker transfer does not detach `buffer` for OCR fallback
+      const pdfRes = await readPdfText(buffer.slice(0));
 
       // Scanned PDF check: if no embedded text stream, run OCR fallback or return LOW_CONFIDENCE safety error
       const hasText = pdfRes.pages && pdfRes.pages.some((p) => p.blocks.length > 0);

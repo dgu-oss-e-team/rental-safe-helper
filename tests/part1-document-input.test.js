@@ -27,7 +27,7 @@ describe('PART 1 readDocument()', () => {
     expect(isSupportedFile({ name: 'a.hwp' })).toBe(false);
   });
 
-  it('텍스트 레이어가 없는 스캔 PDF는 OCR 폴백과 줄별 confidence를 통해 IMAGE_PDF DocumentModel을 반환한다', async () => {
+  it('텍스트 레이어가 없는 스캔 PDF는 원본 buffer를 보존한 채 OCR 폴백과 줄별 confidence를 통해 IMAGE_PDF DocumentModel을 반환한다', async () => {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.addPage([595, 842]);
     const pdfBytes = await pdfDoc.save();
@@ -43,7 +43,7 @@ describe('PART 1 readDocument()', () => {
     ]);
 
     const ocrSpy = vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
-      text: '임대인 홍길동\n임차인 김철수',
+      text: '임대인 홍길동\n임차인 김철수 800101-1******',
       confidence: 0.88,
       width: 1190,
       height: 1684,
@@ -54,8 +54,8 @@ describe('PART 1 readDocument()', () => {
           bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
         },
         {
-          text: '임차인 김철수',
-          confidence: 0.72,
+          text: '임차인 김철수 800101-1******',
+          confidence: 0.85,
           bbox: { x: 0.1, y: 0.25, width: 0.5, height: 0.03 },
         },
       ],
@@ -64,6 +64,7 @@ describe('PART 1 readDocument()', () => {
     const r = await readDocument(file);
 
     expect(renderSpy).toHaveBeenCalledTimes(1);
+    expect(renderSpy.mock.calls[0][0].byteLength).toBe(pdfBytes.byteLength);
     expect(ocrSpy).toHaveBeenCalledTimes(1);
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -77,8 +78,8 @@ describe('PART 1 readDocument()', () => {
       });
       expect(r.data.pages[0].blocks[1]).toMatchObject({
         blockId: 'p0_b1',
-        text: '임차인 김철수',
-        confidence: 0.72,
+        text: '임차인 김철수 800101-1******',
+        confidence: 0.85,
       });
     }
   });
@@ -142,6 +143,35 @@ describe('PART 1 readDocument()', () => {
     expect(imgRes.ok).toBe(false);
     if (!imgRes.ok) {
       expect(imgRes.error.code).toBe(ERROR_CODE.LOW_CONFIDENCE);
+    }
+  });
+
+  it('페이지 전체 신뢰도가 0.6 이상이어도 숫자가 포함된 줄의 신뢰도가 0.8 미만이면 LOW_CONFIDENCE 오류를 반환한다', async () => {
+    const imgFile = new File([new Uint8Array([1, 2, 3])], 'partial-id.png', { type: 'image/png' });
+
+    vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
+      text: '임대인 홍길동\n990505-5****+*',
+      confidence: 0.89,
+      width: 1000,
+      height: 1414,
+      blocks: [
+        {
+          text: '임대인 홍길동',
+          confidence: 0.96,
+          bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
+        },
+        {
+          text: '990505-5****+*',
+          confidence: 0.79,
+          bbox: { x: 0.1, y: 0.25, width: 0.5, height: 0.03 },
+        },
+      ],
+    });
+
+    const r = await readDocument(imgFile);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error.code).toBe(ERROR_CODE.LOW_CONFIDENCE);
     }
   });
 

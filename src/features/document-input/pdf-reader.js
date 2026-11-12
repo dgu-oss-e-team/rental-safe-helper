@@ -62,43 +62,47 @@ export async function renderPdfToImages(buffer, scale = 2.0) {
   }
 
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
-  const pdfDocument = await loadingTask.promise;
-  /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
-  const renderedPages = [];
+  try {
+    const pdfDocument = await loadingTask.promise;
+    /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
+    const renderedPages = [];
 
-  for (let i = 1; i <= pdfDocument.numPages; i++) {
-    const page = await pdfDocument.getPage(i);
-    const viewport = page.getViewport({ scale });
-    const width = Math.ceil(viewport.width) || 1000;
-    const height = Math.ceil(viewport.height) || 1414;
+    for (let i = 1; i <= pdfDocument.numPages; i++) {
+      const page = await pdfDocument.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const width = Math.ceil(viewport.width) || 1000;
+      const height = Math.ceil(viewport.height) || 1414;
 
-    const canvas = createRenderCanvas(width, height);
-    const ctx = /** @type {CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null} */ (
-      canvas.getContext('2d')
-    );
-    if (!ctx) {
-      throw new Error('CANVAS_UNAVAILABLE');
+      const canvas = createRenderCanvas(width, height);
+      const ctx = /** @type {CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null} */ (
+        canvas.getContext('2d')
+      );
+      if (!ctx) {
+        throw new Error('CANVAS_UNAVAILABLE');
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      await page.render({
+        canvas: /** @type {any} */ (canvas),
+        canvasContext: /** @type {any} */ (ctx),
+        viewport,
+      }).promise;
+
+      const pngBuffer = await canvasToPngBuffer(canvas);
+      renderedPages.push({
+        pageIndex: i - 1,
+        buffer: pngBuffer,
+        width,
+        height,
+      });
     }
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-
-    await page.render({
-      canvas: /** @type {any} */ (canvas),
-      canvasContext: /** @type {any} */ (ctx),
-      viewport,
-    }).promise;
-
-    const pngBuffer = await canvasToPngBuffer(canvas);
-    renderedPages.push({
-      pageIndex: i - 1,
-      buffer: pngBuffer,
-      width,
-      height,
-    });
+    return renderedPages;
+  } finally {
+    await loadingTask.destroy();
   }
-
-  return renderedPages;
 }
 
 /**
@@ -111,8 +115,8 @@ export async function readPdfText(buffer) {
     return { pageCount: 0, textPages: [], pages: [] };
   }
 
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
   try {
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
     const pdfDocument = await loadingTask.promise;
     const textPages = [];
     const pages = [];
@@ -124,7 +128,7 @@ export async function readPdfText(buffer) {
       const pageHeight = viewport.height || 1414;
 
       const textContent = await page.getTextContent();
-      
+
       /** @type {Array<{ text: string, x: number, y: number, w: number, h: number }>} */
       const rawItems = [];
 
@@ -230,5 +234,7 @@ export async function readPdfText(buffer) {
     };
   } catch (error) {
     throw new Error('PDF_READ_FAILED');
+  } finally {
+    await loadingTask.destroy();
   }
 }
