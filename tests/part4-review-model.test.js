@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { createMaskingPlan } from '../src/features/masking/index.js';
-import { buildReviewRows, setRowShown } from '../src/features/masking/review-model.js';
-import { mockRegistryFindings, mockLeaseFindings, mockPersonGroups } from '../src/shared/mock-data.js';
+import { createMaskingPlan, applyMaskingPlan, validateMaskedText } from '../src/features/masking/index.js';
+import { buildReviewRows, setRowShown, addSelection, removeAdd, nextUserId } from '../src/features/masking/review-model.js';
+import {
+  mockRegistryDocument,
+  mockLeaseDocument,
+  mockRegistryFindings,
+  mockLeaseFindings,
+  mockPersonGroups,
+} from '../src/shared/mock-data.js';
 import { MASKING_PURPOSE, PII_TYPE } from '../src/shared/document-model.js';
 
 const findings = [...mockRegistryFindings, ...mockLeaseFindings];
@@ -81,5 +87,57 @@ describe('PART 4 확인 화면 체크 → edits (setRowShown)', () => {
     const after = setRowShown(before, row, true);
     expect(after.add).toEqual(before.add);
     expect(before.remove).toEqual([]);
+  });
+});
+describe('PART 4 미리보기에서 더 가리기 (addSelection / removeAdd)', () => {
+  const block = mockLeaseDocument.pages[0].blocks.find((b) => b.blockId === 'L_008');
+  const pick = (value, extra = {}) => ({
+    documentId: 'DOC_LEASE',
+    blockId: 'L_008',
+    pageIndex: 0,
+    bbox: block.bbox,
+    value,
+    ...extra,
+  });
+
+  it('고른 글자를 add에 넣는다 (id, block 위치 포함, 앞뒤 공백 제거)', () => {
+    const r = addSelection({ remove: ['X'], add: [] }, pick('  현금으로 '));
+    expect(r.ok).toBe(true);
+    expect(r.edits).toEqual({
+      remove: ['X'],
+      add: [{ id: 'USER_001', documentId: 'DOC_LEASE', blockId: 'L_008', value: '현금으로', pageIndex: 0, bbox: block.bbox }],
+    });
+  });
+
+  it('넣은 글자는 마스킹 계획·AI 글·검사까지 그대로 이어진다', () => {
+    const { edits } = addSelection(undefined, pick('현금으로'));
+    const plan = createMaskingPlan(findings, mockPersonGroups, FRAUD, edits);
+    expect(plan.ok).toBe(true);
+    const masked = applyMaskingPlan([mockRegistryDocument, mockLeaseDocument], plan.data, findings, mockPersonGroups, edits).data;
+    expect(masked.maskedText.DOC_LEASE).not.toContain('현금으로');
+    expect(validateMaskedText(masked.maskedText, findings, plan.data, edits).ok).toBe(true);
+  });
+
+  it('빈 글자, 이미 가려진 [REDACTED]만 고른 경우, 같은 줄의 같은 글자는 넣지 않는다', () => {
+    expect(addSelection(undefined, pick('   '))).toEqual({ ok: false, reason: 'EMPTY' });
+    expect(addSelection(undefined, pick('[REDACTED]'))).toEqual({ ok: false, reason: 'ALREADY_HIDDEN' });
+    const once = addSelection(undefined, pick('현금으로')).edits;
+    expect(addSelection(once, pick('현금으로'))).toEqual({ ok: false, reason: 'DUPLICATE' });
+  });
+
+  it('id는 겹치지 않게 늘어난다 (중간에 취소해도)', () => {
+    let edits = addSelection(undefined, pick('월세는')).edits;
+    edits = addSelection(edits, pick('현금으로')).edits;
+    edits = removeAdd(edits, 'USER_001');
+    edits = addSelection(edits, pick('지급한다')).edits;
+    expect(edits.add.map((a) => a.id)).toEqual(['USER_002', 'USER_003']);
+    expect(nextUserId([])).toBe('USER_001');
+  });
+
+  it('취소하면 그 항목만 빠지고 remove는 그대로, 원래 edits는 바꾸지 않는다', () => {
+    const before = addSelection({ remove: ['X'], add: [] }, pick('현금으로')).edits;
+    const after = removeAdd(before, 'USER_001');
+    expect(after).toEqual({ remove: ['X'], add: [] });
+    expect(before.add).toHaveLength(1);
   });
 });

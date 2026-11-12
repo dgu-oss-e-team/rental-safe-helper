@@ -78,6 +78,50 @@
   font-size: 13px;
   color: #6b6860;
 }
+/* 미리보기: block 한 줄씩 (글자를 골라 더 가릴 수 있게) */
+.mr-doc {
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  background: #f0eee8;
+  border-radius: 6px;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.mr-line {
+  min-height: 1.4em;
+}
+
+.mr-add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.mr-added {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.mr-added li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mr-undo {
+  padding: 4px 10px;
+  font-size: 13px;
+}
 /* 휴대폰: 표 대신 줄마다 카드처럼 쌓는다 (가로로 넘치지 않게) */
 @media (max-width: 560px) {
   .mr-table thead { display: none; }

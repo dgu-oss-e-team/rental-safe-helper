@@ -7,6 +7,9 @@
  *   - 두 줄 주소: 같은 groupId 조각 전체가 한 줄
  *   - 나머지: 탐지 결과 하나가 한 줄
  * 줄마다 "AI에게 보여 주기" 체크를 켜고 끄면 edits.remove를 새로 만든다. (docs/INTERFACES.md 8번)
+ * 
+ * 미리보기에서 글자를 골라 "더 가리기"를 하면 edits.add에 넣는다. (addSelection / removeAdd)
+ *   value는 미리보기(가린 글)에서 고른 글자, pageIndex·bbox는 그 글자가 있는 block 위치 (INTERFACES.md 8번)
  */
 
 import { MASKING_ACTION, PII_TYPE } from '../../shared/document-model.js';
@@ -93,4 +96,58 @@ export function setRowShown(edits, row, show) {
     else remove.delete(id);
   }
   return { remove: [...remove], add };
+}
+/** 미리보기에서 이미 가려진 자리 표시 (이것만 고르면 더 가릴 게 없음) */
+const ALREADY_HIDDEN = /^(\[REDACTED\]\s*)+$/;
+
+/**
+ * 사용자가 미리보기에서 고른 글자를 add에 넣은 새 edits를 만든다. (원래 edits는 바꾸지 않음)
+ * @param {MaskingEdits | undefined} edits
+ * @param {{ documentId: string, blockId: string, pageIndex: number, bbox: { x: number, y: number, width: number, height: number }, value: string }} selection
+ * @returns {{ ok: true, edits: { remove: string[], add: any[] } } | { ok: false, reason: 'EMPTY' | 'ALREADY_HIDDEN' | 'DUPLICATE' }}
+ */
+export function addSelection(edits, selection) {
+  const remove = [...(edits?.remove ?? [])];
+  const add = (edits?.add ?? []).map((a) => ({ ...a }));
+  const value = String(selection.value ?? '').trim();
+
+  if (value === '') return { ok: false, reason: 'EMPTY' };
+  if (ALREADY_HIDDEN.test(value)) return { ok: false, reason: 'ALREADY_HIDDEN' };
+  if (add.some((a) => a.documentId === selection.documentId && a.blockId === selection.blockId && a.value === value)) {
+    return { ok: false, reason: 'DUPLICATE' };
+  }
+
+  add.push({
+    id: nextUserId(add),
+    documentId: selection.documentId,
+    blockId: selection.blockId,
+    value,
+    pageIndex: selection.pageIndex,
+    bbox: { ...selection.bbox },
+  });
+  return { ok: true, edits: { remove, add } };
+}
+
+/**
+ * 더 가린 글자 하나를 취소한 새 edits를 만든다.
+ * @param {MaskingEdits | undefined} edits
+ * @param {string} id  add 항목의 id
+ */
+export function removeAdd(edits, id) {
+  return {
+    remove: [...(edits?.remove ?? [])],
+    add: (edits?.add ?? []).filter((a) => a.id !== id).map((a) => ({ ...a })),
+  };
+}
+
+/**
+ * 겹치지 않는 새 add id ("USER_001", "USER_002", …)
+ * @param {{ id: string }[]} add
+ */
+export function nextUserId(add) {
+  const max = add.reduce((m, a) => {
+    const n = Number(/^USER_(\d+)$/.exec(a.id)?.[1] ?? 0);
+    return Math.max(m, n);
+  }, 0);
+  return `USER_${String(max + 1).padStart(3, '0')}`;
 }

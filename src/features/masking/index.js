@@ -19,7 +19,8 @@
  *   완료: 주소 시·구(동)까지 남기기 (coarsenAddress, 줄임말, 두 줄 주소 groupId)
  *   완료: 사용자 수정 edits (remove 규칙 3가지, add 가리기·검사)
  *   완료: 확인 화면 1단계 (가린 항목 목록, 해제, 범례, 미리보기)
- *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, 확인 화면 더 가리기(add)·"같은 사람인가요?".
+ *   완료: 확인 화면 2단계 (미리보기에서 글자 골라 더 가리기, 취소)
+ *   TODO(PART 4): Fuse.js 이름 유사도, createMaskingPlan/applyMaskingPlan 파일 분리, "같은 사람인가요?".
 */
 
 import {
