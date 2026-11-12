@@ -6,6 +6,9 @@ import {
   findMonthlyRent,
   findSpecialTerms,
   findRegistryRights,
+  parseDate,
+  findLastTransferDate,
+  findContractDate,
 } from '../src/features/document-analysis/field-extractor.js';
 import { mockRegistryDocument, mockLeaseDocument, mockExtractedFields } from '../src/shared/mock-data.js';
 
@@ -245,5 +248,176 @@ describe('PART 2 등기부 권리: 한 권리를 두 번 세지 않는다', () =
       '1 근저당권설정 채권최고액 금120,000,000원 주식회사○○은행',
     ]);
     expect(r).toHaveLength(1);
+  });
+});
+
+describe('PART 2 날짜 읽기 (parseDate)', () => {
+  it('여러 표기를 YYYY-MM-DD로 바꾼다', () => {
+    expect(parseDate('2025년 3월 5일')).toBe('2025-03-05');
+    expect(parseDate('2025년3월5일')).toBe('2025-03-05');
+    expect(parseDate('2025.03.05')).toBe('2025-03-05');
+    expect(parseDate('2025. 3. 5.')).toBe('2025-03-05');
+    expect(parseDate('2025-03-05')).toBe('2025-03-05');
+  });
+
+  it('글자 중간에 있어도 처음 나오는 날짜를 읽는다', () => {
+    expect(parseDate('접수 2024년5월10일 제5555호 2024년4월1일 매매')).toBe('2024-05-10');
+  });
+
+  it('없는 날짜는 읽지 않는다', () => {
+    expect(parseDate('2025년 2월 30일')).toBeNull();
+    expect(parseDate('2025.13.01')).toBeNull();
+  });
+
+  it('고유번호·주민번호·전화번호는 날짜가 아니다', () => {
+    expect(parseDate('고유번호 0000-0000-000000')).toBeNull();
+    expect(parseDate('소유자 김철수 800101-1******')).toBeNull();
+    expect(parseDate('연락처 010-0000-0000')).toBeNull();
+  });
+});
+
+describe('PART 2 등기부 마지막 소유권이전 접수일 (findLastTransferDate)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('갑구의 마지막 소유권이전 접수일을 읽는다', () => {
+    const lines = [
+      GAP,
+      '1 소유권보존 2015년1월20일 제100호',
+      '2 소유권이전 2018년6월1일 제2000호 2018년5월2일 매매',
+      '3 소유권이전 2024년5월10일 제5555호 2024년4월1일 매매',
+      EUL,
+    ];
+    expect(findLastTransferDate(lines)).toBe('2024-05-10');
+  });
+
+  it('접수일(앞 날짜)을 읽고 원인일(뒤 날짜)은 읽지 않는다', () => {
+    expect(findLastTransferDate([GAP, '2 소유권이전 2024년5월10일 제5555호 2024년4월1일 매매'])).toBe('2024-05-10');
+  });
+
+  it('신탁으로 인한 소유권이전도 센다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 소유권이전 2024년7월7일 제7000호 2024년7월7일 신탁'];
+    expect(findLastTransferDate(lines)).toBe('2024-07-07');
+  });
+
+  it('지분 이전("공유자전원지분전부이전")도 소유권이전으로 센다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 공유자전원지분전부이전 2024년8월8일 제8000호 매매'];
+    expect(findLastTransferDate(lines)).toBe('2024-08-08');
+  });
+
+  it('소유권이전청구권가등기는 소유권이전이 아니다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 소유권이전청구권가등기 2024년9월9일 제9000호 매매예약'];
+    expect(findLastTransferDate(lines)).toBe('2018-06-01');
+  });
+
+  it('접수일이 다음 줄에 있어도 읽는다', () => {
+    expect(findLastTransferDate([GAP, '2 소유권이전', '2023년1월5일 제100호', '2022년12월1일 매매'])).toBe('2023-01-05');
+  });
+
+  it('부기등기의 날짜를 소유권이전 접수일로 가져오지 않는다', () => {
+    const lines = [GAP, '2 소유권이전', '2-1 2번등기명의인표시변경 2024년3월3일 제300호'];
+    expect(findLastTransferDate(lines)).toBeNull();
+  });
+
+  it('말소된 소유권이전은 빼고 그 전 소유권이전 접수일을 쓴다', () => {
+    const lines = [
+      GAP,
+      '2 소유권이전 2018년6월1일 제2000호 매매',
+      '3 소유권이전 2024년5월10일 제5555호 매매',
+      '4 3번소유권이전등기말소 2024년6월1일 제6000호 해제',
+    ];
+    expect(findLastTransferDate(lines)).toBe('2018-06-01');
+  });
+
+  it('어느 순위번호를 말소했는지 모르면 추측하지 않고 null', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 소유권이전 2024년5월10일 제5555호 매매', '4 소유권이전등기말소'];
+    expect(findLastTransferDate(lines)).toBeNull();
+  });
+
+  it('가리키는 순위번호를 찾을 수 없는 말소도 null', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '4 7번소유권이전등기말소'];
+    expect(findLastTransferDate(lines)).toBeNull();
+  });
+
+  it('가압류 말소는 소유권이전에 영향을 주지 않는다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 가압류 2020년1월1일 제10호', '4 3번가압류등기말소', '5 가압류등기말소'];
+    expect(findLastTransferDate(lines)).toBe('2018-06-01');
+  });
+
+  it('신탁등기 말소는 소유권이전 말소가 아니다 (신탁이 끝나 소유권이 돌아온 경우)', () => {
+    const lines = [
+      GAP,
+      '2 소유권이전 2020년2월2일 제200호 2020년2월2일 신탁',
+      '3 소유권이전 2023년3월3일 제300호 2023년3월3일 신탁재산의귀속 2번신탁등기말소',
+      '4 2번신탁등기말소',
+    ];
+    expect(findLastTransferDate(lines)).toBe('2023-03-03');
+  });
+
+  it('소유권보존만 있으면 null (소유권이 바뀐 적 없음)', () => {
+    expect(findLastTransferDate([GAP, '1 소유권보존 2015년1월20일 제100호', EUL])).toBeNull();
+  });
+
+  it('마지막 소유권이전의 접수일을 못 읽으면 그 전 날짜로 대신하지 않고 null', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 매매', '3 소유권이전 제5555호 매매'];
+    expect(findLastTransferDate(lines)).toBeNull();
+  });
+
+  it('갑구를 못 찾으면 null', () => {
+    expect(findLastTransferDate(['2 소유권이전 2024년5월10일 제5555호 매매'])).toBeNull();
+  });
+
+  it('을구와 끝의 요약표는 읽지 않는다', () => {
+    const lines = [
+      GAP,
+      '2 소유권이전 2018년6월1일 제2000호 매매',
+      EUL,
+      '1 근저당권설정 2024년5월10일 제5555호',
+      '주요 등기사항 요약 (참고용)',
+      '소유권이전 2025년1월1일',
+    ];
+    expect(findLastTransferDate(lines)).toBe('2018-06-01');
+  });
+
+  it('Mock 등기부에는 소유권이전이 없어서 null', () => {
+    expect(findLastTransferDate(linesOf(mockRegistryDocument))).toBeNull();
+  });
+});
+
+describe('PART 2 계약일 (findContractDate)', () => {
+  it('"계약일" 라벨 뒤 날짜를 읽는다', () => {
+    expect(findContractDate(['계약일 2025년 3월 5일'])).toBe('2025-03-05');
+    expect(findContractDate(['계약일자: 2025.03.05'])).toBe('2025-03-05');
+  });
+
+  it('라벨이 없으면 서명란 날짜(본 계약을 증명하기 위하여 … 다음 날짜)를 읽는다', () => {
+    const lines = ['본 계약을 증명하기 위하여 계약 당사자가 이의 없음을 확인하고 각각 서명·날인 후 각 1통씩 보관한다.', '2025년 3월 5일', '임대인 김철수'];
+    expect(findContractDate(lines)).toBe('2025-03-05');
+  });
+
+  it('서명란 문장과 날짜가 한 줄에 있어도 읽는다', () => {
+    expect(findContractDate(['본 계약을 증명하기 위하여 서명·날인 후 각 1통씩 보관한다. 2025년 3월 5일'])).toBe('2025-03-05');
+  });
+
+  it('잔금일·입주일·임대차 시작일은 계약일로 읽지 않는다', () => {
+    const lines = [
+      '잔금 금45,000,000원은 2025년 4월 1일에 지불한다',
+      '임대차기간 2025년 4월 1일부터 2027년 3월 31일까지',
+      '입주일 2025년 4월 1일',
+    ];
+    expect(findContractDate(lines)).toBeNull();
+  });
+
+  it('"계약일로부터"처럼 날짜가 바로 붙지 않은 라벨은 건너뛴다', () => {
+    expect(findContractDate(['계약일로부터 30일 이내 2025년 4월 1일까지 이사한다'])).toBeNull();
+  });
+
+  it('라벨과 서명란이 둘 다 있으면 라벨 날짜를 쓴다', () => {
+    const lines = ['계약일 2025년 3월 5일', '본 계약을 증명하기 위하여 서명한다.', '2025년 3월 6일'];
+    expect(findContractDate(lines)).toBe('2025-03-05');
+  });
+
+  it('계약일을 못 찾으면 null (Mock 계약서)', () => {
+    expect(findContractDate(linesOf(mockLeaseDocument))).toBeNull();
   });
 });

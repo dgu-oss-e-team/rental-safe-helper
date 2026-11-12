@@ -212,6 +212,33 @@ describe('PART 2 extractFields 보증금·월세·특약·등기부 권리', () 
   });
 });
 
+describe('PART 2 extractFields 최근 소유권이전 접수일·계약일', () => {
+  const HEAD = '주택임대차계약서 보증금 특약';
+  const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('등기부의 마지막 소유권이전 접수일과 계약서의 계약일을 YYYY-MM-DD로 읽는다', () => {
+    const registry = leaseDoc([REGISTRY_HEAD, GAP, '2 소유권이전 2024년5월10일 제5555호 2024년4월1일 매매', EUL]);
+    const lease = leaseDoc([HEAD, '계약일 2025년 3월 5일', '잔금 2025년 4월 1일']);
+    const r = extractFields([registry, lease], []);
+    expect(r.data.registry.lastTransferDate).toBe('2024-05-10');
+    expect(r.data.contract.contractDate).toBe('2025-03-05');
+  });
+
+  it('Mock 문서에는 날짜가 없어서 둘 다 null (못 읽음)', () => {
+    const r = extractFields([mockRegistryDocument, mockLeaseDocument], []);
+    expect(r.data.registry.lastTransferDate).toBeNull();
+    expect(r.data.contract.contractDate).toBeNull();
+  });
+
+  it('문서가 없으면 둘 다 null', () => {
+    const r = extractFields([], []);
+    expect(r.data.registry.lastTransferDate).toBeNull();
+    expect(r.data.contract.contractDate).toBeNull();
+  });
+});
+
 describe('PART 2 두 줄 주소 (groupId)', () => {
   const HEAD = '주택임대차계약서 보증금 특약';
   /** @param {string[]} lines */
