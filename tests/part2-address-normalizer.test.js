@@ -46,6 +46,11 @@ describe('PART 2 광주 구분', () => {
     expect(toFormalAddress('광주광역시 서구 00')).toBe('광주광역시 서구 00');
   });
 
+  it('광주시 + 구는 광주광역시 (경기도 광주시에는 구가 없다, 이슈 #72)', () => {
+    expect(toFormalAddress('광주시 북구 용봉로 00')).toBe('광주광역시 북구 용봉로 00');
+    expect(toFormalAddress('광주시 광산구 00')).toBe('광주광역시 광산구 00');
+  });
+
   it('광주시는 경기도 광주시', () => {
     expect(toFormalAddress('광주시 00')).toBe('경기도 광주시 00');
     expect(toFormalAddress('광주시 오포읍 00')).toBe('경기도 광주시 오포읍 00');
@@ -60,6 +65,22 @@ describe('PART 2 광주 구분', () => {
   it('광주인데 구·읍·면을 알 수 없으면 바꾸지 않고 원문 그대로 둔다 (추측 금지)', () => {
     expect(toFormalAddress('광주 필동로 00')).toBe('광주 필동로 00');
     expect(toFormalAddress('광주')).toBe('광주');
+  });
+});
+
+describe('PART 2 붙여 쓴 주소 (이슈 #72)', () => {
+  it('시·도 이름과 시·군·구를 띄어서 정식 이름으로 바꾼다', () => {
+    expect(toFormalAddress('서울특별시중구 필동로 00, 101호')).toBe('서울특별시 중구 필동로 00, 101호');
+    expect(toFormalAddress('서울시중구 필동로 00')).toBe('서울특별시 중구 필동로 00');
+    expect(toFormalAddress('경기도수원시 팔달구 효원로 00')).toBe('경기도 수원시 팔달구 효원로 00');
+    expect(toFormalAddress('강원도춘천시 00')).toBe('강원특별자치도 춘천시 00');
+    expect(toFormalAddress('경기도광주시 오포읍 00')).toBe('경기도 광주시 오포읍 00');
+    expect(toFormalAddress('서울특별시중구')).toBe('서울특별시 중구');
+  });
+
+  it('줄여 쓴 이름을 붙여 쓴 경우나 시·군·구가 아닌 단어는 바꾸지 않는다', () => {
+    expect(toFormalAddress('서울중구 필동로 00')).toBe('서울중구 필동로 00');
+    expect(toFormalAddress('서울시청 앞')).toBe('서울시청 앞');
   });
 });
 

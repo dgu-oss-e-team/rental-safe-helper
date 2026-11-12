@@ -324,6 +324,20 @@ describe('PART 2 extractFields 주소 정식 이름', () => {
     expect(found.map((f) => f.value)).toEqual(['서울 중구 필동로 00, 101호']);
   });
 
+  it('붙여 쓴 주소도 탐지해서 가리고, fields에는 띄어 쓴 정식 이름으로 넣는다 (이슈 #72)', () => {
+    const doc = leaseDoc([HEAD, '소재지 서울특별시중구 필동로 00, 101호']);
+    const found = detectPII(doc).data.filter((f) => f.type === 'ADDRESS');
+    expect(found.map((f) => f.value)).toEqual(['서울특별시중구 필동로 00, 101호']);
+    expect(extractFields([doc], []).data.contract.address).toBe('서울특별시 중구 필동로 00, 101호');
+  });
+
+  it('"서울 친구"는 주소가 아니라서 가리지도, 집 주소로 고르지도 않는다 (이슈 #72)', () => {
+    const doc = leaseDoc([HEAD, '임차인은 서울 친구 집에서 지낸다', '소재지 부산광역시 해운대구 해운대로 00']);
+    const found = detectPII(doc).data.filter((f) => f.type === 'ADDRESS');
+    expect(found.map((f) => f.value)).toEqual(['부산광역시 해운대구 해운대로 00']);
+    expect(extractFields([doc], []).data.contract.address).toBe('부산광역시 해운대구 해운대로 00');
+  });
+
   it('두 줄 주소의 윗줄이 줄임말 시·도 이름뿐이어도 이어 붙인 뒤 정식 이름으로 바꾼다', () => {
     const r = extractFields([leaseDoc([HEAD, '소재지 서울', '중구 필동로 00, 101호'])], []);
     expect(r.data.contract.address).toBe('서울특별시 중구 필동로 00, 101호');

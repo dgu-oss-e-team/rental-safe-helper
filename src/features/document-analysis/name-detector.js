@@ -140,17 +140,29 @@ export function findLabeledNames(text, inheritedRole = null) {
  * 단, 시·군·구 바로 뒤에 조사(에서·에·의·로 등)가 붙은 경우는 조사 앞까지만 주소로 본다.
  * 예: "서울 강남구에서 계약한다" → "서울 강남구" (조사부터는 주소가 아니므로 값에 넣지 않는다)
  * 경기·대구·세종은 일상 단어와 겹치므로("경기 지시에", "대구 지시에") 조사가 붙은 경우를 주소로 보지 않는다.
+ * 시·군·구처럼 끝나는 일상 단어("서울 친구", "부산 가구를")는 주소로 보지 않는다. (person-labels.json의 notSigunguWords)
+ * "서울특별시", "경기도"처럼 시·도로 끝나는 이름은 시·군·구가 붙어 있어도 찾는다. (OCR의 "서울특별시중구")
+ * 줄임말("서울", "경기")은 붙여 쓰면 일상 문장과 헷갈려서 띄어 쓴 경우만 찾는다.
  */
-const SIGUNGU_WORD = '[가-힣]+(?:시|군|구)';
 const PARTICLE = '(?:에서|에|의|으로|로|은|는|이|가|을|를|도|와|과)(?:은|는|도|만)?';
-const REGION_ANY = rules.addressRegions.map(escapeRegex).join('|');
-const REGION_WITH_PARTICLE = rules.addressRegions
-  .filter((r) => !rules.regionsWithoutParticle.includes(r))
-  .map(escapeRegex)
-  .join('|');
+/** 일상 단어 하나 전체(뒤에 조사만 붙을 수 있음)면 시·군·구로 보지 않는다. "도구시"처럼 더 긴 단어는 막지 않는다. */
+const NOT_SIGUNGU_GUARD = `(?!(?:${rules.notSigunguWords.map(escapeRegex).join('|')})(?:${PARTICLE})?(?![가-힣]))`;
+const SIGUNGU_WORD = `${NOT_SIGUNGU_GUARD}[가-힣]+(?:시|군|구)`;
+/** 시·도로 끝나는 이름 ("서울특별시", "서울시", "경기도"): 시·군·구와 붙어 있어도 된다. */
+const FULL_REGIONS = rules.addressRegions.filter((r) => /[시도]$/.test(r));
+/** 시·도 이름 + 공백. 시·도로 끝나는 이름은 공백이 없어도 된다. @param {string[]} regions */
+const regionThenSpace = (regions) =>
+  `(?:(?:${regions.map(escapeRegex).join('|')})\\s+|(?:${regions
+    .filter((r) => FULL_REGIONS.includes(r))
+    .map(escapeRegex)
+    .join('|')})\\s*)`;
+const REGION_ANY = regionThenSpace(rules.addressRegions);
+const REGION_WITH_PARTICLE = regionThenSpace(
+  rules.addressRegions.filter((r) => !rules.regionsWithoutParticle.includes(r)),
+);
 const ADDRESS_REGEX = new RegExp(
-  `(?<![가-힣])(?:(?:${REGION_ANY})\\s+${SIGUNGU_WORD}(?![가-힣])(?:[^\\n(]*[^\\s\\n(])?` +
-    `|(?:${REGION_WITH_PARTICLE})\\s+${SIGUNGU_WORD}(?=${PARTICLE}(?![가-힣])))`,
+  `(?<![가-힣])(?:${REGION_ANY}${SIGUNGU_WORD}(?![가-힣])(?:[^\\n(]*[^\\s\\n(])?` +
+    `|${REGION_WITH_PARTICLE}${SIGUNGU_WORD}(?=${PARTICLE}(?![가-힣])))`,
   'g',
 );
 
@@ -181,7 +193,7 @@ export function findAddresses(text) {
 const ADDRESS_TAIL = '(?:[^\\n(]*[^\\s\\n(])?';
 const DONG_HO = '제?[ \\t]*[0-9A-Za-z]+(?:-[0-9]+)?[ \\t]*(?:동|층|호)(?![가-힣])';
 const ROAD = '[가-힣0-9]+(?:로|길)[ \\t]*\\d';
-const SIGUNGU = '[가-힣]+(?:시|군|구)(?![가-힣])';
+const SIGUNGU = `${NOT_SIGUNGU_GUARD}[가-힣]+(?:시|군|구)(?![가-힣])`;
 const CONTINUATION_REGEX = new RegExp(`^[ \\t]*((?:${DONG_HO}|${ROAD})${ADDRESS_TAIL})`);
 const CONTINUATION_AFTER_REGION_REGEX = new RegExp(`^[ \\t]*(${SIGUNGU}${ADDRESS_TAIL})`);
 const TRAILING_REGION_REGEX = new RegExp(
