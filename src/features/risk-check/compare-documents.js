@@ -4,6 +4,7 @@
  *   1) 등기부 소유자 ↔ 계약서 임대인   (OWNER_MISMATCH)
  *   2) 계약서 예금주 ↔ 계약서 임대인   (ACCOUNT_HOLDER_MISMATCH)
  *   3) 등기부 소재지 ↔ 계약서 소재지   (ADDRESS_MISMATCH)
+ *      - 주소가 정식 시·도 이름으로 시작하지 않거나, 도로명·지번 주소가 섞여 있으면 비교하지 않고 UNVERIFIABLE
  *
  * 규칙
  *  - 값이 null이거나 비어 있으면 UNVERIFIABLE (읽지 못한 것을 "문제없음"으로 판단하지 않는다)
@@ -15,6 +16,7 @@
 
 import { ok, RISK_STATUS } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
+import rules from '../../config/templates/person-labels.json';
 
 /** PART 4 personGroups의 status 값 */
 const PERSON_CONFIRMED = 'CONFIRMED';
@@ -131,17 +133,64 @@ export function normalizeAddress(address) {
     .replace(/제(?=\d)/g, '');
 }
 
-/** 등기부 소재지 ↔ 계약서 소재지 */
+/**
+ * 정식 시·도 이름 목록. PART 2의 formalRegionNames(person-labels.json)를 그대로 쓴다.
+ * 긴 이름부터 비교한다. (경기도 광주시 → 경기도)
+ */
+const FORMAL_REGION_NAMES = [...new Set(Object.values(rules.formalRegionNames))].sort((a, b) => b.length - a.length);
+
+/** 주소 맨 앞이 정식 시·도 이름이고, 그 뒤에 공백이나 끝이 오는지. ("서울대로", "서울 중구"는 아니다) */
+const FORMAL_REGION_START = new RegExp(`^(?:${FORMAL_REGION_NAMES.join('|')})(?:\\s|$)`);
+
+/** 도로명 주소: "필동로 45", "테헤란로12길 5" 처럼 로·길 뒤에 번호가 온다 */
+const ROAD_ADDRESS = /[가-힣0-9]+(?:로|길)\s*\d/;
+
+/** 지번 주소: "필동 123-4", "상계리 산 12" 처럼 동·읍·면·리 뒤에 번지가 온다 */
+const LOT_ADDRESS = /[가-힣]+(?:동|읍|면|리)\s*(?:산\s*)?\d/;
+
+/**
+ * 주소 형식을 알아본다. 괄호 안(건물 옆의 지번 등)은 normalizeAddress가 먼저 지운다.
+ * @param {string} address  normalizeAddress()를 거친 주소
+ * @returns {'ROAD' | 'LOT' | null}  알 수 없으면 null
+ */
+function addressStyle(address) {
+  if (ROAD_ADDRESS.test(address)) return 'ROAD';
+  if (LOT_ADDRESS.test(address)) return 'LOT';
+  return null;
+}
+
+/**
+ * 등기부 소재지 ↔ 계약서 소재지
+ *  - 한쪽이라도 읽지 못했으면 UNVERIFIABLE
+ *  - 한쪽이라도 정식 시·도 이름으로 시작하지 않으면 UNVERIFIABLE (region_unclear)
+ *    (OCR 오류나 줄임말이면 다른 주소가 아닌데도 달라 보일 수 있다)
+ *  - 글자가 같으면 NO_FLAG
+ *  - 글자가 다른데 도로명과 지번이 섞였거나 형식을 알 수 없으면 UNVERIFIABLE (format_differs)
+ *  - 같은 형식인데 다르면 STOP
+ */
 export function compareAddresses(fields) {
+  const ruleId = 'ADDRESS_MISMATCH';
   const registryAddress = fields?.registry?.address;
   const contractAddress = fields?.contract?.address;
   const values = { left: registryAddress ?? null, right: contractAddress ?? null };
 
   if (!registryAddress || !contractAddress) {
-    return buildRiskResult('ADDRESS_MISMATCH', RISK_STATUS.UNVERIFIABLE, { values });
+    return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values });
   }
-  const same = normalizeAddress(registryAddress) === normalizeAddress(contractAddress);
-  return buildRiskResult('ADDRESS_MISMATCH', same ? RISK_STATUS.NO_FLAG : RISK_STATUS.STOP, { values });
+  if (!FORMAL_REGION_START.test(registryAddress.trim()) || !FORMAL_REGION_START.test(contractAddress.trim())) {
+    return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'region_unclear', values });
+  }
+
+  const registry = normalizeAddress(registryAddress);
+  const contract = normalizeAddress(contractAddress);
+  if (registry === contract) return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
+
+  const registryStyle = addressStyle(registry);
+  const contractStyle = addressStyle(contract);
+  if (registryStyle === null || registryStyle !== contractStyle) {
+    return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });
+  }
+  return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
 }
 
 /**
