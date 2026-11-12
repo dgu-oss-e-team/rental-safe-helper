@@ -441,14 +441,39 @@ export function findLastTransferDate(lines) {
  * @returns {number[] | 'ALL' | null}
  */
 export function findCurrentOwnerLines(lines) {
+  const r = readOwnershipRecords(lines);
+  if (r === 'ALL' || r === null) return r;
+  return r.current.lineIndexes;
+}
+
+/**
+ * 등기부에서 "예전 소유자"가 적힌 줄을 찾는다. (registry.previousOwners를 만들 때 쓴다)
+ * 지금 소유자 기록을 뺀 나머지 소유권보존·소유권이전 기록의 줄 번호다. 말소된 기록도 포함한다.
+ * 갑구 기록 줄만 보므로, 끝의 요약표에 적힌 지금 소유자를 예전 소유자로 잘못 넣지 않는다.
+ * - 지금 소유자를 정할 수 없거나('ALL', null) 하면 예전 소유자도 정할 수 없어서 null
+ * @param {string[]} lines
+ * @returns {number[] | null}
+ */
+export function findPreviousOwnerLines(lines) {
+  const r = readOwnershipRecords(lines);
+  if (r === 'ALL' || r === null) return null;
+  return r.previous.flatMap((row) => row.lineIndexes);
+}
+
+/**
+ * 갑구의 소유권 기록을 지금 소유자 기록과 예전 소유자 기록으로 나눈다.
+ * @param {string[]} lines
+ * @returns {{ current: GapRow, previous: GapRow[] } | 'ALL' | null}
+ */
+function readOwnershipRecords(lines) {
   const { seenGap, ambiguous, rows } = readGapRows(lines);
   const ownership = rows.filter((r) => r.kind !== 'OTHER');
   if (!seenGap || ownership.length === 0) return 'ALL';
   if (ambiguous) return null;
   const live = ownership.filter((r) => !r.cancelled);
-  const last = live[live.length - 1];
-  if (!last || last.kind === 'PARTIAL') return null;
-  return last.lineIndexes;
+  const current = live[live.length - 1];
+  if (!current || current.kind === 'PARTIAL') return null;
+  return { current, previous: ownership.filter((r) => r !== current) };
 }
 
 /** "계약일", "계약일자", "계약체결일" 라벨. 바로 뒤에 날짜가 와야 한다. ("계약일로부터 30일"은 아니다) */

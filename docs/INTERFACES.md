@@ -106,7 +106,8 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 {
   registry: {
     documentId, address,
-    owners: [{ findingId, name, birthDate, role: 'OWNER' }],
+    owners: [{ findingId, name, birthDate, role: 'OWNER' }],                  // 지금 소유자만
+    previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER' }], // 갑구의 예전 소유자 (이미 판 사람)
     rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
     lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
   },
@@ -123,6 +124,8 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 `birthDate`는 동일 인물 판정에만 쓰고 AI로 보내지 않는다. 읽지 못한 값은 `null`로 두고 추측하지 않는다.
 
 날짜(`lastTransferDate`, `contractDate`)는 `'YYYY-MM-DD'` 문자열이다. 못 읽으면 `null`이다. (PART 3 최근 소유권 이전 점검용, 이슈 #44)
+
+`owners`는 지금 소유자(말소되지 않은 마지막 소유권 기록의 소유자)만 넣는다. 갑구에 남아 있는 예전 소유자는 `previousOwners`에 `role: 'PREVIOUS_OWNER'`로 넣는다. 예전 소유자가 없으면 `[]`, 지금 소유자를 정할 수 없으면 둘 다 `null`이다. (순위번호가 없는 등기부처럼 나눌 근거가 없으면 `owners`에 소유자를 전부 넣고 `previousOwners`는 `null`) PART 3은 `owners`만 쓰고, PART 4는 `previousOwners`로 가명(`[PrevOwner_E]`)을 붙인다.
 
 ### 값이 없을 때: `null`과 `[]` 구분 (모든 파트 공통)
 

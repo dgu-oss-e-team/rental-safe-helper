@@ -10,6 +10,7 @@ import {
   findLastTransferDate,
   findContractDate,
   findCurrentOwnerLines,
+  findPreviousOwnerLines,
 } from '../src/features/document-analysis/field-extractor.js';
 import { mockRegistryDocument, mockLeaseDocument, mockExtractedFields } from '../src/shared/mock-data.js';
 
@@ -444,6 +445,49 @@ describe('PART 2 지금 소유자가 적힌 줄 (findCurrentOwnerLines)', () => 
   it('갑구가 없거나 순위번호가 붙은 소유권 기록이 없으면 "ALL" (줄일 근거 없음)', () => {
     expect(findCurrentOwnerLines(['소유자 김철수'])).toBe('ALL');
     expect(findCurrentOwnerLines(linesOf(mockRegistryDocument))).toBe('ALL');
+  });
+});
+
+describe('PART 2 예전 소유자가 적힌 줄 (findPreviousOwnerLines)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('지금 소유자 기록을 뺀 소유권보존·소유권이전 기록의 줄을 돌려준다 (이어지는 줄 포함)', () => {
+    const lines = [
+      GAP, // 0
+      '1 소유권보존 2015년1월20일 제100호', // 1
+      '소유자 최민수', // 2
+      '2 소유권이전 2018년6월1일 제2000호 매매 소유자 박영수', // 3
+      '3 압류 2020년1월1일 제10호', // 4
+      '4 소유권이전 2024년5월10일 제5555호 매매 소유자 김철수', // 5
+      EUL, // 6
+    ];
+    expect(findPreviousOwnerLines(lines)).toEqual([1, 2, 3]);
+  });
+
+  it('말소된 소유권이전 기록도 예전 기록으로 넣는다', () => {
+    const lines = [
+      GAP,
+      '2 소유권이전 2018년6월1일 소유자 박영수',
+      '3 소유권이전 2024년5월10일 소유자 김철수',
+      '4 3번소유권이전등기말소',
+    ];
+    expect(findCurrentOwnerLines(lines)).toEqual([1]);
+    expect(findPreviousOwnerLines(lines)).toEqual([2]);
+  });
+
+  it('소유권 기록이 하나뿐이면 예전 소유자 줄은 없다', () => {
+    expect(findPreviousOwnerLines([GAP, '1 소유권보존 2015년1월20일 소유자 최민수'])).toEqual([]);
+  });
+
+  it('끝의 요약표는 예전 소유자 줄에 넣지 않는다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', '주요 등기사항 요약 (참고용)', '소유자 김철수'];
+    expect(findPreviousOwnerLines(lines)).toEqual([1]);
+  });
+
+  it('지금 소유자를 정할 수 없거나 근거가 없으면 null', () => {
+    expect(findPreviousOwnerLines([GAP, '2 소유권이전 소유자 박영수', '3 박영수지분전부이전 공유자 이영희'])).toBeNull();
+    expect(findPreviousOwnerLines(linesOf(mockRegistryDocument))).toBeNull();
   });
 });
 
