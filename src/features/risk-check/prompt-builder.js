@@ -38,7 +38,7 @@ const ALIAS_PATTERN = /\[([A-Za-z]+)_[A-Z]\]/g;
 /**
  * 범례에 없는 가명을 역할 이름으로 바꾼다.
  *  - "[Landlord_B] signs" → "The landlord signs" (문장 맨 앞이면 대문자)
- *  - "[Owner_A] and [Owner_E]" → "the owners" (같은 역할이 이어지면 복수로 합친다)
+ *  - "[Owner_A] and [Owner_E]" → "the owners" (같은 역할이 이어지면 복수로 합친다. 쉼표·셋 이상도 같다)
  * @param {string} text
  * @param {Record<string, string> | undefined} legend
  */
@@ -50,8 +50,8 @@ export function replaceUnlistedAliases(text, legend) {
     const startsSentence = offset === 0 || /[.!?]\s+$/.test(whole.slice(0, offset));
     return startsSentence ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : phrase;
   });
-  // "the owner and the owner" → "the owners"
-  return replaced.replace(/\b([Tt]he) ([a-z ]+?) and the \2\b/g, (_, the, noun) => `${the} ${noun}s`);
+  // "the owner and the owner", "the owner, the owner and the owner" → "the owners"
+  return replaced.replace(/\b([Tt]he) ([a-z ]+?)(?:(?:, and | and |, )the \2\b)+/g, (_, the, noun) => `${the} ${noun}s`);
 }
 
 /**
