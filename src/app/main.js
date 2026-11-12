@@ -9,7 +9,7 @@
  */
 
 import './style.css';
-import { appState, initialState } from './app-state.js';
+import { appState, initialState, currentAnalysis } from './app-state.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -27,6 +27,7 @@ const STEP_TEXT = {
   detectPII: 'finding personal information',
   extractFields: 'reading the document items',
   matchPeople: 'matching people',
+  applyPersonAnswers: 'applying your answer about who is who',
   assessRisks: 'checking risks',
   createMaskingPlan: 'hiding personal information',
   applyMaskingPlan: 'hiding personal information',
@@ -41,6 +42,7 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} analyze
  * @property {() => Promise<void>} analyzeSample
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
+ * @property {(answers: Record<string, string | null>) => Promise<void>} setPersonAnswers  PART 4 "같은 사람인가요?"의 onChange
  * @property {(purpose: string) => void} setPurpose
  * @property {() => Promise<void>} prepare
  * @property {(edits: import('./masking-edits.js').MaskingEdits) => Promise<void>} setMaskingEdits  PART 4 확인 화면의 onChange
@@ -142,12 +144,14 @@ async function runAnalysis(files) {
   const p = await pipeline();
   if (!p) return;
   const r = await p.analyzeDocuments({ files });
-  // 새 서류면 findingId·blockId가 달라지므로 이전 수정(maskingEdits)도 비운다
+  // 새 서류면 findingId·blockId·personId가 달라지므로 이전 수정(maskingEdits)과 "같은 사람인가요?" 답도 비운다
   if (r.ok) {
     releasePreviews();
     appState.setState({
       busy: null,
       analysis: r.data,
+      personAnswers: {},
+      checked: null,
       prepared: null,
       previews: null,
       maskingEdits: emptyEdits(),
@@ -179,6 +183,30 @@ const act = {
   goTo(step) {
     appState.setState({ step, error: null });
   },
+  async setPersonAnswers(answers) {
+    const { analysis } = appState.getState();
+    if (!analysis) return;
+    const p = await pipeline();
+    if (!p) return;
+    const next = { ...answers };
+    // 답으로 사람을 합치고 위험 점검을 다시 한다. ② 결과가 그 자리에서 바뀐다.
+    const r = p.recheckPeople(analysis, next);
+    if (!r.ok) {
+      // 잘못된 답(없는 사람·자기 자신·서로 가리킴·확인된 사람)이면 이전 답과 결과를 그대로 둔다
+      appState.setState({ error: toError(r) });
+      return;
+    }
+    // 같은 사람이면 가명도 합쳐지므로 이전에 만든 마스킹·미리보기·PDF는 버리고 다시 확인하게 한다
+    clearTimeout(previewTimer);
+    appState.setState({
+      personAnswers: next,
+      checked: Object.keys(next).length > 0 ? r.data : null,
+      prepared: null,
+      pdfs: null,
+      reviewed: false,
+      error: null,
+    });
+  },
   setPurpose(purpose) {
     const state = appState.getState();
     if (purpose === state.purpose) return;
@@ -192,7 +220,10 @@ const act = {
     });
   },
   async prepare() {
-    const { analysis, purpose, maskingEdits } = appState.getState();
+    const state = appState.getState();
+    const { purpose, maskingEdits } = state;
+    // "같은 사람인가요?" 답을 반영한 그룹으로 가린다 (같은 사람 = 같은 가명)
+    const analysis = currentAnalysis(state);
     if (!analysis) return;
     const p = await pipeline();
     if (!p) return;
@@ -203,7 +234,9 @@ const act = {
     } else appState.setState({ error: toError(r) });
   },
   async setMaskingEdits(edits) {
-    const { analysis, purpose } = appState.getState();
+    const state = appState.getState();
+    const { purpose } = state;
+    const analysis = currentAnalysis(state);
     if (!analysis) return;
     const next = normalizeEdits(edits);
     const p = await pipeline();

@@ -3,18 +3,18 @@
  * PART 5. 다른 파트 UI가 들어갈 자리 (slot)
  *
  * 노션 계획상 아래 UI는 각 파트 담당이다. PART 5는 자리와 연결만 맡는다.
- *   - riskResults:   PART 3 risk-result-ui    (위험 점검 결과 카드)
- *   - maskingReview: PART 4 masking-review-ui (마스킹 미리보기, 가릴 항목 추가·해제, "같은 사람인가요?" 확인)
- *   - ocrEditor:     PART 1 ocr-editor         (OCR 결과 수정 화면, 아직 자리만)
+ *   - riskResults:     PART 3 risk-result-ui      (② 위험 점검 결과 카드, 지금은 아래 기본 화면)
+ *   - personQuestions: PART 4 person-questions-ui (② "같은 사람인가요?" 질문, 연결됨)
+ *   - maskingReview:   PART 4 masking-review-ui   (④ 마스킹 확인·해제·더 가리기, 연결됨)
+ *   - ocrEditor:       PART 1 ocr-editor          (OCR 결과 수정 화면, 아직 자리만)
  *
- * 지금 들어 있는 함수는 데모용 기본 화면이다. 각 파트가 자기 폴더에 UI를 만들면
+ * 기본 화면(default…)은 데모용이다. 각 파트가 자기 폴더에 UI를 만들면
  * 이 파일의 해당 줄만 그 함수로 바꾸면 된다. 함수의 입력·출력 형식은 아래 JSDoc을 지켜 주세요.
  */
 
 import { el } from './ui.js';
 import { RISK_STATUS, DOCUMENT_TYPE } from '../shared/document-model.js';
-import { renderMaskingReview } from '../features/masking/index.js';
-
+import { renderMaskingReview, renderPersonQuestions } from '../features/masking/index.js';
 
 /** @typedef {import('../shared/document-model.js').RiskResult} RiskResult */
 
@@ -63,54 +63,14 @@ function defaultRiskResults(riskResults) {
   );
 }
 
-/**
- * [PART 4 자리] 보내기 전 확인 화면
- * 지금은 가려진 결과를 읽기 전용으로 보여 준다. 가릴 항목 추가·해제, "같은 사람인가요?" 질문은 PART 4가 만든다.
- *
- * PART 4 UI는 input.edits(지금 수정 내용)로 화면을 그리고, 사용자가 바꿀 때마다
- * input.onChange(edits 전체)를 부른다. 그러면 PART 5가 마스킹을 다시 계산해 이 화면을 새로 그린다.
- * (docs/INTERFACES.md 8번 "사용자 수정")
- * @param {{
- *   analysis: import('./pipeline.js').Analysis,
- *   prepared: import('./pipeline.js').Prepared,
- *   edits: import('./masking-edits.js').MaskingEdits,
- *   onChange: (edits: import('./masking-edits.js').MaskingEdits) => void,
- * }} input
- * @returns {HTMLElement}
- */
-function defaultMaskingReview({ analysis, prepared }) {
-  const hiddenCount = prepared.maskingPlan.items.filter((i) => i.action !== 'KEEP').length;
-  const ambiguous = analysis.personGroups.filter((g) => g.status === 'AMBIGUOUS');
-
-  return el('div', { class: 'review' }, [
-    el('p', {}, [`${hiddenCount} item(s) of personal information are hidden or replaced with role names.`]),
-    ambiguous.length > 0
-      ? el('p', { class: 'warning' }, [
-          `We could not confirm who ${ambiguous.map((g) => g.alias).join(', ')} is, so they are treated as separate people. Check their names yourself.`,
-        ])
-      : null,
-    Object.keys(prepared.legend).length > 0
-      ? el('div', {}, [
-          el('h3', {}, ['Role names']),
-          el(
-            'ul',
-            { class: 'legend' },
-            Object.entries(prepared.legend).map(([alias, meaning]) => el('li', {}, [el('code', {}, [alias]), ` = ${meaning}`])),
-          ),
-        ])
-      : null,
-    ...analysis.documents.map((doc) =>
-      el('div', {}, [
-        el('h3', {}, [DOCUMENT_TEXT[doc.documentType] ?? doc.documentType]),
-        el('pre', { class: 'masked' }, [prepared.maskedText[doc.documentId] ?? '']),
-      ]),
-    ),
-  ]);
-}
-
 export const slots = {
   /** PART 3: (riskResults: RiskResult[]) => HTMLElement */
   riskResults: defaultRiskResults,
-  /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement */
+  /**
+   * PART 4: ({ analysis, personGroups, personAnswers, onChange }) => HTMLElement | null
+   * analysis.personGroups는 원래 판정, personGroups는 답으로 합친 그룹. 물어볼 사람이 없으면 null. (INTERFACES.md 6번)
+   */
+  personQuestions: renderPersonQuestions,
+  /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement  (analysis는 답을 반영한 것) */
   maskingReview: renderMaskingReview,
 };

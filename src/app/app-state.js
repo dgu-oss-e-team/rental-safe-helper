@@ -52,9 +52,18 @@ export function initialState() {
     error: null,
     /** @type {{ registry: File | null, lease: File | null }} */
     files: { registry: null, lease: null },
-    /** analyzeDocuments() 결과 */
+    /** analyzeDocuments() 결과 (원래 판정. "같은 사람인가요?" 답은 반영되지 않음) */
     /** @type {import('./pipeline.js').Analysis | null} */
     analysis: null,
+    /**
+     * ②의 "같은 사람인가요?" 답 (docs/INTERFACES.md 6번). maskingEdits와 따로 둔다.
+     * 새 서류를 분석하면 비우고, 목적을 바꿀 때는 유지한다.
+     * @type {Record<string, string | null>}
+     */
+    personAnswers: {},
+    /** recheckPeople() 결과 (답으로 합친 그룹 + 다시 점검한 위험 결과). 답이 없으면 null */
+    /** @type {import('./pipeline.js').Checked | null} */
+    checked: null,
     purpose: MASKING_PURPOSE.FRAUD_CHECK,
     /** prepareForAi() 결과 */
     /** @type {import('./pipeline.js').Prepared | null} */
@@ -76,3 +85,19 @@ export function initialState() {
 }
 
 export const appState = createStore(initialState());
+
+/**
+ * 화면과 ③·④·⑤에서 쓸 분석 결과: "같은 사람인가요?" 답을 반영한 그룹과 위험 결과.
+ * ③·④·⑤(마스킹·프롬프트)는 이것을 써야 같은 사람이 같은 가명이 된다.
+ * (원래 판정이 필요한 곳, 예: 질문 목록은 state.analysis를 그대로 쓴다)
+ * pipeline.js를 불러오지 않는다 (첫 화면을 가볍게 두기 위해, #43)
+ * @param {ReturnType<typeof initialState>} state
+ * @returns {import('./pipeline.js').Analysis | null}
+ */
+export function currentAnalysis(state) {
+  if (!state.analysis) return null;
+  const { checked } = state;
+  return checked
+    ? { ...state.analysis, personGroups: checked.personGroups, riskResults: checked.riskResults }
+    : state.analysis;
+}

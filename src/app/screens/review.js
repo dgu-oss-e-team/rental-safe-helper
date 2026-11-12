@@ -3,6 +3,7 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
+import { currentAnalysis } from '../app-state.js';
 
 /**
  * 지금 마스킹 결과(prepared)에 맞는 미리보기가 다 그려졌는지
@@ -52,7 +53,8 @@ function pdfPreview(state) {
  * @param {import('../main.js').Actions} act
  */
 export function reviewScreen(state, act) {
-  const analysis = /** @type {import('../pipeline.js').Analysis} */ (state.analysis);
+  // "같은 사람인가요?" 답을 반영한 그룹 (같은 사람의 이름은 한 줄로 묶여 같이 해제된다)
+  const analysis = /** @type {import('../pipeline.js').Analysis} */ (currentAnalysis(state));
   const prepared = /** @type {import('../pipeline.js').Prepared} */ (state.prepared);
 
   // 제안서: 가린 결과를 미리 보여 주고, 사용자가 확인한 뒤에만 활용한다
