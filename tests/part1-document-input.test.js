@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { ERROR_CODE, SOURCE_TYPE } from '../src/shared/document-model.js';
 import * as pdfReader from '../src/features/document-input/pdf-reader.js';
@@ -27,7 +27,7 @@ describe('PART 1 readDocument()', () => {
     expect(isSupportedFile({ name: 'a.hwp' })).toBe(false);
   });
 
-  it('텍스트 레이어가 없는 스캔 PDF는 OCR 폴백을 통해 IMAGE_PDF DocumentModel을 반환한다', async () => {
+  it('텍스트 레이어가 없는 스캔 PDF는 OCR 폴백과 줄별 confidence를 통해 IMAGE_PDF DocumentModel을 반환한다', async () => {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.addPage([595, 842]);
     const pdfBytes = await pdfDoc.save();
@@ -43,14 +43,20 @@ describe('PART 1 readDocument()', () => {
     ]);
 
     const ocrSpy = vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
-      text: '임대인 홍길동 800101-1234567',
-      confidence: 0.91,
+      text: '임대인 홍길동\n임차인 김철수',
+      confidence: 0.88,
       width: 1190,
       height: 1684,
       blocks: [
         {
-          text: '임대인 홍길동 800101-1234567',
+          text: '임대인 홍길동',
+          confidence: 0.94,
           bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
+        },
+        {
+          text: '임차인 김철수',
+          confidence: 0.72,
+          bbox: { x: 0.1, y: 0.25, width: 0.5, height: 0.03 },
         },
       ],
     });
@@ -65,14 +71,19 @@ describe('PART 1 readDocument()', () => {
       expect(r.data.pages).toHaveLength(1);
       expect(r.data.pages[0].blocks[0]).toMatchObject({
         blockId: 'p0_b0',
-        text: '임대인 홍길동 800101-1234567',
+        text: '임대인 홍길동',
         bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
-        confidence: 0.91,
+        confidence: 0.94,
+      });
+      expect(r.data.pages[0].blocks[1]).toMatchObject({
+        blockId: 'p0_b1',
+        text: '임차인 김철수',
+        confidence: 0.72,
       });
     }
   });
 
-  it('스캔 PDF에서 OCR 폴백이 실패하거나 텍스트를 찾지 못하면 LOW_CONFIDENCE 오류를 반환한다', async () => {
+  it('스캔 PDF에서 OCR 폴백이 실패하면 LOW_CONFIDENCE 오류를 반환한다', async () => {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.addPage([595, 842]);
     const pdfBytes = await pdfDoc.save();
@@ -89,6 +100,67 @@ describe('PART 1 readDocument()', () => {
         message: 'No text found in this PDF.',
       },
     });
+  });
+
+  it('스캔 PDF나 이미지의 OCR 신뢰도가 0.6 미만이면 LOW_CONFIDENCE 오류를 반환한다', async () => {
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595, 842]);
+    const pdfBytes = await pdfDoc.save();
+    const pdfFile = new File([pdfBytes], 'blurry-scan.pdf', { type: 'application/pdf' });
+
+    vi.spyOn(pdfReader, 'renderPdfToImages').mockResolvedValue([
+      {
+        pageIndex: 0,
+        buffer: new Uint8Array([1, 2, 3, 4]).buffer,
+        width: 1190,
+        height: 1684,
+      },
+    ]);
+
+    vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
+      text: '주민번호 75O315-1234567',
+      confidence: 0.45,
+      width: 1190,
+      height: 1684,
+      blocks: [
+        {
+          text: '주민번호 75O315-1234567',
+          confidence: 0.45,
+          bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
+        },
+      ],
+    });
+
+    const pdfRes = await readDocument(pdfFile);
+    expect(pdfRes.ok).toBe(false);
+    if (!pdfRes.ok) {
+      expect(pdfRes.error.code).toBe(ERROR_CODE.LOW_CONFIDENCE);
+    }
+
+    const imgFile = new File([new Uint8Array([1, 2, 3])], 'blurry.png', { type: 'image/png' });
+    const imgRes = await readDocument(imgFile);
+    expect(imgRes.ok).toBe(false);
+    if (!imgRes.ok) {
+      expect(imgRes.error.code).toBe(ERROR_CODE.LOW_CONFIDENCE);
+    }
+  });
+
+  it('OCR 결과에 줄 위치(bbox)가 없으면 전체 페이지(0,0,1,1) 대신 LOW_CONFIDENCE 오류를 반환한다', async () => {
+    const imgFile = new File([new Uint8Array([1, 2, 3])], 'no-boxes.png', { type: 'image/png' });
+
+    vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
+      text: '소유자 김철수',
+      confidence: 0.92,
+      width: 1000,
+      height: 1414,
+      blocks: [],
+    });
+
+    const r = await readDocument(imgFile);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error.code).toBe(ERROR_CODE.LOW_CONFIDENCE);
+    }
   });
 
   it('임베디드 텍스트가 있는 일반 PDF는 OCR 폴백 없이 TEXT_PDF로 반환한다', async () => {

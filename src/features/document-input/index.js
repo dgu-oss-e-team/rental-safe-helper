@@ -1,8 +1,10 @@
-﻿// @ts-check
+// @ts-check
 import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, SOURCE_TYPE } from '../../shared/document-model.js';
 import { readPdfText, renderPdfToImages } from './pdf-reader.js';
 import { recognizeImageText } from './ocr.js';
 import { mockRegistryDocument, mockLeaseDocument } from '../../shared/mock-data.js';
+
+export const MIN_OCR_CONFIDENCE = 0.6;
 
 /**
  * Validates if the file format is supported (.pdf, .jpg, .jpeg, .png)
@@ -79,64 +81,95 @@ export function normalizePagesAndBlocks(textPages, ocrConfidence = null) {
 }
 
 /**
+ * Validates OCR output for a single page and converts positioned OCR blocks into a Page.
+ * Rejects pages without positioned blocks (avoiding full-page 0,0,1,1 masks) or below confidence threshold.
+ * @param {{ text: string, confidence: number, blocks?: Array<{ text: string, confidence?: number, bbox: { x: number, y: number, width: number, height: number } }>, width?: number, height?: number }} ocrRes
+ * @param {number} pageIndex
+ * @param {number} defaultWidth
+ * @param {number} defaultHeight
+ * @returns {import('../../shared/document-model.js').Result<import('../../shared/document-model.js').Page>}
+ */
+function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
+  const positionedBlocks = Array.isArray(ocrRes.blocks)
+    ? ocrRes.blocks.filter((b) => b.text && b.text.trim().length > 0 && b.bbox)
+    : [];
+
+  if (positionedBlocks.length === 0) {
+    return fail(ERROR_CODE.LOW_CONFIDENCE, 'Could not determine text positions for safe masking.');
+  }
+
+  const pageConfidence =
+    typeof ocrRes.confidence === 'number'
+      ? ocrRes.confidence
+      : positionedBlocks.reduce(
+          (sum, b) => sum + (typeof b.confidence === 'number' ? b.confidence : 0),
+          0
+        ) / positionedBlocks.length;
+
+  if (pageConfidence < MIN_OCR_CONFIDENCE) {
+    return fail(
+      ERROR_CODE.LOW_CONFIDENCE,
+      'OCR confidence is too low to safely mask personal information.'
+    );
+  }
+
+  return ok({
+    pageIndex,
+    width: ocrRes.width || defaultWidth || 1000,
+    height: ocrRes.height || defaultHeight || 1414,
+    blocks: positionedBlocks.map((b, idx) => ({
+      blockId: `p${pageIndex}_b${idx}`,
+      text: b.text.trim(),
+      bbox: b.bbox,
+      confidence: typeof b.confidence === 'number' ? b.confidence : pageConfidence,
+    })),
+  });
+}
+
+/**
  * Fallback pipeline for scanned/image-only PDFs with no embedded text stream.
- * Renders PDF pages to images and runs OCR per page.
+ * Renders PDF pages to images and runs OCR per page with safety checks.
  * @param {ArrayBuffer} buffer
- * @returns {Promise<import('../../shared/document-model.js').Page[] | null>}
+ * @returns {Promise<import('../../shared/document-model.js').Result<import('../../shared/document-model.js').Page[]>>}
  */
 async function extractScannedPdfPages(buffer) {
+  /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
+  let pageImages;
   try {
-    const pageImages = await renderPdfToImages(buffer);
-    if (!pageImages || pageImages.length === 0) {
-      return null;
-    }
-
-    /** @type {import('../../shared/document-model.js').Page[]} */
-    const ocrPages = [];
-
-    for (const pageImg of pageImages) {
-      const ocrRes = await recognizeImageText(pageImg.buffer);
-      const ocrConfidence = typeof ocrRes.confidence === 'number' ? ocrRes.confidence : null;
-      const pageWidth = ocrRes.width || pageImg.width || 1000;
-      const pageHeight = ocrRes.height || pageImg.height || 1414;
-
-      if (ocrRes.blocks && ocrRes.blocks.length > 0) {
-        ocrPages.push({
-          pageIndex: pageImg.pageIndex,
-          width: pageWidth,
-          height: pageHeight,
-          blocks: ocrRes.blocks.map((b, idx) => ({
-            blockId: `p${pageImg.pageIndex}_b${idx}`,
-            text: b.text,
-            bbox: b.bbox,
-            confidence: ocrConfidence,
-          })),
-        });
-      } else {
-        const trimmed = (ocrRes.text || '').trim();
-        const lines = trimmed ? trimmed.split('\n').filter((l) => l.trim().length > 0) : [];
-        ocrPages.push({
-          pageIndex: pageImg.pageIndex,
-          width: pageWidth,
-          height: pageHeight,
-          blocks: lines.map((line, idx) => ({
-            blockId: `p${pageImg.pageIndex}_b${idx}`,
-            text: line.trim(),
-            bbox: { x: 0, y: 0, width: 1, height: 1 },
-            confidence: ocrConfidence,
-          })),
-        });
-      }
-    }
-
-    const hasExtractedText = ocrPages.some((p) =>
-      p.blocks.some((b) => b.text && b.text.trim().length > 0)
-    );
-
-    return hasExtractedText ? ocrPages : null;
+    pageImages = await renderPdfToImages(buffer);
   } catch {
-    return null;
+    return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
   }
+
+  if (!pageImages || pageImages.length === 0) {
+    return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
+  }
+
+  /** @type {import('../../shared/document-model.js').Page[]} */
+  const ocrPages = [];
+
+  for (const pageImg of pageImages) {
+    let ocrRes;
+    try {
+      ocrRes = await recognizeImageText(pageImg.buffer);
+    } catch {
+      return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
+    }
+
+    const pageResult = buildValidatedOcrPage(
+      ocrRes,
+      pageImg.pageIndex,
+      pageImg.width,
+      pageImg.height
+    );
+    if (!pageResult.ok) {
+      return pageResult;
+    }
+
+    ocrPages.push(pageResult.data);
+  }
+
+  return ok(ocrPages);
 }
 
 /**
@@ -155,7 +188,7 @@ export async function readDocument(file) {
     const buffer = await file.arrayBuffer();
     const fileName = file.name || '';
     const isRegistry = /registry|register|등기/i.test(fileName);
-    
+
     /** @type {import('../../shared/document-model.js').DocumentModel} */
     const fallbackMock = isRegistry ? mockRegistryDocument : mockLeaseDocument;
 
@@ -168,13 +201,13 @@ export async function readDocument(file) {
 
     if (isPdf) {
       const pdfRes = await readPdfText(buffer);
-      
+
       // Scanned PDF check: if no embedded text stream, run OCR fallback or return LOW_CONFIDENCE safety error
       const hasText = pdfRes.pages && pdfRes.pages.some((p) => p.blocks.length > 0);
       if (!hasText && pdfRes.textPages.every((t) => t.trim().length === 0)) {
-        const scannedPages = await extractScannedPdfPages(buffer);
-        if (!scannedPages) {
-          return fail(ERROR_CODE.LOW_CONFIDENCE, 'No text found in this PDF.');
+        const scannedResult = await extractScannedPdfPages(buffer);
+        if (!scannedResult.ok) {
+          return scannedResult;
         }
 
         /** @type {import('../../shared/document-model.js').DocumentModel} */
@@ -182,15 +215,16 @@ export async function readDocument(file) {
           documentId: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           documentType: DOCUMENT_TYPE.UNKNOWN,
           sourceType: SOURCE_TYPE.IMAGE_PDF,
-          pages: scannedPages,
+          pages: scannedResult.data,
         };
 
         return ok(scannedDocumentModel);
       }
 
-      const pages = pdfRes.pages && pdfRes.pages.length > 0
-        ? pdfRes.pages
-        : normalizePagesAndBlocks(pdfRes.textPages, null);
+      const pages =
+        pdfRes.pages && pdfRes.pages.length > 0
+          ? pdfRes.pages
+          : normalizePagesAndBlocks(pdfRes.textPages, null);
 
       /** @type {import('../../shared/document-model.js').DocumentModel} */
       const documentModel = {
@@ -204,25 +238,9 @@ export async function readDocument(file) {
     } else {
       // Image OCR Processing
       const ocrRes = await recognizeImageText(buffer);
-      const ocrConfidence = typeof ocrRes.confidence === 'number' ? ocrRes.confidence : null;
-
-      let pages;
-      if (ocrRes.blocks && ocrRes.blocks.length > 0) {
-        pages = [
-          {
-            pageIndex: 0,
-            width: ocrRes.width || 1000,
-            height: ocrRes.height || 1414,
-            blocks: ocrRes.blocks.map((b, idx) => ({
-              blockId: `p0_b${idx}`,
-              text: b.text,
-              bbox: b.bbox,
-              confidence: ocrConfidence,
-            })),
-          },
-        ];
-      } else {
-        pages = normalizePagesAndBlocks([ocrRes.text || ''], ocrConfidence);
+      const pageResult = buildValidatedOcrPage(ocrRes, 0, 1000, 1414);
+      if (!pageResult.ok) {
+        return pageResult;
       }
 
       /** @type {import('../../shared/document-model.js').DocumentModel} */
@@ -230,7 +248,7 @@ export async function readDocument(file) {
         documentId: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         documentType: DOCUMENT_TYPE.UNKNOWN,
         sourceType: SOURCE_TYPE.IMAGE,
-        pages,
+        pages: [pageResult.data],
       };
 
       return ok(documentModel);

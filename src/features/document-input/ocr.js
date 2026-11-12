@@ -19,7 +19,7 @@ async function getWorker() {
 /**
  * Performs OCR processing on an image buffer, extracting text, confidence, line bounding boxes, and image dimensions.
  * @param {ArrayBuffer} buffer
- * @returns {Promise<{ text: string, confidence: number, blocks: Array<{ text: string, bbox: { x: number, y: number, width: number, height: number } }>, width: number, height: number }>}
+ * @returns {Promise<{ text: string, confidence: number, blocks: Array<{ text: string, confidence?: number, bbox: { x: number, y: number, width: number, height: number } }>, width: number, height: number }>}
  */
 export async function recognizeImageText(buffer) {
   if (!buffer || buffer.byteLength === 0) {
@@ -39,7 +39,7 @@ export async function recognizeImageText(buffer) {
     const uint8Array = new Uint8Array(buffer);
     // @ts-ignore
     const ret = await worker.recognize(uint8Array, {}, { blocks: true });
-    
+
     const rawConfidence = ret.data.confidence;
     const normalizedConfidence = typeof rawConfidence === 'number' ? rawConfidence / 100 : 0;
 
@@ -62,14 +62,20 @@ export async function recognizeImageText(buffer) {
       .map((line) => {
         const { x0, y0, x1, y1 } = line.bbox;
         const lineText = line.text ? line.text.trim() : '';
+        const lineConfidence =
+          typeof line.confidence === 'number'
+            ? Number((line.confidence / 100).toFixed(4))
+            : normalizedConfidence;
+
         return {
           text: lineText,
+          confidence: lineConfidence,
           bbox: {
             x: Number(Math.max(0, Math.min(1, x0 / imageWidth)).toFixed(4)),
             y: Number(Math.max(0, Math.min(1, y0 / imageHeight)).toFixed(4)),
             width: Number(Math.max(0, Math.min(1, (x1 - x0) / imageWidth)).toFixed(4)),
             height: Number(Math.max(0, Math.min(1, (y1 - y0) / imageHeight)).toFixed(4)),
-          }
+          },
         };
       })
       .filter((b) => b.text.length > 0);

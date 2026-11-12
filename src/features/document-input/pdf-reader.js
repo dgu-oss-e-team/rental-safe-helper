@@ -1,4 +1,4 @@
-﻿// @ts-check
+// @ts-check
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 // @ts-ignore
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
