@@ -47,7 +47,7 @@ export function resultsScreen(state, act) {
     // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
     questions
       ? card('Help us check who is who', [
-          el('p', { class: 'hint' }, ['Some names could not be matched because a birth date was missing. Your answer updates the results above.']),
+          el('p', { class: 'hint' }, ['Some people could not be matched because a birth date was missing or a name may have been misread. Your answer updates the results above.']),
           questions,
         ])
       : null,
