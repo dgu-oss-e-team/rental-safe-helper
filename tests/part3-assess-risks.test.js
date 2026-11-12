@@ -198,8 +198,17 @@ describe('PART 3 최근 소유권 이전 (RECENT_OWNERSHIP_CHANGE)', () => {
     expect(assessOwnershipTransfer(withDates('2025-01-09', '2025-07-10')).data.status).toBe(NO_FLAG);
   });
 
-  it('접수일이 계약일보다 늦어도 최근으로 본다 (CHECK)', () => {
-    expect(assessOwnershipTransfer(withDates('2025-08-01', '2025-07-10')).data.status).toBe(CHECK);
+  it('접수일이 계약일보다 늦으면 CHECK, 문구는 "계약일 뒤"로 따로 나온다', () => {
+    const r = assessOwnershipTransfer(withDates('2025-08-01', '2025-07-10'));
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain('after the contract date');
+    expect(r.data.explanation).not.toContain('within');
+  });
+
+  it('접수일과 계약일이 같은 날이면 계약일 전 N개월 안으로 본다 (CHECK)', () => {
+    const r = assessOwnershipTransfer(withDates('2025-07-10', '2025-07-10'));
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain('within');
   });
 
   it('근거 칸에는 실제 날짜가 나오고, 설명에는 날짜가 없다', () => {

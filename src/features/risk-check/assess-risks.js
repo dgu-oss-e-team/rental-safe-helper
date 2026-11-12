@@ -210,6 +210,11 @@ export function assessOwnershipTransfer(fields) {
   const configured = getRuleParam(ruleId, 'withinMonths', DEFAULT_WITHIN_MONTHS);
   const months = Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_WITHIN_MONTHS;
 
+  // 접수일이 계약일보다 늦으면 "계약일 전 N개월 안"이 아니라 계약 뒤에 바뀐 것이다. 문구만 따로 쓴다.
+  if (transfer.getTime() > contract.getTime()) {
+    return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'after_contract', values });
+  }
+
   const recent = transfer.getTime() >= subtractMonths(contract, months).getTime();
   return buildRiskResult(ruleId, recent ? RISK_STATUS.CHECK : RISK_STATUS.NO_FLAG, {
     params: { months },
