@@ -212,6 +212,57 @@ describe('PART 2 extractFields 보증금·월세·특약·등기부 권리', () 
   });
 });
 
+describe('PART 2 extractFields 등기부 소유자는 지금 소유자만', () => {
+  const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+  const ownerNames = (/** @type {string[]} */ lines) =>
+    extractFields([leaseDoc(lines)], []).data.registry.owners?.map((/** @type {any} */ p) => p.name) ?? null;
+
+  it('갑구의 예전 소유자(이미 판 사람)는 빼고 지금 소유자만 넣는다', () => {
+    const lines = [
+      REGISTRY_HEAD,
+      GAP,
+      '2 소유권이전 2018년6월1일 제2000호 매매 소유자 박영수 700101-1******',
+      '3 소유권이전 2024년5월10일 제5555호 매매 소유자 김철수 800101-1******',
+      EUL,
+    ];
+    expect(ownerNames(lines)).toEqual(['김철수']);
+  });
+
+  it('예전 소유자 이름도 탐지 결과에는 남아서 가려진다', () => {
+    const lines = [REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', EUL];
+    const names = detectPII(leaseDoc(lines)).data.filter((f) => f.type === 'PERSON_NAME').map((f) => f.value);
+    expect(names).toEqual(['박영수', '김철수']);
+  });
+
+  it('지금 기록의 공유자는 여러 줄에 있어도 모두 넣는다', () => {
+    const lines = [
+      REGISTRY_HEAD,
+      GAP,
+      '2 소유권이전 2018년6월1일 소유자 박영수',
+      '3 소유권이전 2024년5월10일 제5555호 매매',
+      '공유자 지분 2분의 1 김철수 800101-1******',
+      '공유자 지분 2분의 1 이영희 790202-2******',
+      EUL,
+    ];
+    expect(ownerNames(lines)).toEqual(['김철수', '이영희']);
+  });
+
+  it('지금 소유자를 정할 수 없으면 null (일부 이전, 신탁처럼 소유자 이름이 없는 기록)', () => {
+    expect(
+      ownerNames([REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 공유자 박영수', '3 박영수지분전부이전 2024년1월1일 공유자 이영희', EUL]),
+    ).toBeNull();
+    expect(
+      ownerNames([REGISTRY_HEAD, GAP, '2 소유권이전 2018년6월1일 소유자 박영수', '3 소유권이전 2024년7월7일 신탁 수탁자 ○○신탁', EUL]),
+    ).toBeNull();
+  });
+
+  it('순위번호가 없는 등기부(Mock)는 지금처럼 소유자를 전부 넣는다', () => {
+    expect(extractFields([mockRegistryDocument], []).data.registry.owners.map((/** @type {any} */ p) => p.name)).toEqual(['김철수']);
+  });
+});
+
 describe('PART 2 extractFields 최근 소유권이전 접수일·계약일', () => {
   const HEAD = '주택임대차계약서 보증금 특약';
   const REGISTRY_HEAD = '등기사항전부증명서 고유번호 0000-0000-000000';

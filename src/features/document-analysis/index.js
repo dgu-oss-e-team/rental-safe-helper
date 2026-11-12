@@ -31,6 +31,7 @@ import {
   findRegistryRights,
   findLastTransferDate,
   findContractDate,
+  findCurrentOwnerLines,
 } from './field-extractor.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
@@ -275,10 +276,54 @@ function pickPropertyAddress(hits) {
 }
 
 /**
+ * 탐지 결과마다 linesOf() 기준 줄 번호를 구한다. (몇 번째 줄에서 찾은 이름인지)
+ * @param {DocumentModel} document
+ * @param {any[]} hits scanDocument() 결과
+ * @returns {Map<string, number>} 탐지 결과 id → 줄 번호
+ */
+function lineIndexById(document, hits) {
+  /** @type {Map<any, number>} 블록 → 그 블록 첫 줄의 번호 */
+  const firstLine = new Map();
+  let n = 0;
+  for (const page of document.pages) {
+    for (const block of page.blocks) {
+      firstLine.set(block, n);
+      n += block.text.split('\n').length;
+    }
+  }
+  return new Map(
+    hits.map((h) => [h.id, firstLine.get(h.block) + h.block.text.slice(0, h.start).split('\n').length - 1]),
+  );
+}
+
+/**
+ * 등기부 소유자 중 지금 소유자만 남긴다. 갑구에 남아 있는 예전 소유자(이미 판 사람)는 뺀다.
+ * (예전 소유자가 임대인으로 서명해도 "소유자와 같음"으로 보이지 않게, 공동 소유로 잘못 보이지 않게)
+ * - 지금 소유자 줄을 정할 근거가 없으면('ALL') 지금처럼 전부 쓴다. (예: 순위번호 없는 등기부, Mock)
+ * - 지금 소유자를 정할 수 없거나 그 줄에서 소유자 이름을 못 찾으면 null (못 읽음, 추측하지 않음)
+ * 빠진 예전 소유자의 이름도 탐지 결과(findings)에는 그대로 있어서 마스킹에서 가려진다.
+ * @param {Person[]} owners
+ * @param {DocumentModel} document
+ * @param {any[]} hits
+ * @param {string[]} lines
+ * @returns {Person[] | null}
+ */
+function currentOwners(owners, document, hits, lines) {
+  const ownerLines = findCurrentOwnerLines(lines);
+  if (ownerLines === 'ALL') return owners;
+  if (ownerLines === null) return null;
+  const lineOf = lineIndexById(document, hits);
+  const wanted = new Set(ownerLines);
+  const current = owners.filter((p) => wanted.has(/** @type {number} */ (lineOf.get(p.findingId))));
+  return current.length > 0 ? current : null;
+}
+
+/**
  * 위험 점검·인물 판별에 필요한 항목(소유자, 임대인, 소재지, 보증금 등)을 뽑는다.
  * 노션 함수 표에는 없지만 assessRisks()의 입력("비교용 추출 데이터")을 만들기 위해 추가한 함수 (docs/INTERFACES.md 참고)
  * - 사람 정보와 주소: 실제 탐지 결과에서 만든다. (findingId = detectPII() 결과의 id)
  * - 사용자가 해제(REJECTED)한 이름은 사람 목록에서 뺀다.
+ * - 등기부 소유자(registry.owners)는 지금 소유자만 넣는다. 갑구의 예전 소유자는 뺀다. (currentOwners 참고)
  *   TODO(PART 2): 사용자가 직접 추가(USER_ADDED)한 이름은 역할을 알 수 없어서 아직 넣지 않는다.
  *   PART 5 검토 화면에서 역할을 고르게 되면 그때 반영한다.
  * - 문서가 없으면 그 문서의 항목은 null (못 읽음), 문서는 있는데 사람이 없으면 [] (없음)
@@ -319,7 +364,7 @@ export function extractFields(documents, findings) {
     registry = {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
-      owners: byRole(people, 'OWNER'),
+      owners: currentOwners(byRole(people, 'OWNER'), registryDoc, hits, lines),
       rights: findRegistryRights(lines),
       lastTransferDate: findLastTransferDate(lines),
     };

@@ -59,6 +59,21 @@ describe('PART 2 라벨 기반 이름 탐지', () => {
   });
 });
 
+describe('PART 2 등기부 공유자의 지분 표기', () => {
+  it('"공유자 지분 2분의 1 김철수"에서 이름은 "지분"이 아니라 "김철수"다', () => {
+    const r = findLabeledNames('공유자 지분 2분의 1 김철수 800101-1******');
+    expect(r.map((x) => [x.value, x.role])).toEqual([['김철수', 'OWNER']]);
+  });
+
+  it('"지분 1/2" 표기도 건너뛴다', () => {
+    expect(findLabeledNames('공유자 지분 1/2 이영희').map((x) => x.value)).toEqual(['이영희']);
+  });
+
+  it('다른 모양의 지분 표기여도 "지분"을 이름으로 잡지 않는다', () => {
+    expect(findLabeledNames('공유자 지분 전부').map((x) => x.value)).toEqual([]);
+  });
+});
+
 describe('PART 2 서명란 "성명" 칸과 중개사', () => {
   it('혼자 있는 "성명" 칸 뒤 이름도 찾는다 (역할을 모르면 role은 null)', () => {
     const r = findLabeledNames('성명 김철수 서명또는날인');

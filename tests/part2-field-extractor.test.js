@@ -9,6 +9,7 @@ import {
   parseDate,
   findLastTransferDate,
   findContractDate,
+  findCurrentOwnerLines,
 } from '../src/features/document-analysis/field-extractor.js';
 import { mockRegistryDocument, mockLeaseDocument, mockExtractedFields } from '../src/shared/mock-data.js';
 
@@ -381,6 +382,68 @@ describe('PART 2 등기부 마지막 소유권이전 접수일 (findLastTransfer
 
   it('Mock 등기부에는 소유권이전이 없어서 null', () => {
     expect(findLastTransferDate(linesOf(mockRegistryDocument))).toBeNull();
+  });
+});
+
+describe('PART 2 지금 소유자가 적힌 줄 (findCurrentOwnerLines)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('말소되지 않은 마지막 소유권이전 기록의 줄(이어지는 줄 포함)을 돌려준다', () => {
+    const lines = [
+      GAP, // 0
+      '1 소유권보존 2015년1월20일 제100호 소유자 최민수', // 1
+      '2 소유권이전 2018년6월1일 제2000호 매매 소유자 박영수', // 2
+      '3 소유권이전 2024년5월10일 제5555호 매매', // 3
+      '소유자 김철수 800101-1******', // 4
+      EUL, // 5
+    ];
+    expect(findCurrentOwnerLines(lines)).toEqual([3, 4]);
+  });
+
+  it('소유권보존만 있으면 그 기록이 지금 소유자다', () => {
+    expect(findCurrentOwnerLines([GAP, '1 소유권보존 2015년1월20일 제100호 소유자 최민수'])).toEqual([1]);
+  });
+
+  it('공유자전원지분전부이전은 전부 넘어간 것이라 그 기록이 지금 소유자다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호', '3 공유자전원지분전부이전 2024년8월8일 제8000호 공유자 김철수'];
+    expect(findCurrentOwnerLines(lines)).toEqual([2]);
+  });
+
+  it('말소된 소유권이전은 빼고 그 전 기록을 쓴다', () => {
+    const lines = [
+      GAP,
+      '2 소유권이전 2018년6월1일 제2000호 소유자 박영수',
+      '3 소유권이전 2024년5월10일 제5555호 소유자 김철수',
+      '4 3번소유권이전등기말소',
+    ];
+    expect(findCurrentOwnerLines(lines)).toEqual([1]);
+  });
+
+  it('압류 같은 다른 기록과 그 이어지는 줄은 소유자 줄에 넣지 않는다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 소유자 박영수', '3 압류 2020년1월1일 제10호', '권리자 국민건강보험공단'];
+    expect(findCurrentOwnerLines(lines)).toEqual([1]);
+  });
+
+  it('부기등기 줄은 소유자 줄에 넣지 않는다', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 소유자 박영수', '2-1 2번등기명의인표시변경 박영수 주소 변경'];
+    expect(findCurrentOwnerLines(lines)).toEqual([1]);
+  });
+
+  it('마지막이 일부 이전이면 지금 소유자가 여러 기록에 나뉘어 있어서 null (추측 안 함)', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 공유자 박영수 김철수', '3 박영수지분전부이전 2024년1월1일 제100호 공유자 이영희'];
+    expect(findCurrentOwnerLines(lines)).toBeNull();
+    expect(findCurrentOwnerLines([GAP, '2 소유권일부이전 2024년1월1일 제100호 공유자 이영희'])).toBeNull();
+  });
+
+  it('어느 기록을 말소했는지 모르면 null', () => {
+    const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', '4 소유권이전등기말소'];
+    expect(findCurrentOwnerLines(lines)).toBeNull();
+  });
+
+  it('갑구가 없거나 순위번호가 붙은 소유권 기록이 없으면 "ALL" (줄일 근거 없음)', () => {
+    expect(findCurrentOwnerLines(['소유자 김철수'])).toBe('ALL');
+    expect(findCurrentOwnerLines(linesOf(mockRegistryDocument))).toBe('ALL');
   });
 });
 

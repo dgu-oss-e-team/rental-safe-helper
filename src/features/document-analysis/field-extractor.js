@@ -301,8 +301,113 @@ const TRANSFER_PURPOSE =
 const CANCEL_LINE = /^\s*(\d{1,3})\s*번[^\n]*?말\s*소/;
 /** 소유권이전이 아닌 다른 등기를 말소하는 줄 (신탁등기말소, 가압류등기말소 등). 소유권이전과 상관없다. */
 const OTHER_CANCEL = /신\s*탁|압\s*류|가\s*등\s*기|가\s*처\s*분|경\s*매|등\s*기\s*명\s*의\s*인/;
+/** 소유권보존 줄 (처음 등기한 소유자) */
+const PRESERVE_PURPOSE = /^\s*소\s*유\s*권\s*보\s*존/;
+/**
+ * 일부만 넘어간 소유권이전: "소유권일부이전", "김철수지분전부이전"(공유자 한 명의 지분).
+ * "공유자전원지분전부이전"은 전부 넘어간 것이라 일부가 아니다.
+ */
+const PARTIAL_TRANSFER = /^\s*(?:소\s*유\s*권\s*일\s*부|(?![가-힣]{0,3}전\s*원\s*지\s*분\s*전\s*부)[가-힣]{0,10}지\s*분)/;
 /** 소유권이전 줄에 접수일이 없을 때, 이어지는 줄을 몇 줄까지 볼지 */
 const MAX_DATE_LOOKAHEAD = 3;
+
+/**
+ * @typedef {object} GapRow 갑구 기록 한 건 (순위번호 하나)
+ * @property {string | null} rank 순위번호 (못 읽으면 null)
+ * @property {'PRESERVE' | 'TRANSFER' | 'PARTIAL' | 'OTHER'} kind 소유권보존 / 소유권이전 / 일부 이전 / 그 밖(압류 등)
+ * @property {string | null} date 첫 날짜 (소유권이전이면 접수일)
+ * @property {boolean} cancelled 말소됐는지
+ * @property {number[]} lineIndexes 이 기록에 속한 줄 번호 (lines 기준. 이어지는 줄 포함)
+ */
+
+/**
+ * 등기부 갑구를 기록(순위번호) 단위로 읽는다. findLastTransferDate·findCurrentOwnerLines가 같이 쓴다.
+ * - 부기등기("2-1 …")와 그 뒤 줄은 어느 기록에도 넣지 않는다.
+ * - 말소 줄("3번소유권이전등기말소")은 가리키는 기록을 cancelled: true로 바꾼다.
+ *   어느 기록인지 모르면 ambiguous: true. (신탁·가압류 등 다른 등기의 말소는 상관없다)
+ * - 을구와 끝의 요약표는 보지 않는다.
+ * @param {string[]} lines
+ * @returns {{ seenGap: boolean, ambiguous: boolean, rows: GapRow[] }}
+ */
+function readGapRows(lines) {
+  /** @type {GapRow[]} */
+  const rows = [];
+  /** @type {Array<string | null>} 말소 줄이 가리키는 순위번호 (모르면 null) */
+  const cancelTargets = [];
+  /** 지금 읽는 기록 (이어지는 줄을 붙일 곳) */
+  /** @type {GapRow | null} */
+  let current = null;
+  /** 접수일을 아직 못 찾은 소유권이전과, 그 뒤로 본 줄 수 */
+  /** @type {{ row: GapRow, seen: number } | null} */
+  let waiting = null;
+  let seenGap = false;
+  /** @type {string | null} */
+  let section = null;
+
+  lines.forEach((line, i) => {
+    if (section === 'STOP') return;
+    if (SUMMARY_HEADING.test(line)) {
+      section = 'STOP';
+      return;
+    }
+    const heading = SECTION_HEADING.exec(line);
+    if (heading) {
+      section = heading[1];
+      if (section === '갑') seenGap = true;
+      current = null;
+      waiting = null;
+      return;
+    }
+    if (section !== '갑') return;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch && rankMatch[2]) {
+      // 부기등기: 새 기록이 아니고, 이 줄의 날짜·이름을 앞 기록에 붙이지도 않는다.
+      current = null;
+      waiting = null;
+      return;
+    }
+    const rank = rankMatch ? rankMatch[1] : null;
+    const rest = rankMatch ? line.slice(rankMatch[0].length) : line;
+
+    /** @param {GapRow['kind']} kind */
+    const startRow = (kind) => {
+      /** @type {GapRow} */
+      const row = { rank, kind, date: parseDate(rest), cancelled: false, lineIndexes: [i] };
+      rows.push(row);
+      current = row;
+      waiting = (kind === 'TRANSFER' || kind === 'PARTIAL') && row.date === null ? { row, seen: 0 } : null;
+    };
+
+    if (TRANSFER_PURPOSE.test(rest)) return startRow(PARTIAL_TRANSFER.test(rest) ? 'PARTIAL' : 'TRANSFER');
+    if (PRESERVE_PURPOSE.test(rest)) return startRow('PRESERVE');
+    if (/말\s*소/.test(rest)) {
+      current = null;
+      waiting = null;
+      if (OTHER_CANCEL.test(rest)) return;
+      const target = CANCEL_LINE.exec(rest);
+      cancelTargets.push(target ? target[1] : null);
+      return;
+    }
+    if (rank !== null) return startRow('OTHER');
+
+    // 순위번호 없는 이어지는 줄: 지금 기록에 붙이고, 접수일을 기다리는 소유권이전이면 여기서 찾는다.
+    if (current) current.lineIndexes.push(i);
+    if (waiting && waiting.seen < MAX_DATE_LOOKAHEAD) {
+      waiting.seen += 1;
+      waiting.row.date = parseDate(line);
+      if (waiting.row.date !== null) waiting = null;
+    }
+  });
+
+  let ambiguous = false;
+  for (const target of cancelTargets) {
+    const row = target === null ? undefined : rows.find((r) => r.rank === target);
+    if (row) row.cancelled = true;
+    else ambiguous = true;
+  }
+  return { seenGap, ambiguous, rows };
+}
 
 /**
  * 등기부 갑구에서 마지막 소유권이전의 접수일을 'YYYY-MM-DD'로 읽는다. (PART 3 최근 소유권 이전 점검용)
@@ -318,74 +423,32 @@ const MAX_DATE_LOOKAHEAD = 3;
  * @returns {string | null}
  */
 export function findLastTransferDate(lines) {
-  /** @type {Array<{ rank: string | null, isTransfer: boolean, date: string | null, cancelled: boolean }>} */
-  const rows = [];
-  /** @type {Array<string | null>} 말소 줄이 가리키는 순위번호 (모르면 null) */
-  const cancelTargets = [];
-  /** 접수일을 아직 못 찾은 소유권이전 줄과, 그 뒤로 본 줄 수 */
-  /** @type {{ row: { date: string | null }, seen: number } | null} */
-  let waiting = null;
-  let seenGap = false;
-  /** @type {string | null} */
-  let section = null;
-
-  for (const line of lines) {
-    if (SUMMARY_HEADING.test(line)) break;
-    const heading = SECTION_HEADING.exec(line);
-    if (heading) {
-      section = heading[1];
-      if (section === '갑') seenGap = true;
-      waiting = null;
-      continue;
-    }
-    if (section !== '갑') continue;
-
-    const rankMatch = RANK_REGEX.exec(line);
-    if (rankMatch && rankMatch[2]) {
-      waiting = null; // 부기등기: 소유권이전이 아니고, 이 줄의 날짜를 앞 줄에 붙이지도 않는다.
-      continue;
-    }
-    const rank = rankMatch ? rankMatch[1] : null;
-    const rest = rankMatch ? line.slice(rankMatch[0].length) : line;
-
-    if (TRANSFER_PURPOSE.test(rest)) {
-      const row = { rank, isTransfer: true, date: parseDate(rest), cancelled: false };
-      rows.push(row);
-      waiting = row.date === null ? { row, seen: 0 } : null;
-      continue;
-    }
-    if (/말\s*소/.test(rest)) {
-      waiting = null;
-      if (OTHER_CANCEL.test(rest)) continue;
-      const target = CANCEL_LINE.exec(rest);
-      cancelTargets.push(target ? target[1] : null);
-      continue;
-    }
-    if (rank !== null) {
-      rows.push({ rank, isTransfer: false, date: null, cancelled: false });
-      waiting = null;
-      continue;
-    }
-    // 순위번호 없는 이어지는 줄: 접수일을 기다리는 소유권이전이 있으면 여기서 찾는다.
-    if (waiting && waiting.seen < MAX_DATE_LOOKAHEAD) {
-      waiting.seen += 1;
-      waiting.row.date = parseDate(line);
-      if (waiting.row.date !== null) waiting = null;
-    }
-  }
-
-  if (!seenGap) return null;
-
-  for (const target of cancelTargets) {
-    if (target === null) return null;
-    const row = rows.find((r) => r.rank === target);
-    if (!row) return null;
-    if (row.isTransfer) row.cancelled = true;
-  }
-
-  const transfers = rows.filter((r) => r.isTransfer && !r.cancelled);
+  const { seenGap, ambiguous, rows } = readGapRows(lines);
+  if (!seenGap || ambiguous) return null;
+  const transfers = rows.filter((r) => (r.kind === 'TRANSFER' || r.kind === 'PARTIAL') && !r.cancelled);
   if (transfers.length === 0) return null;
   return transfers[transfers.length - 1].date;
+}
+
+/**
+ * 등기부에서 "지금 소유자"가 적힌 줄을 찾는다. (registry.owners를 지금 소유자만으로 줄일 때 쓴다)
+ * 갑구에는 예전 소유자도 차례로 남아 있어서, 소유자 이름을 전부 모으면 이미 집을 판 사람까지 소유자가 된다.
+ * - 말소되지 않은 마지막 소유권보존·소유권이전 기록의 줄 번호를 돌려준다. (이어지는 줄 포함)
+ * - 'ALL': 갑구가 없거나 순위번호가 붙은 소유권 기록을 못 찾음 → 줄일 근거가 없으니 지금처럼 전부 쓴다.
+ * - null: 지금 소유자를 정할 수 없음 → 추측하지 않는다.
+ *   (어느 기록을 말소했는지 모름, 마지막이 일부 이전("소유권일부이전", "김철수지분전부이전")이라 여러 기록에 나뉨)
+ * @param {string[]} lines
+ * @returns {number[] | 'ALL' | null}
+ */
+export function findCurrentOwnerLines(lines) {
+  const { seenGap, ambiguous, rows } = readGapRows(lines);
+  const ownership = rows.filter((r) => r.kind !== 'OTHER');
+  if (!seenGap || ownership.length === 0) return 'ALL';
+  if (ambiguous) return null;
+  const live = ownership.filter((r) => !r.cancelled);
+  const last = live[live.length - 1];
+  if (!last || last.kind === 'PARTIAL') return null;
+  return last.lineIndexes;
 }
 
 /** "계약일", "계약일자", "계약체결일" 라벨. 바로 뒤에 날짜가 와야 한다. ("계약일로부터 30일"은 아니다) */
