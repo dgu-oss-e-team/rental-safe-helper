@@ -1,0 +1,124 @@
+/* PART 1: OCR 결과 수정 화면 (ocr-editor) */
+.ocr-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ocr-split-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 720px) {
+  .ocr-split-layout {
+    grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.4fr);
+  }
+}
+
+.ocr-preview-pane {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+.ocr-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.ocr-editor-pane,
+.ocr-page,
+.ocr-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ocr-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+}
+
+.ocr-block-warn {
+  border-color: var(--check);
+  background: var(--check-bg);
+}
+
+.ocr-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.ocr-badge {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--unverifiable);
+  background: var(--unverifiable-bg);
+}
+
+.ocr-badge-warn {
+  color: var(--check);
+  background: #fff;
+  border: 1px solid var(--check);
+}
+
+.ocr-badge-ok {
+  color: var(--safe, #166534);
+  background: var(--safe-bg, #dcfce7);
+}
+
+.ocr-digit-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--check);
+}
+
+.ocr-block-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ocr-input {
+  flex: 1 1 200px;
+  font: inherit;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  min-height: 40px;
+  resize: none;
+  overflow: hidden;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.ocr-input-warn {
+  border-color: var(--check);
+}
+
+.ocr-confirm-btn,
+.ocr-reset-btn {
+  padding: 6px 12px;
+  min-height: 40px;
+  font-size: 13px;
+}

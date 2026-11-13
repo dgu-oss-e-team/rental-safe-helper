@@ -83,15 +83,20 @@ export function normalizePagesAndBlocks(textPages, ocrConfidence = null) {
 
 /**
  * Validates OCR output for a single page and converts positioned OCR blocks into a Page.
- * Rejects pages without positioned blocks (avoiding full-page 0,0,1,1 masks),
- * pages below MIN_OCR_CONFIDENCE, or digit-bearing lines below MIN_DIGIT_LINE_CONFIDENCE.
+ * Rejects pages without positioned blocks (avoiding full-page 0,0,1,1 masks).
+ * Unless allowLowConfidence is true (for the OCR review editor flow), rejects pages below
+ * MIN_OCR_CONFIDENCE or digit-bearing lines below MIN_DIGIT_LINE_CONFIDENCE.
+ *
  * @param {{ text: string, confidence: number, blocks?: Array<{ text: string, confidence?: number, bbox: { x: number, y: number, width: number, height: number } }>, width?: number, height?: number }} ocrRes
  * @param {number} pageIndex
  * @param {number} defaultWidth
  * @param {number} defaultHeight
+ * @param {{ allowLowConfidence?: boolean }} [options]
  * @returns {import('../../shared/document-model.js').Result<import('../../shared/document-model.js').Page>}
  */
-function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
+function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight, options = {}) {
+  const { allowLowConfidence = false } = options;
+
   const positionedBlocks = Array.isArray(ocrRes.blocks)
     ? ocrRes.blocks.filter((b) => b.text && b.text.trim().length > 0 && b.bbox)
     : [];
@@ -108,13 +113,6 @@ function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
           0
         ) / positionedBlocks.length;
 
-  if (pageConfidence < MIN_OCR_CONFIDENCE) {
-    return fail(
-      ERROR_CODE.LOW_CONFIDENCE,
-      'OCR confidence is too low to safely mask personal information.'
-    );
-  }
-
   const normalizedBlocks = positionedBlocks.map((b, idx) => ({
     blockId: `p${pageIndex}_b${idx}`,
     text: b.text.trim(),
@@ -122,15 +120,24 @@ function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
     confidence: typeof b.confidence === 'number' ? b.confidence : pageConfidence,
   }));
 
-  // Guard against partially mangled numeric IDs (e.g. RRN/Foreigner ID) passing page-level threshold
-  const hasLowConfidenceDigits = normalizedBlocks.some(
-    (b) => /\d/.test(b.text) && b.confidence < MIN_DIGIT_LINE_CONFIDENCE
-  );
-  if (hasLowConfidenceDigits) {
-    return fail(
-      ERROR_CODE.LOW_CONFIDENCE,
-      'Numeric OCR confidence is too low to safely mask personal information.'
+  if (!allowLowConfidence) {
+    if (pageConfidence < MIN_OCR_CONFIDENCE) {
+      return fail(
+        ERROR_CODE.LOW_CONFIDENCE,
+        'OCR confidence is too low to safely mask personal information.'
+      );
+    }
+
+    // Guard against partially mangled numeric IDs (e.g. RRN/Foreigner ID) passing page-level threshold
+    const hasLowConfidenceDigits = normalizedBlocks.some(
+      (b) => /\d/.test(b.text) && b.confidence < MIN_DIGIT_LINE_CONFIDENCE
     );
+    if (hasLowConfidenceDigits) {
+      return fail(
+        ERROR_CODE.LOW_CONFIDENCE,
+        'Numeric OCR confidence is too low to safely mask personal information.'
+      );
+    }
   }
 
   return ok({
@@ -145,9 +152,10 @@ function buildValidatedOcrPage(ocrRes, pageIndex, defaultWidth, defaultHeight) {
  * Fallback pipeline for scanned/image-only PDFs with no embedded text stream.
  * Renders PDF pages to images and runs OCR per page with safety checks.
  * @param {ArrayBuffer} buffer
+ * @param {{ allowLowConfidence?: boolean }} [options]
  * @returns {Promise<import('../../shared/document-model.js').Result<import('../../shared/document-model.js').Page[]>>}
  */
-async function extractScannedPdfPages(buffer) {
+async function extractScannedPdfPages(buffer, options = {}) {
   /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
   let pageImages;
   try {
@@ -175,7 +183,8 @@ async function extractScannedPdfPages(buffer) {
       ocrRes,
       pageImg.pageIndex,
       pageImg.width,
-      pageImg.height
+      pageImg.height,
+      options
     );
     if (!pageResult.ok) {
       return pageResult;
@@ -191,10 +200,12 @@ async function extractScannedPdfPages(buffer) {
  * Public Entry Point: Processes uploaded lease or registry documents.
  * Extracts text via PDF parser or OCR engine, deriving real normalized coordinates (bbox)
  * and dynamic page dimensions to construct a valid DocumentModel.
+ *
  * @param {File} file
+ * @param {{ allowLowConfidence?: boolean }} [options]
  * @returns {Promise<import('../../shared/document-model.js').Result<import('../../shared/document-model.js').DocumentModel>>}
  */
-export async function readDocument(file) {
+export async function readDocument(file, options = {}) {
   if (!isSupportedFile(file)) {
     return fail(ERROR_CODE.UNSUPPORTED_FILE, 'Unsupported file format');
   }
@@ -221,7 +232,7 @@ export async function readDocument(file) {
       // Scanned PDF check: if no embedded text stream, run OCR fallback or return LOW_CONFIDENCE safety error
       const hasText = pdfRes.pages && pdfRes.pages.some((p) => p.blocks.length > 0);
       if (!hasText && pdfRes.textPages.every((t) => t.trim().length === 0)) {
-        const scannedResult = await extractScannedPdfPages(buffer);
+        const scannedResult = await extractScannedPdfPages(buffer, options);
         if (!scannedResult.ok) {
           return scannedResult;
         }
@@ -254,7 +265,7 @@ export async function readDocument(file) {
     } else {
       // Image OCR Processing
       const ocrRes = await recognizeImageText(buffer);
-      const pageResult = buildValidatedOcrPage(ocrRes, 0, 1000, 1414);
+      const pageResult = buildValidatedOcrPage(ocrRes, 0, 1000, 1414, options);
       if (!pageResult.ok) {
         return pageResult;
       }
@@ -277,3 +288,6 @@ export async function readDocument(file) {
     return fail(ERROR_CODE.PDF_READ_FAILED, 'Failed to process document fields');
   }
 }
+
+// OCR 결과 수정 화면 (PART 5 #54에서 slots.ocrEditor에 연결)
+export { renderOcrEditor, isLowConfidenceBlock } from './ocr-editor.js';
