@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- 가상 등기부등본 (테스트·시연용). 이름·번호·주소는 모두 가짜이며 src/shared/mock-data.js와 같은 시나리오다. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>sample-registry</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=block" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: 'Noto Sans KR', sans-serif; font-size: 10.5pt; color: #000; }
+  h1 { text-align: center; font-size: 17pt; margin: 0 0 4mm; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 3mm; }
+  h2 { font-size: 12pt; margin: 6mm 0 2mm; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #000; padding: 1.5mm 2mm; vertical-align: top; }
+  th { background: #eee; font-weight: 700; }
+  .note { margin-top: 8mm; font-size: 9pt; color: #444; }
+</style>
+</head>
+<body>
+  <h1>등기사항전부증명서(말소사항 포함) - 집합건물</h1>
+  <div class="meta"><span>고유번호 0000-0000-000000</span><span>[집합건물] 서울특별시 중구 필동로 00, 101호</span></div>
+
+  <h2>【 표 제 부 】 (전유부분의 건물의 표시)</h2>
+  <table>
+    <tr><th>표시번호</th><th>접수</th><th>건물번호</th><th>건물내역</th></tr>
+    <tr><td>1</td><td>2019년1월10일</td><td>제1층 제101호</td><td>철근콘크리트구조 33.00㎡</td></tr>
+  </table>
+
+  <h2>【 갑 구 】 (소유권에 관한 사항)</h2>
+  <table>
+    <tr><th>순위번호</th><th>등기목적</th><th>접수</th><th>등기원인</th><th>권리자 및 기타사항</th></tr>
+    <tr><td>1</td><td>소유권보존</td><td>2019년1월10일</td><td></td><td>소유자 김철수 800101-1******<br>서울특별시 중구 필동로 00</td></tr>
+  </table>
+
+  <h2>【 을 구 】 (소유권 이외의 권리에 관한 사항)</h2>
+  <table>
+    <tr><th>순위번호</th><th>등기목적</th><th>접수</th><th>등기원인</th><th>권리자 및 기타사항</th></tr>
+    <tr><td>1</td><td>근저당권설정</td><td>2019년2월1일</td><td>설정계약</td><td>근저당권설정 채권최고액 금120,000,000원<br>근저당권자 주식회사가상은행</td></tr>
+  </table>
+
+  <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 등기부등본이 아닙니다.</p>
+</body>
+</html>
