@@ -44,6 +44,19 @@
 }
 ```
 
+### OCR 결과 확인: "Confirm text" 단계 (#93 PART 1 · #54 PART 5 합의)
+
+사진(`sourceType: 'image'`)이나 글자 없는 스캔 PDF(`'image_pdf'`)가 있으면 ①과 ② 사이에서 사용자가 OCR 글자를 확인한다. (노션 PART 1 완료 기준 "OCR 결과를 사용자가 수정할 수 있다")
+
+- `readDocument(file, { allowLowConfidence: true })`: 흐린 줄이 있어도 멈추지 않고 문서를 돌려준다(줄마다 `confidence` 유지). 옵션 없이 부르면 지금처럼 `LOW_CONFIDENCE`로 멈춘다.
+- PART 1 `renderOcrEditor({ documents, files, onChange })` → `HTMLElement` (slots.js `ocrEditor`)
+  - `documents`: 사진·스캔 서류의 DocumentModel[], `files`: 그 원본 파일 (원본 그림을 옆에 보여 줌)
+  - `onChange(editedDocuments)`: 고칠 때마다 DocumentModel[] **전체**(복사본). 입력 문서는 바꾸지 않는다.
+  - 고친 줄은 `blockId`·`bbox` 그대로, `text`만 바뀐다. 사용자가 고치거나 확인한 줄은 `confidence: 1`.
+  - 흐린 줄 기준: PART 1 `isLowConfidenceBlock()` (숫자가 있는 줄 0.8 미만, 그 밖의 줄 0.75 미만)
+- PART 5: 흐린 줄이 **모두** 확인되기 전에는 다음 단계로 넘어가지 못한다. 확인한 서류로 나머지 분석(판별·탐지·위험 점검)을 한다.
+- PART 5는 글자를 칠 때마다 화면을 다시 그리지 않는다(입력 칸 포커스 유지). 고친 서류는 메모리에만 둔다.
+
 
 ## 3. 좌표 규칙
 
@@ -262,7 +275,8 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 
 | 파트 | 함수 | 입력 | 출력 |
 |---|---|---|---|
-| 1 | `readDocument(file)` | File (PDF/JPG/PNG) | DocumentModel |
+| 1 | `readDocument(file, { allowLowConfidence? })` | File (PDF/JPG/PNG), 흐린 줄 허용 여부(2번 "OCR 결과 확인") | DocumentModel |
+| 1 | `renderOcrEditor({ documents, files, onChange })` | 사진·스캔 서류, 원본 파일, 고칠 때마다 부를 함수 | HTMLElement |
 | 2 | `classifyDocument(document)` | DocumentModel | `{ documentId, documentType, score }` |
 | 2 | `detectPII(document)` | DocumentModel | PiiFinding[] |
 | 2 | `extractFields(documents, findings)` | DocumentModel[], PiiFinding[] | 비교용 추출 데이터 |

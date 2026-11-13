@@ -53,7 +53,9 @@ export const STEPS = [
  * @param {string} current  지금 단계 id
  */
 export function stepper(current) {
-  const index = STEPS.findIndex((s) => s.id === current);
+  // "Confirm text"(사진·스캔 글자 확인)는 ① 서류 올리기의 일부로 보여 준다 (휴대폰에서 단계 칸이 늘지 않게)
+  const shown = current === 'confirm' ? 'upload' : current;
+  const index = STEPS.findIndex((s) => s.id === shown);
   return el(
     'ol',
     { class: 'stepper', 'aria-label': 'Progress' },

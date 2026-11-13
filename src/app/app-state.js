@@ -43,7 +43,7 @@ export function createStore(initial) {
 /** 처음 상태 (다시 시작할 때도 이 값으로 되돌린다) */
 export function initialState() {
   return {
-    /** @type {'upload' | 'results' | 'purpose' | 'review' | 'done'} */
+    /** @type {'upload' | 'confirm' | 'results' | 'purpose' | 'review' | 'done'} */
     step: 'upload',
     /** 처리 중이면 안내 문구, 아니면 null */
     /** @type {string | null} */
@@ -52,6 +52,12 @@ export function initialState() {
     error: null,
     /** @type {{ registry: File | null, lease: File | null }} */
     files: { registry: null, lease: null },
+    /**
+     * "Confirm text" 단계 (#54): 읽은 서류 전체와, 확인할 사진·스캔 서류의 원본 파일.
+     * 사용자가 고친 글자는 화면을 다시 그리지 않으려고 main.js의 ocrDraft에 따로 둔다.
+     * @type {{ read: { files: File[], documents: any[] }, files: File[] } | null}
+     */
+    ocrReview: null,
     /** analyzeDocuments() 결과 (원래 판정. "같은 사람인가요?" 답은 반영되지 않음) */
     /** @type {import('./pipeline.js').Analysis | null} */
     analysis: null,

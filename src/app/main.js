@@ -2,10 +2,9 @@
 /**
  * PART 5. 앱 시작점: 단계별 화면과 상태 연결
  *
- * 단계: ① 서류 올리기 → ② 위험 점검 결과 → ③ 목적 선택 → ④ 보내기 전 확인 → ⑤ 다운로드·AI 상담
+ * 단계: ① 서류 올리기 (→ 사진·스캔이면 "Confirm text") → ② 위험 점검 결과 → ③ 목적 선택 → ④ 보내기 전 확인 → ⑤ 다운로드·AI 상담
  * 화면 문구는 영어(제안서 기준). 서류 텍스트는 textContent로만 넣는다(ui.js의 el()).
  * 다른 파트 UI(위험 결과 카드, 마스킹 확인, OCR 수정)는 slots.js의 자리에 연결한다.
- * TODO(PART 5): PART 1 ocr-editor가 생기면 ①과 ② 사이에 "OCR 결과 확인" 단계를 넣는다 (사진 업로드일 때만).
  */
 
 import './style.css';
@@ -18,6 +17,8 @@ import { resultsScreen } from './screens/results.js';
 import { purposeScreen } from './screens/purpose.js';
 import { reviewScreen } from './screens/review.js';
 import { doneScreen } from './screens/done.js';
+import { confirmScreen } from './screens/confirm.js';
+import { slots } from './slots.js';
 
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
@@ -45,6 +46,11 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} analyzeSample
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
  * @property {() => void} dismissError
+ * @property {() => any[]} getOcrDraft  "Confirm text": 지금까지 고친 사진·스캔 서류
+ * @property {(docs: any[]) => number} setOcrDraft  PART 1 OCR 수정 화면의 onChange. 남은 흐린 줄 수를 돌려준다
+ * @property {(docs: any[]) => number} countOcrLinesToCheck
+ * @property {() => Promise<void>} confirmOcr  흐린 줄을 다 확인했으면 분석을 이어서 한다
+ * @property {() => void} cancelOcr  ①로 돌아간다 (고른 파일은 그대로)
  * @property {(answers: Record<string, string | null>) => Promise<void>} setPersonAnswers  PART 4 "같은 사람인가요?"의 onChange
  * @property {(purpose: string) => void} setPurpose
  * @property {() => Promise<void>} prepare
@@ -70,13 +76,31 @@ const toError = (r) => ({ step: r.step, ...r.error });
  * @type {Promise<typeof import('./pipeline.js')> | undefined}
  */
 let pipelineModule;
+/** 불러온 처리 코드 (화면에서 바로 써야 하는 계산용. 불러오기 전에는 null) */
+/** @type {typeof import('./pipeline.js') | null} */
+let loadedPipeline = null;
 function loadPipeline() {
-  pipelineModule ??= import('./pipeline.js').catch((e) => {
-    pipelineModule = undefined;
-    throw e;
-  });
+  pipelineModule ??= import('./pipeline.js')
+    .then((m) => {
+      loadedPipeline = m;
+      // PART 1 OCR 수정 화면은 처리 코드와 같이 불러와서 자리에 넣는다 (첫 화면을 가볍게, #43)
+      slots.ocrEditor ??= m.renderOcrEditor;
+      return m;
+    })
+    .catch((e) => {
+      pipelineModule = undefined;
+      throw e;
+    });
   return pipelineModule;
 }
+
+/**
+ * "Confirm text" 단계에서 사용자가 고친 사진·스캔 서류.
+ * 글자를 칠 때마다 화면을 다시 그리면 입력 칸 포커스가 사라지므로 상태(appState) 밖에 둔다.
+ * (개인정보가 들어 있으므로 메모리에만 두고, 처음부터 다시 하면 비운다)
+ * @type {any[]}
+ */
+let ocrDraft = [];
 
 /**
  * 파이프라인을 불러와서 쓴다. 불러오지 못하면(인터넷 끊김 등) 오류 화면을 보여 주고 null을 돌려준다.
@@ -144,18 +168,49 @@ async function refreshPreviews() {
   appState.setState({ previews: { forPrepared: prepared, docs } });
 }
 
-/** @param {File[]} files */
+/**
+ * 서류를 읽고, 사진·스캔이 있으면 "Confirm text" 단계로, 없으면 바로 분석으로 간다. (#54)
+ * @param {File[]} files
+ */
 async function runAnalysis(files) {
-  appState.setState({ busy: 'Reading your documents and checking risks…', error: null });
+  appState.setState({ busy: 'Reading your documents…', error: null });
   const p = await pipeline();
   if (!p) return;
-  const r = await p.analyzeDocuments({ files });
+  // 흐린 줄이 있어도 멈추지 않고 받아서 사용자가 확인하게 한다 (확인 전에는 다음으로 못 감)
+  const read = await p.readDocuments({ files }, { allowLowConfidence: true });
+  if (!read.ok) {
+    appState.setState({ busy: null, error: toError(read) });
+    return;
+  }
+  const ocrIndexes = read.data.documents.map((d, i) => (p.needsTextReview(d) ? i : -1)).filter((i) => i >= 0);
+  if (ocrIndexes.length > 0) {
+    ocrDraft = structuredClone(ocrIndexes.map((i) => read.data.documents[i]));
+    appState.setState({
+      busy: null,
+      step: 'confirm',
+      ocrReview: { read: read.data, files: ocrIndexes.map((i) => read.data.files[i]) },
+    });
+    return;
+  }
+  await finishAnalysis(p, read.data);
+}
+
+/**
+ * 읽은(그리고 확인한) 서류로 나머지 분석을 하고 ② 결과 화면으로 간다.
+ * @param {typeof import('./pipeline.js')} p
+ * @param {{ files: File[], documents: any[] }} read
+ */
+async function finishAnalysis(p, read) {
+  appState.setState({ busy: 'Checking risks…', error: null });
+  const r = p.analyzeReadDocuments(read);
   // 새 서류면 findingId·blockId·personId가 달라지므로 이전 수정(maskingEdits)과 "같은 사람인가요?" 답도 비운다
   if (r.ok) {
+    ocrDraft = [];
     releasePreviews();
     appState.setState({
       busy: null,
       analysis: r.data,
+      ocrReview: null,
       personAnswers: {},
       checked: null,
       prepared: null,
@@ -213,6 +268,32 @@ const act = {
   dismissError() {
     // 오류만 닫는다. 고른 파일·분석 결과·수정 내용은 그대로 둔다.
     appState.setState({ error: null });
+  },
+  getOcrDraft() {
+    return ocrDraft;
+  },
+  setOcrDraft(docs) {
+    // 화면을 다시 그리지 않고 저장만 한다 (입력 중인 칸의 포커스를 지키기 위해)
+    ocrDraft = docs;
+    return act.countOcrLinesToCheck(docs);
+  },
+  countOcrLinesToCheck(docs) {
+    // "Confirm text"는 처리 코드를 불러온 뒤에만 나오므로 loadedPipeline이 있다. 없으면 넘어가지 못하게 1
+    return loadedPipeline ? loadedPipeline.countLinesToCheck(docs) : 1;
+  },
+  async confirmOcr() {
+    const { ocrReview } = appState.getState();
+    if (!ocrReview || act.countOcrLinesToCheck(ocrDraft) > 0) return;
+    const p = await pipeline();
+    if (!p) return;
+    // 고친 서류를 원래 자리에 넣는다 (documentId로 찾기)
+    const edited = new Map(ocrDraft.map((d) => [d.documentId, d]));
+    const documents = ocrReview.read.documents.map((d) => edited.get(d.documentId) ?? d);
+    await finishAnalysis(p, { files: ocrReview.read.files, documents });
+  },
+  cancelOcr() {
+    ocrDraft = [];
+    appState.setState({ ocrReview: null, step: 'upload', error: null });
   },
   async setPersonAnswers(answers) {
     const { analysis } = appState.getState();
@@ -296,12 +377,14 @@ const act = {
   restart() {
     clearTimeout(previewTimer);
     releasePreviews();
+    ocrDraft = [];
     appState.setState(initialState());
   },
 };
 
 const SCREENS = {
   upload: uploadScreen,
+  confirm: confirmScreen,
   results: resultsScreen,
   purpose: purposeScreen,
   review: reviewScreen,
