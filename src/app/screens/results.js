@@ -34,7 +34,9 @@ export function resultsScreen(state, act) {
         questions,
       ])
     : null;
-  const asked = questions ? Math.max(1, questions.querySelectorAll('fieldset').length) : 0;
+  // 물어보는 사람 = 원래 판정에서 AMBIGUOUS인 사람 (PART 4 질문 화면과 같은 기준, INTERFACES.md 6번)
+  // 화면 구조(fieldset 개수)에 기대지 않고 공통 데이터로 센다
+  const asked = questions ? original.personGroups.filter((g) => g.status === 'AMBIGUOUS').length : 0;
   const answered = Object.keys(state.personAnswers ?? {}).length;
   const goToQuestions = () => {
     if (!questionCard) return;
