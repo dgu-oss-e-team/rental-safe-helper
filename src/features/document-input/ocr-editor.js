@@ -2,20 +2,22 @@
 /**
  * PART 1. OCR 결과 수정 화면 (ocr-editor)
  *
- * 인터페이스 (docs/INTERFACES.md / #54):
+ * 인터페이스 (docs/INTERFACES.md / #93 / #54):
  *   renderOcrEditor({ documents, files, onChange }) -> HTMLElement
  *   - documents: DocumentModel[] (사진/스캔 서류)
- *   - files: 원본 File[] (있으면 텍스트 옆에 원본 이미지를 함께 표시)
+ *   - files: 원본 File[] (이미지 또는 스캔 PDF면 텍스트 옆에 원본 페이지 이미지를 함께 표시)
  *   - onChange(editedDocuments): 사용자가 수정하거나 줄을 확인할 때마다 전체 DocumentModel[] 복사본으로 호출
  *   - blockId와 bbox는 절대 변경하지 않는다(PDF 마스킹 위치가 의존).
  *   - 사용자가 확인(Confirm)한 줄은 confidence를 1로 설정한다.
  *
- * 보안 규칙: 서류 텍스트는 innerHTML에 넣지 않고 textContent / input.value만 사용한다(XSS 방지).
+ * 보안 규칙: 서류 텍스트는 innerHTML에 넣지 않고 textContent / textarea.value만 사용한다(XSS 방지).
  *            개인정보를 콘솔 로그나 오류 메시지에 남기지 않는다.
  */
 
+import './ocr-editor.css';
 import { el, button, card } from '../../app/ui.js';
 import { DOCUMENT_TYPE } from '../../shared/document-model.js';
+import { renderPdfToImages } from './pdf-reader.js';
 
 /** 숫자 포함 줄의 주의 기준 신뢰도 (PART 1 기준과 동일) */
 export const OCR_REVIEW_DIGIT_THRESHOLD = 0.8;
@@ -39,6 +41,18 @@ export function isLowConfidenceBlock(block) {
     ? OCR_REVIEW_DIGIT_THRESHOLD
     : OCR_REVIEW_TEXT_THRESHOLD;
   return block.confidence < threshold;
+}
+
+/**
+ * textarea 높이를 내용 줄 수에 맞게 자동으로 조절한다.
+ * @param {HTMLTextAreaElement} textarea
+ */
+function autoResizeTextarea(textarea) {
+  if (!textarea || !textarea.style) return;
+  textarea.style.height = 'auto';
+  if (typeof textarea.scrollHeight === 'number' && textarea.scrollHeight > 0) {
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
 }
 
 /**
@@ -126,12 +140,21 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
     const docTitle = DOC_LABELS[doc.documentType] ?? `Document ${docIdx + 1}`;
     const matchingFile = Array.isArray(files) ? files[docIdx] : undefined;
 
+    const isImageFile =
+      Boolean(matchingFile) &&
+      typeof matchingFile?.type === 'string' &&
+      matchingFile.type.startsWith('image/');
+    const isPdfFile =
+      Boolean(matchingFile) &&
+      ((typeof matchingFile?.type === 'string' && matchingFile.type === 'application/pdf') ||
+        (typeof matchingFile?.name === 'string' &&
+          matchingFile.name.toLowerCase().endsWith('.pdf')));
+
     /** @type {HTMLElement | null} */
     let previewPane = null;
     if (
+      isImageFile &&
       matchingFile &&
-      typeof matchingFile.type === 'string' &&
-      matchingFile.type.startsWith('image/') &&
       typeof URL !== 'undefined' &&
       typeof URL.createObjectURL === 'function'
     ) {
@@ -150,6 +173,42 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         el('p', { class: 'hint' }, ['Original image']),
         img,
       ]);
+    } else if (
+      isPdfFile &&
+      matchingFile &&
+      typeof matchingFile.arrayBuffer === 'function' &&
+      typeof URL !== 'undefined' &&
+      typeof URL.createObjectURL === 'function'
+    ) {
+      const pdfPreviewContainer = el('div', { class: 'ocr-preview-pane' }, [
+        el('p', { class: 'hint' }, ['Original PDF page']),
+      ]);
+      previewPane = pdfPreviewContainer;
+
+      matchingFile
+        .arrayBuffer()
+        .then((buf) => renderPdfToImages(buf))
+        .then((renderedPages) => {
+          if (!Array.isArray(renderedPages) || renderedPages.length === 0) return;
+          renderedPages.forEach((pageImg) => {
+            const blob = new Blob([pageImg.buffer], { type: 'image/png' });
+            const objectUrl = URL.createObjectURL(blob);
+            const img = el('img', {
+              src: objectUrl,
+              alt: `PDF page ${pageImg.pageIndex + 1} preview for ${docTitle}`,
+              class: 'ocr-preview-image',
+            });
+            img.addEventListener('load', () => {
+              if (typeof URL.revokeObjectURL === 'function') {
+                URL.revokeObjectURL(objectUrl);
+              }
+            });
+            pdfPreviewContainer.append(img);
+          });
+        })
+        .catch(() => {
+          pdfPreviewContainer.hidden = true;
+        });
     }
 
     /** @type {HTMLElement[]} */
@@ -166,15 +225,19 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
         const rowContainer = el('div', { class: 'ocr-block' });
         const statusBadge = el('span', { class: 'ocr-badge' }, []);
-        const input = /** @type {HTMLInputElement} */ (
-          el('input', {
-            type: 'text',
+        const digitHint = el('p', { class: 'ocr-digit-hint' }, [
+          'Fix any wrong characters (like ^ or extra spaces) before confirming.',
+        ]);
+
+        const textarea = /** @type {HTMLTextAreaElement} */ (
+          el('textarea', {
+            rows: '1',
             id: inputId,
             class: 'ocr-input',
             'aria-label': `Page ${page.pageIndex + 1} line ${blockIdx + 1}`,
           })
         );
-        input.value = block.text;
+        textarea.value = block.text;
 
         const confirmLineBtn = button(
           'Confirm',
@@ -191,9 +254,10 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         const resetBtn = button(
           'Reset',
           () => {
-            input.value = origText;
+            textarea.value = origText;
             block.text = origText;
             block.confidence = origConfidence;
+            autoResizeTextarea(textarea);
             refreshRowState();
             updateSummaryChip();
             emitChange();
@@ -204,6 +268,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
         const refreshRowState = () => {
           const needsCheck = isLowConfidenceBlock(block);
+          const hasDigits = /\d/.test(block.text);
           const isConfirmed = block.confidence === 1 && origConfidence !== 1;
           const confPercent =
             typeof block.confidence === 'number'
@@ -211,7 +276,8 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
               : 'PDF text';
 
           rowContainer.className = needsCheck ? 'ocr-block ocr-block-warn' : 'ocr-block';
-          input.className = needsCheck ? 'ocr-input ocr-input-warn' : 'ocr-input';
+          textarea.className = needsCheck ? 'ocr-input ocr-input-warn' : 'ocr-input';
+          digitHint.hidden = !(needsCheck && hasDigits);
 
           if (needsCheck) {
             statusBadge.className = 'ocr-badge ocr-badge-warn';
@@ -225,19 +291,33 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           }
 
           confirmLineBtn.hidden = !needsCheck;
-          resetBtn.hidden = input.value === origText && block.confidence === origConfidence;
+          resetBtn.hidden = textarea.value === origText && block.confidence === origConfidence;
         };
 
-        input.addEventListener('input', () => {
-          block.text = input.value;
+        textarea.addEventListener('keydown', (evt) => {
+          if (evt.key === 'Enter') {
+            evt.preventDefault();
+          }
+        });
+
+        textarea.addEventListener('input', () => {
+          const sanitized = textarea.value.replace(/[\r\n]+/g, ' ');
+          if (sanitized !== textarea.value) {
+            textarea.value = sanitized;
+          }
+          block.text = sanitized;
           // 사용자가 직접 텍스트를 고치면 확인 완료(confidence = 1)로 표시
           block.confidence = 1;
+          autoResizeTextarea(textarea);
           refreshRowState();
           updateSummaryChip();
           emitChange();
         });
 
         refreshRowState();
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(() => autoResizeTextarea(textarea));
+        }
 
         const rowHeader = el('div', { class: 'ocr-block-header' }, [
           el('label', { for: inputId }, [`Line ${blockIdx + 1}`]),
@@ -245,12 +325,12 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         ]);
 
         const rowControls = el('div', { class: 'ocr-block-controls' }, [
-          input,
+          textarea,
           confirmLineBtn,
           resetBtn,
         ]);
 
-        rowContainer.append(rowHeader, rowControls);
+        rowContainer.append(rowHeader, digitHint, rowControls);
         blocksList.append(rowContainer);
       });
 
@@ -263,7 +343,12 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
     });
 
     const body = previewPane
-      ? [el('div', { class: 'ocr-split-layout' }, [previewPane, el('div', { class: 'ocr-editor-pane' }, pageSections)])]
+      ? [
+          el('div', { class: 'ocr-split-layout' }, [
+            previewPane,
+            el('div', { class: 'ocr-editor-pane' }, pageSections),
+          ]),
+        ]
       : pageSections;
 
     root.append(card(docTitle, body));

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DOCUMENT_TYPE, SOURCE_TYPE } from '../src/shared/document-model.js';
 import * as ocrModule from '../src/features/document-input/ocr.js';
+import * as pdfReader from '../src/features/document-input/pdf-reader.js';
 import {
   readDocument,
   renderOcrEditor,
@@ -16,6 +17,7 @@ function createMiniDom() {
       this.listeners = {};
       this.value = '';
       this.hidden = false;
+      this.style = {};
       this._className = '';
       this.classList = {
         add: (...names) => {
@@ -83,11 +85,14 @@ function createMiniDom() {
         if (!(node instanceof FakeElement)) return false;
         if (selector === 'button') return node.tagName === 'BUTTON';
         if (selector === 'img') return node.tagName === 'IMG';
-        if (selector === 'input.ocr-input') {
-          return node.tagName === 'INPUT' && node.classList.contains('ocr-input');
+        if (selector === 'textarea.ocr-input') {
+          return node.tagName === 'TEXTAREA' && node.classList.contains('ocr-input');
         }
         if (selector === '.ocr-block-warn') {
           return node.classList.contains('ocr-block-warn');
+        }
+        if (selector === '.ocr-digit-hint') {
+          return node.classList.contains('ocr-digit-hint');
         }
         if (selector === 'button.ocr-confirm-btn') {
           return node.tagName === 'BUTTON' && node.classList.contains('ocr-confirm-btn');
@@ -179,11 +184,9 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
       ],
     });
 
-    // 옵션 없이는 기존처럼 LOW_CONFIDENCE로 차단
     const blocked = await readDocument(imgFile);
     expect(blocked.ok).toBe(false);
 
-    // allowLowConfidence: true 일 때는 편집 화면용으로 통과
     const allowed = await readDocument(imgFile, { allowLowConfidence: true });
     expect(allowed.ok).toBe(true);
     if (allowed.ok) {
@@ -199,18 +202,28 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     expect(isLowConfidenceBlock({ text: '임대인 홍길동', confidence: 0.78 })).toBe(false);
   });
 
+  it('낮은 신뢰도 숫자 줄에는 확인 전 오타 수정을 안내하는 힌트를 표시한다', () => {
+    const doc = makeSampleOcrDoc();
+    const el = renderOcrEditor({ documents: [doc] });
+
+    const hints = el.querySelectorAll('.ocr-digit-hint');
+    expect(hints).toHaveLength(2);
+    expect(hints[0].hidden).toBe(true);
+    expect(hints[1].hidden).toBe(false);
+    expect(hints[1].textContent).toContain('Fix any wrong characters');
+  });
+
   it('사용자가 텍스트를 수정할 때마다 원본을 변경하지 않고 onChange(editedDocuments)를 호출하며 blockId·bbox는 유지하고 confidence를 1로 설정한다', () => {
     const doc = makeSampleOcrDoc();
     const onChange = vi.fn();
     const el = renderOcrEditor({ documents: [doc], onChange });
 
-    const inputs = el.querySelectorAll('input.ocr-input');
+    const inputs = el.querySelectorAll('textarea.ocr-input');
     expect(inputs).toHaveLength(2);
 
     inputs[1].value = '보증금 50,000,000원';
     inputs[1].dispatchEvent({ type: 'input' });
 
-    // 원본 입력은 절대 변경되지 않음
     expect(doc.pages[0].blocks[1].text).toBe('보증금 50,000,00O원');
     expect(doc.pages[0].blocks[1].confidence).toBe(0.72);
 
@@ -243,7 +256,7 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     expect(confirmBtns[1].hidden).toBe(true);
   });
 
-  it('files 배열이 전달되면 이미지 파일 미리보기를 텍스트 옆에 렌더링한다', () => {
+  it('files 배열이 전달되면 이미지 파일 및 스캔 PDF 페이지 미리보기를 텍스트 옆에 렌더링한다', async () => {
     const doc = makeSampleOcrDoc();
     const imgFile = new File([new Uint8Array([1, 2, 3])], 'lease.png', { type: 'image/png' });
     const urlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-lease-preview');
@@ -252,6 +265,25 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     const imgs = el.querySelectorAll('img');
     expect(imgs).toHaveLength(1);
     expect(imgs[0].getAttribute('src')).toBe('blob:mock-lease-preview');
+
+    // 스캔 PDF 미리보기 테스트
+    const pdfFile = new File([new Uint8Array([1, 2, 3])], 'scanned.pdf', {
+      type: 'application/pdf',
+    });
+    vi.spyOn(pdfReader, 'renderPdfToImages').mockResolvedValue([
+      {
+        pageIndex: 0,
+        buffer: new Uint8Array([9, 8, 7]).buffer,
+        width: 1000,
+        height: 1414,
+      },
+    ]);
+
+    const pdfEl = renderOcrEditor({ documents: [doc], files: [pdfFile] });
+    await new Promise((r) => setTimeout(r, 10));
+    const pdfImgs = pdfEl.querySelectorAll('img');
+    expect(pdfImgs).toHaveLength(1);
+
     urlSpy.mockRestore();
   });
 
@@ -260,7 +292,7 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     const onChange = vi.fn();
     const el = renderOcrEditor({ documents: [doc], onChange });
 
-    const input = el.querySelectorAll('input.ocr-input')[1];
+    const input = el.querySelectorAll('textarea.ocr-input')[1];
     const resetBtn = el.querySelectorAll('button.ocr-reset-btn')[1];
 
     input.value = '잘못 고친 값';
