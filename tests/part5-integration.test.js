@@ -125,12 +125,12 @@ describe('PART 5 통합: ③~⑤ 목적별 마스킹·프롬프트', () => {
     expect(Object.keys(r.data.legend)).not.toContain('[AccountHolder_D]');
     for (const secret of FAKE_PERSONAL_INFO) expect(r.data.prompt, `"${secret}" is still visible`).not.toContain(secret);
   });
-  
-     it('예전 소유자(박영수)는 [PrevOwner_E] 가명이 붙고 범례에 들어간다', () => {
-       const prev = analysis.personGroups.find((g) => g.roles.includes('PREVIOUS_OWNER'));
-       expect(prev?.alias).toBe('[PrevOwner_E]');
-       const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
-       expect(r.ok).toBe(true);
-       expect(r.data.legend['[PrevOwner_E]']).toBe('previous owner on the register');
-     });
+
+  it('예전 소유자(박영수)는 [PrevOwner_E] 가명이 붙고 범례에 들어간다', () => {
+    const prev = analysis.personGroups.find((g) => g.roles.includes('PREVIOUS_OWNER'));
+    expect(prev?.alias).toBe('[PrevOwner_E]');
+    const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
+    expect(r.ok).toBe(true);
+    expect(r.data.legend['[PrevOwner_E]']).toBe('previous owner on the register');
+  });
 });
