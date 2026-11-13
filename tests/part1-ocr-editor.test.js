@@ -73,6 +73,10 @@ function createMiniDom() {
         .join('');
     }
 
+    set textContent(val) {
+      this.children = val === '' || val === null || val === undefined ? [] : [String(val)];
+    }
+
     querySelectorAll(selector) {
       const results = [];
       const match = (node) => {
