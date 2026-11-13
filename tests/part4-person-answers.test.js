@@ -84,7 +84,18 @@ describe('PART 4 buildPersonQuestions', () => {
     expect(qs[0].candidates.map((c) => c.personId)).toEqual(['P1', 'P2']);
   });
 
-  it('이름은 다른데 생년월일이 같은 경우(OCR 오타)도 후보가 된다', () => {
+  it('성이 다르고 생년월일이 같은 경우(김철수 / 박철수)도 서로 후보가 된다', () => {
+    const fields = {
+      registry: { owners: [{ findingId: 'A', name: '김철수', birthDate: '800101', role: 'OWNER' }] },
+      contract: { landlords: [{ findingId: 'B', name: '박철수', birthDate: '800101', role: 'LANDLORD' }] },
+    };
+    const people = matchPeople(fields).data;
+    const qs = buildPersonQuestions(fields, people);
+    expect(qs.map((q) => q.personId)).toEqual(['P1', 'P2']);
+    expect(qs[0].candidates.map((c) => c.personId)).toEqual(['P2']);
+  });
+
+  it('오타 이름 + 생년월일 같음(김철수 / 김철슈)은 서로 후보로 묻는다 (자동으로 합치지 않음)', () => {
     const fields = {
       registry: { owners: [{ findingId: 'A', name: '김철수', birthDate: '800101', role: 'OWNER' }] },
       contract: { landlords: [{ findingId: 'B', name: '김철슈', birthDate: '800101', role: 'LANDLORD' }] },
@@ -93,6 +104,17 @@ describe('PART 4 buildPersonQuestions', () => {
     const qs = buildPersonQuestions(fields, people);
     expect(qs.map((q) => q.personId)).toEqual(['P1', 'P2']);
     expect(qs[0].candidates.map((c) => c.personId)).toEqual(['P2']);
+  });
+
+  it('생년월일이 없는 사람은 오타 이름(김철슈)인 사람도 후보가 된다', () => {
+    const fields = {
+      registry: { owners: [{ findingId: 'A', name: '김철수', birthDate: '800101', role: 'OWNER' }] },
+      contract: { accountHolders: [{ findingId: 'C', name: '김철슈', birthDate: null, role: 'ACCOUNT_HOLDER' }] },
+    };
+    const people = matchPeople(fields).data;
+    const qs = buildPersonQuestions(fields, people);
+    expect(qs).toHaveLength(1);
+    expect(qs[0].candidates.map((c) => c.personId)).toEqual(['P1']);
   });
 
   it('AMBIGUOUS가 없으면 빈 목록', () => {

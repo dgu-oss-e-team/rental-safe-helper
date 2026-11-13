@@ -14,11 +14,11 @@
  *   - 원래 personGroups는 바꾸지 않는다. (답을 바꾸거나 취소하면 원래 그룹에서 다시 계산)
  *
  * buildPersonQuestions(fields, personGroups) → 물어볼 질문 목록 (화면용, 계산만)
- *   - 원래 판정이 AMBIGUOUS인 사람마다, 이름이 같거나 생년월일이 같은 다른 사람을 후보로 묻는다.
+ *   - 원래 판정이 AMBIGUOUS인 사람마다, 이름이 같거나 비슷하거나(오타 허용) 생년월일이 같은 다른 사람을 후보로 묻는다.
  */
 
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
-import { collectPeople, normalizeName } from './person-matcher.js';
+import { collectPeople, isSimilarName } from './person-matcher.js';
 
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
 /** @typedef {Record<string, string | null>} PersonAnswers */
@@ -115,7 +115,6 @@ export function buildPersonQuestions(fields, personGroups) {
     const list = g.findingIds.map((id) => people.get(id)).filter(Boolean);
     return {
       names: [...new Set(list.map((p) => p.name))],
-      keys: new Set(list.map((p) => normalizeName(p.name))),
       births: new Set(list.map((p) => p.birthDate).filter(Boolean)),
     };
   };
@@ -128,7 +127,7 @@ export function buildPersonQuestions(fields, personGroups) {
         .filter((o) => o !== g)
         .filter((o) => {
           const other = info(o);
-          const sameName = [...me.keys].some((k) => other.keys.has(k));
+          const sameName = me.names.some((a) => other.names.some((b) => isSimilarName(a, b)));
           const sameBirth = [...me.births].some((b) => other.births.has(b));
           return sameName || sameBirth;
         })
