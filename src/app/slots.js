@@ -6,7 +6,7 @@
  *   - riskResults:     PART 3 risk-result-ui      (② 위험 점검 결과 카드, 지금은 아래 기본 화면)
  *   - personQuestions: PART 4 person-questions-ui (② "같은 사람인가요?" 질문, 연결됨)
  *   - maskingReview:   PART 4 masking-review-ui   (④ 마스킹 확인·해제·더 가리기, 연결됨)
- *   - ocrEditor:       PART 1 ocr-editor          (OCR 결과 수정 화면, 아직 자리만)
+ *   - ocrEditor:       PART 1 ocr-editor          (① 뒤 "Confirm text": OCR 결과 수정 화면, 연결됨 #54)
  *
  * 기본 화면(default…)은 데모용이다. 각 파트가 자기 폴더에 UI를 만들면
  * 이 파일의 해당 줄만 그 함수로 바꾸면 된다. 함수의 입력·출력 형식은 아래 JSDoc을 지켜 주세요.
@@ -73,4 +73,10 @@ export const slots = {
   personQuestions: renderPersonQuestions,
   /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement  (analysis는 답을 반영한 것) */
   maskingReview: renderMaskingReview,
+  /**
+   * PART 1: ({ documents, files, onChange }) => HTMLElement  (INTERFACES.md 2번 "OCR 결과 확인")
+   * PART 1 코드는 pdf.js·OCR 때문에 커서 첫 화면에 싣지 않는다. 처리 코드를 불러올 때 main.js가 채운다.
+   * @type {((input: { documents: any[], files: File[], onChange: (docs: any[]) => void }) => HTMLElement) | null}
+   */
+  ocrEditor: null,
 };

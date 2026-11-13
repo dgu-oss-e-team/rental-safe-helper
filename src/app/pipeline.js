@@ -7,14 +7,16 @@
  *
  * 화면 단계에 맞춰 세 부분으로 나눈다.
  *   1) analyzeDocuments(): 서류 읽기 → 판별 → 개인정보 탐지 → 인물 판별 → 위험 점검   (목적 선택 전)
+ *      = readDocuments() (서류 읽기) + analyzeReadDocuments() (나머지)
+ *      사진·스캔 서류가 있으면 화면에서 둘 사이에 "Confirm text" 단계(PART 1 OCR 수정 화면)를 넣는다. (#54)
  *   1-1) recheckPeople():  ② "같은 사람인가요?" 답으로 사람 그룹을 합치고 위험 점검 다시 하기
  *   2) prepareForAi():     목적별 마스킹 → 남은 개인정보 검사 → AI 상담 프롬프트        (목적 선택 후)
  *   3) exportMaskedPdfs(): 마스킹 PDF 생성 (실패해도 나머지 결과는 유지)
  * runPipeline()은 세 부분을 한 번에 실행한다 (테스트·스크립트용).
  */
 
-import { ok, fail, ERROR_CODE } from '../shared/document-model.js';
-import { readDocument } from '../features/document-input/index.js';
+import { ok, fail, ERROR_CODE, SOURCE_TYPE } from '../shared/document-model.js';
+import { readDocument, isLowConfidenceBlock } from '../features/document-input/index.js';
 import { classifyDocument, detectPII, extractFields } from '../features/document-analysis/index.js';
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
@@ -60,17 +62,54 @@ function stoppedAt(step, result) {
  * @param {{ files: File[] }} input
  */
 export async function analyzeDocuments({ files }) {
+  const read = await readDocuments({ files });
+  if (!read.ok) return read;
+  return analyzeReadDocuments(read.data);
+}
+
+/**
+ * 1-a) 서류 읽기만 한다 (PART 1). documents[i]는 files[i]를 읽은 결과.
+ * @param {{ files: File[] }} input
+ * @param {{ allowLowConfidence?: boolean }} [options]
+ *   allowLowConfidence: 사진·스캔에서 흐린 줄이 있어도 멈추지 않고 돌려받는다.
+ *   이때는 반드시 "Confirm text" 단계에서 흐린 줄을 사용자가 모두 확인한 뒤에 analyzeReadDocuments()로 넘긴다.
+ */
+export async function readDocuments({ files }, options = {}) {
   if (!Array.isArray(files) || files.length === 0) {
     return { ...fail(ERROR_CODE.INVALID_INPUT, 'Please choose at least one file.'), step: 'input' };
   }
-
-  // 서류 읽기 (PART 1)
   const documents = [];
   for (const file of files) {
-    const r = await readDocument(file);
+    const r = await readDocument(file, options);
     if (!r.ok) return stoppedAt('readDocument', r);
     documents.push(r.data);
   }
+  return ok({ files, documents });
+}
+
+/** OCR로 읽은 서류인지 (사진 또는 글자 없는 스캔 PDF) → "Confirm text" 단계에서 확인한다 */
+export function needsTextReview(/** @type {import('../shared/document-model.js').DocumentModel} */ doc) {
+  return doc.sourceType === SOURCE_TYPE.IMAGE || doc.sourceType === SOURCE_TYPE.IMAGE_PDF;
+}
+
+/**
+ * 아직 사용자가 확인하지 않은 흐린 줄 수 (PART 1 isLowConfidenceBlock 기준)
+ * 0이 되어야 "Confirm text" 단계에서 다음으로 넘어갈 수 있다.
+ * @param {import('../shared/document-model.js').DocumentModel[]} documents
+ */
+export function countLinesToCheck(documents) {
+  let n = 0;
+  for (const doc of documents) for (const page of doc.pages ?? []) for (const b of page.blocks ?? []) if (isLowConfidenceBlock(b)) n += 1;
+  return n;
+}
+
+/**
+ * 1-b) 읽은 서류로 나머지 분석: 판별 → 개인정보 탐지 → 인물 판별 → 위험 점검
+ * @param {{ files: File[], documents: import('../shared/document-model.js').DocumentModel[] }} input
+ */
+export function analyzeReadDocuments({ files, documents: readDocs }) {
+  // 판별 결과를 문서에 적으므로, 넘겨받은 문서를 바꾸지 않게 복사해서 쓴다
+  const documents = structuredClone(readDocs);
 
   // 문서 판별 + 개인정보 탐지 (PART 2)
   const findings = [];
@@ -227,3 +266,7 @@ export async function runPipeline({ files, purpose }) {
     pdfs: await exportMaskedPdfs(analyzed.data, prepared.data.maskingPlan),
   });
 }
+
+// PART 1 OCR 수정 화면. PART 1 코드는 pdf.js·OCR 때문에 커서 첫 화면에 싣지 않고,
+// 이 파일(처리 코드)을 불러올 때 같이 불러와 slots.ocrEditor에 넣는다. (main.js loadPipeline)
+export { renderOcrEditor } from '../features/document-input/index.js';
