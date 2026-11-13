@@ -320,7 +320,41 @@ textarea:focus-visible {
 .evidence dd {
   margin: 0;
   color: var(--ink);
-  word-break: break-word;
+  /* 금액·날짜("KRW 120,000,000")가 중간에서 끊기지 않게: 정말 넘칠 때만 줄을 바꾼다 */
+  overflow-wrap: break-word;
+}
+
+/* 휴대폰: 라벨이 길면 값 칸이 너무 좁아지므로 라벨 아래에 값을 둔다 */
+@media (max-width: 480px) {
+  .evidence {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .evidence dd + dt {
+    margin-top: 6px;
+  }
+}
+
+/* ② 결과 요약 아래 "같은 사람인가요?" 안내 */
+.question-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.question-notice p {
+  flex: 1 1 200px;
+}
+
+/* 답한 뒤에는 경고색 대신 차분한 안내 */
+.question-notice.answered {
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--unverifiable-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
 }
 
 /* 목적 선택 */
