@@ -10,6 +10,7 @@
 
 import './style.css';
 import { appState, initialState, currentAnalysis } from './app-state.js';
+import { errorHelp } from './error-help.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -43,6 +44,7 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} analyze
  * @property {() => Promise<void>} analyzeSample
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
+ * @property {() => void} dismissError
  * @property {(answers: Record<string, string | null>) => Promise<void>} setPersonAnswers  PART 4 "같은 사람인가요?"의 onChange
  * @property {(purpose: string) => void} setPurpose
  * @property {() => Promise<void>} prepare
@@ -208,6 +210,10 @@ const act = {
   goTo(step) {
     appState.setState({ step, error: null });
   },
+  dismissError() {
+    // 오류만 닫는다. 고른 파일·분석 결과·수정 내용은 그대로 둔다.
+    appState.setState({ error: null });
+  },
   async setPersonAnswers(answers) {
     const { analysis } = appState.getState();
     if (!analysis) return;
@@ -304,17 +310,34 @@ const SCREENS = {
 
 const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
 
-/** @param {{ step?: string, code: string, message: string }} error */
-function errorCard(error) {
-  return card(
-    'Something went wrong',
+/**
+ * 오류 안내 카드: 무슨 일인지 + 무엇을 하면 되는지 + 다음 버튼
+ * 각 파트의 개발자용 메시지 대신 error-help.js의 쉬운 안내를 보여 준다. (코드는 문의할 때 쓰도록 작게)
+ * @param {{ step?: string, code: string, message: string }} error
+ * @param {string} screenStep  지금 보고 있는 화면
+ */
+function errorCard(error, screenStep) {
+  const { title, help } = errorHelp(error);
+  // ①에서 실패하면 파일을 바꿔 다시 하면 되고, 그 뒤 단계에서는 이전 상태가 남아 있으므로 닫고 계속하면 된다
+  // (인터넷 문제면 같은 파일로 다시 하면 되므로 "Try again")
+  const retryLabel = error.code === 'LOAD_FAILED' ? 'Try again' : 'Try another file';
+  const retry =
+    screenStep === 'upload'
+      ? button(retryLabel, () => act.dismissError(), { id: 'error-retry' })
+      : button('Close', () => act.dismissError(), { id: 'error-close' });
+  const node = card(
+    title,
     [
-      el('p', {}, [`We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}.`]),
-      el('p', { class: 'hint' }, [`${error.message} (${error.code})`]),
-      actions([button('Start over', () => act.restart(), { variant: 'secondary' })]),
+      el('p', {}, [help]),
+      el('p', { class: 'hint' }, [
+        `We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}. Error code: ${error.code}`,
+      ]),
+      actions([retry, button('Start over', () => act.restart(), { variant: 'secondary' })]),
     ],
     'error-card',
   );
+  node.setAttribute('role', 'alert');
+  return node;
 }
 
 function render() {
@@ -324,7 +347,7 @@ function render() {
     el('header', {}, [el('h1', {}, ['Rental Safety Helper']), disclaimer()]),
     stepper(state.step),
     state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
-    state.error ? errorCard(state.error) : null,
+    state.error ? errorCard(state.error, state.step) : null,
     state.busy ? null : screen(state, act),
   ];
   app.replaceChildren(.../** @type {HTMLElement[]} */ (parts.filter(Boolean)));

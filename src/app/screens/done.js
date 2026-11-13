@@ -2,6 +2,8 @@
 /** PART 5. ⑤ 완료 화면: 마스킹 PDF 다운로드 + AI 상담 연결 */
 
 import { el, button, card, actions } from '../ui.js';
+import { DOCUMENT_TEXT } from '../slots.js';
+import { errorHelp } from '../error-help.js';
 
 /**
  * 웹서비스가 AI를 직접 부르지 않는다. 프롬프트를 복사해 두고 사용자가 직접 붙여넣는다 (제안서 ⑨).
@@ -23,7 +25,10 @@ function downloads(pdfs) {
   downloadUrls.forEach((u) => URL.revokeObjectURL(u));
   downloadUrls = [];
   return pdfs.map((p) => {
-    if (!p.result.ok) return el('p', { class: 'warning' }, [`Masked PDF could not be created: ${p.result.error.message}`]);
+    if (!p.result.ok) {
+      const { title, help } = errorHelp({ step: 'export', code: p.result.error.code });
+      return el('p', { class: 'warning' }, [`${DOCUMENT_TEXT[p.documentType] ?? 'Document'}: ${title} ${help}`]);
+    }
     const url = URL.createObjectURL(p.result.data.blob);
     downloadUrls.push(url);
     const pages = p.result.data.pageCount;
