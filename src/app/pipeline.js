@@ -26,6 +26,7 @@ import {
 } from '../features/masking/index.js';
 import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
+import { findVisiblePii, unverifiable } from './double-check.js';
 
 /**
  * @typedef {Object} Analysis  analyzeDocuments()의 결과
@@ -188,6 +189,37 @@ export async function exportMaskedPdfs(analysis, maskingPlan) {
     });
   }
   return pdfs;
+}
+
+/**
+ * 3-1) ⑤ "Double-check the PDF": 만든 마스킹 PDF를 OCR로 다시 읽어 탐지했던 개인정보가 보이는지 찾는다.
+ * (노션 10장: 생성된 PDF를 다시 OCR하여 개인정보가 눈에 보이게 남아 있지 않은지 확인)
+ * OCR은 PART 1 공개 함수 readDocument()를 그대로 쓴다. 이미지로만 된 PDF라서 PART 1이 OCR로 읽는다.
+ * 한 서류가 실패해도 나머지는 계속 검사하고, 못 읽으면 "확인 불가"로 둔다.
+ * @param {Analysis} analysis  답을 반영한 분석 결과 (findings 비교용)
+ * @param {import('../shared/document-model.js').MaskingPlan} maskingPlan
+ * @param {any[]} pdfs  exportMaskedPdfs() 결과
+ */
+export async function doubleCheckPdfs(analysis, maskingPlan, pdfs) {
+  const results = [];
+  for (const pdf of pdfs) {
+    let check;
+    if (!pdf.result.ok) {
+      check = unverifiable(pdf.result.error.code);
+    } else {
+      const file = new File([pdf.result.data.blob], pdf.result.data.fileName, { type: 'application/pdf' });
+      const read = await readDocument(file);
+      check = read.ok
+        ? findVisiblePii(
+            read.data,
+            analysis.findings.filter((f) => f.documentId === pdf.documentId),
+            maskingPlan,
+          )
+        : unverifiable(read.error.code);
+    }
+    results.push({ documentId: pdf.documentId, documentType: pdf.documentType, ...check });
+  }
+  return results;
 }
 
 /**

@@ -4,6 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { DOCUMENT_TEXT } from '../slots.js';
 import { errorHelp } from '../error-help.js';
+import { CHECK_STATUS, PII_TYPE_TEXT } from '../double-check.js';
 
 /**
  * 웹서비스가 AI를 직접 부르지 않는다. 프롬프트를 복사해 두고 사용자가 직접 붙여넣는다 (제안서 ⑨).
@@ -56,6 +57,53 @@ function copyPrompt(text, box, status) {
 }
 
 /**
+ * "Double-check the PDF": 마스킹 PDF를 OCR로 다시 읽어 탐지했던 개인정보가 보이는지 확인한다. (노션 10장)
+ * OCR은 시간이 걸리고(페이지당 몇 초) 처음에 읽기 도구를 받아야 해서, 원할 때만 누르게 한다.
+ * 결과는 "안전하다"고 말하지 않는다. 값은 보여 주지 않고 종류와 페이지만 알려 준다.
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @param {import('../main.js').Actions} act
+ */
+function doubleCheckSection(state, act) {
+  const { doubleCheck } = state;
+  if (doubleCheck === 'running') {
+    return el('p', { class: 'busy', role: 'status' }, [
+      el('span', { class: 'spinner', 'aria-hidden': 'true' }),
+      'Reading the masked pages again… (a few seconds per page)',
+    ]);
+  }
+  if (!doubleCheck) {
+    return el('div', { class: 'double-check' }, [
+      el('p', { class: 'hint' }, [
+        'Want to be sure? We can read the masked pages again with text recognition (OCR) and look for the personal information we detected.',
+      ]),
+      actions([button('Double-check the PDF', () => act.doubleCheckPdfs(), { id: 'double-check', variant: 'secondary' })]),
+    ]);
+  }
+  return el(
+    'ul',
+    { class: 'double-check-results', role: 'status' },
+    doubleCheck.map((r) => {
+      const name = DOCUMENT_TEXT[r.documentType] ?? 'Document';
+      if (r.status === CHECK_STATUS.NOT_FOUND) {
+        return el('li', { class: 'check-ok' }, [
+          `${name}: none of the personal information we detected was found in the page images. `,
+          el('span', { class: 'hint' }, ['This covers only what we detected, so please look through the PDF once yourself.']),
+        ]);
+      }
+      if (r.status === CHECK_STATUS.MAYBE_VISIBLE) {
+        const where = r.hits.map((h) => `${PII_TYPE_TEXT[h.type] ?? h.type} (page ${h.pageIndex + 1})`).join(', ');
+        return el('li', { class: 'warning' }, [
+          `${name}: this may still be visible: ${where}. Check the PDF before you share it, or go back and hide it.`,
+        ]);
+      }
+      return el('li', { class: 'warning' }, [
+        `${name}: could not check, because the text in the page images could not be read clearly. Please look through the PDF yourself.`,
+      ]);
+    }),
+  );
+}
+
+/**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../main.js').Actions} act
  */
@@ -69,6 +117,7 @@ export function doneScreen(state, act) {
     card('Masked documents', [
       el('p', {}, ['These PDFs are rebuilt from page images, so the hidden text cannot be copied or searched.']),
       el('div', { class: 'downloads' }, downloads(state.pdfs ?? [])),
+      doubleCheckSection(state, act),
     ]),
     card('Ask AI', [
       el('p', {}, ['Copy the prompt and paste it into the AI chat. This website does not send anything to AI by itself.']),

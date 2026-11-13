@@ -81,6 +81,11 @@ export function initialState() {
     /** exportMaskedPdfs() 결과 */
     /** @type {any[] | null} */
     pdfs: null,
+    /**
+     * ⑤ "Double-check the PDF" 결과. 'running'이면 검사 중. PDF를 새로 만들면 비운다.
+     * @type {'running' | (import('./double-check.js').DoubleCheckResult & { documentId: string, documentType: string })[] | null}
+     */
+    doubleCheck: null,
   };
 }
 
