@@ -151,6 +151,18 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 
 같은 사람 = 같은 가명, 동명이인 = 다른 가명. 판정이 애매하면 `AMBIGUOUS`로 두고 사용자에게 확인한다.
 
+판정 규칙 (비슷한 이름은 Fuse.js 유사도로 찾는다. **비슷한 이름이라고 자동으로 합치지 않고**, `AMBIGUOUS`로 두고 "같은 사람인가요?"에서 사용자가 확인한다):
+
+| 이름 | 생년월일 | 결과 |
+|---|---|---|
+| 같음 | 같음 | 같은 사람 `CONFIRMED` |
+| 같거나 비슷함 | 다름 | 동명이인, 다른 사람 `CONFIRMED` |
+| 같거나 비슷함 (김철수 / 김철슈) | 한쪽이 `null` | `AMBIGUOUS` (사용자에게 확인) |
+| 다름 (비슷하든 아니든: 김철슈, 박철수) | 같음 | 자동으로 합치지 않고 둘 다 `AMBIGUOUS` |
+| 비슷하지 않음 | 다름 / `null` | 다른 사람 `CONFIRMED` |
+
+비슷한 이름 기준: 한글은 성(첫 글자)이 같고 길이 차이 1글자 이하, Fuse.js 점수 0.34 이하. 영문 등은 성·이름 순서가 나라마다 달라 첫 글자 규칙 없이 전체 이름으로 비교, 점수 0.2 이하.
+
 ### "같은 사람인가요?" 답 (`personAnswers`)
 
 ② 결과 화면에서 `AMBIGUOUS`인 사람마다 "같은 사람인가요?"를 묻고, 답을 상태에 `maskingEdits`와 **따로** 둔다.
@@ -169,7 +181,7 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   - 없는 `personId`, 자기 자신, 서로 가리키는 답(`{ P2: 'P4', P4: 'P2' }`), `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
 - PART 5는 합친 그룹으로 PART 3 `assessRisks(fields, 합친 그룹)`과 PART 4 마스킹(`prepareForAi`)을 다시 계산한다.
 - 질문 화면: PART 4 `renderPersonQuestions({ analysis, personGroups, personAnswers, onChange })` → `HTMLElement | null` (slots.js `personQuestions`)
-  - 질문은 원래 판정(`analysis.personGroups`) 기준이라 답한 뒤에도 남는다. 후보는 이름이 같거나 생년월일이 같은 다른 사람.
+  - 질문은 원래 판정(`analysis.personGroups`) 기준이라 답한 뒤에도 남는다. 후보는 이름이 같거나 비슷하거나(오타 허용) 생년월일이 같은 다른 사람.
   - `onChange(answers 전체)`, 물어볼 사람이 없으면 `null`.
 - 새 서류를 분석하면 비우고, 목적을 바꿀 때는 유지한다.
 
