@@ -21,6 +21,7 @@ const ROLE_TEXT = {
   LANDLORD: 'landlord',
   TENANT: 'tenant',
   ACCOUNT_HOLDER: 'payment account holder',
+  PREVIOUS_OWNER: 'previous owner',
 };
 
 /** @param {string[]} roles */

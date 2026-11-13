@@ -10,6 +10,7 @@ const ROLE_LABEL = {
   LANDLORD: 'Landlord',
   TENANT: 'Tenant',
   ACCOUNT_HOLDER: 'AccountHolder',
+  PREVIOUS_OWNER: 'PrevOwner',
 };
 
 /**

@@ -2,7 +2,7 @@
 /**
  * PART 4. 동일 인물 판별
  *
- * 하는 일: 등기부·계약서에 나온 사람들(소유자, 임대인, 임차인, 예금주)을
+ * 하는 일: 등기부·계약서에 나온 사람들(소유자, 임대인, 임차인, 예금주, 예전 소유자)을
  *          "같은 사람끼리" 묶는다.
  *
  * 판정 규칙 (비슷한 이름은 Fuse.js 유사도로 찾는다: isSimilarName)
@@ -30,6 +30,7 @@ const PEOPLE_SOURCES = [
   ['contract', 'landlords'],
   ['contract', 'tenants'],
   ['contract', 'accountHolders'],
+  ['registry', 'previousOwners'], // 예전 소유자 (맨 끝에 둬서 기존 가명 글자 A~D가 바뀌지 않게)
 ];
 
 /**
