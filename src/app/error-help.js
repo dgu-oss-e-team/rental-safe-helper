@@ -65,9 +65,18 @@ const BY_STEP = {
     title: 'That answer could not be used.',
     help: 'Your previous answers are kept. Please choose a different option.',
   },
+  // 수정이 검사에 걸리면 PART 5가 이미 이전 상태로 되돌린다. 처음 가릴 때 걸리는 경우도 있어서 "되돌리라"고 하지 않는다.
   validateMaskedText: {
     title: 'Some personal information might still be visible, so we stopped.',
-    help: 'Your previous settings are kept. Undo your last change, or start over.',
+    help: 'Nothing was shared. If you just changed what is hidden, that change was not applied.',
+  },
+  createMaskingPlan: {
+    title: 'That change could not be applied.',
+    help: 'Your previous settings are kept. Please try a different change, or start over.',
+  },
+  applyMaskingPlan: {
+    title: 'That change could not be applied.',
+    help: 'Your previous settings are kept. Please try a different change, or start over.',
   },
 };
 

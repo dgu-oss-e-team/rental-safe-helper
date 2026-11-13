@@ -24,6 +24,20 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
     expect(errorHelp({ step: 'validateMaskedText', code: ERROR_CODE.INVALID_INPUT }).title).toContain('might still be visible');
   });
 
+  it('마스킹 검사에 걸리면 "되돌리라"고 하지 않는다 (이미 이전 상태로 돌아가 있음, 처음 가릴 때도 걸릴 수 있음)', () => {
+    const h = errorHelp({ step: 'validateMaskedText', code: ERROR_CODE.INVALID_INPUT });
+    expect(h.help).toContain('Nothing was shared');
+    expect(h.help).not.toMatch(/undo/i);
+  });
+
+  it('마스킹 계획·적용 단계 오류도 "이전 설정은 그대로"라고 안내한다 (모르는 오류로 나오지 않게)', () => {
+    for (const step of ['createMaskingPlan', 'applyMaskingPlan']) {
+      const h = errorHelp({ step, code: ERROR_CODE.INVALID_INPUT });
+      expect(h.title).toBe('That change could not be applied.');
+      expect(h.help).toContain('previous settings are kept');
+    }
+  });
+
   it('인터넷 문제(LOAD_FAILED)는 연결을 확인하라고 안내한다', () => {
     expect(errorHelp({ step: 'sample', code: 'LOAD_FAILED' }).help).toContain('internet connection');
   });
@@ -35,7 +49,7 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
 
   it('안내 문구에 "safe"(안전하다)라는 표현을 쓰지 않는다 — 결과를 안전하다고 오해하지 않게', () => {
     for (const code of [...Object.values(ERROR_CODE), 'LOAD_FAILED']) {
-      for (const step of ['input', 'applyPersonAnswers', 'validateMaskedText', 'readDocument']) {
+      for (const step of ['input', 'applyPersonAnswers', 'validateMaskedText', 'createMaskingPlan', 'applyMaskingPlan', 'readDocument']) {
         const { title, help } = errorHelp({ step, code });
         expect(`${title} ${help}`).not.toMatch(/\bsafe\b/i);
       }
