@@ -4,6 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
 import { currentAnalysis } from '../app-state.js';
+import { errorHelp } from '../error-help.js';
 
 /**
  * 지금 마스킹 결과(prepared)에 맞는 미리보기가 다 그려졌는지
@@ -32,7 +33,7 @@ function pdfPreview(state) {
       return el('div', {}, [
         el('h3', {}, [name]),
         doc.error
-          ? el('p', { class: 'warning' }, [`Preview not available: ${doc.error.message}`])
+          ? el('p', { class: 'warning' }, [`Preview not available. ${errorHelp({ step: 'preview', code: doc.error.code }).title}`])
           : null,
         ...doc.pages.map((pg) =>
           el('img', {
