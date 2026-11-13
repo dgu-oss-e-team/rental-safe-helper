@@ -182,8 +182,11 @@ const act = {
     // (이름·번호·주소는 모두 가짜. 만드는 방법은 scripts/make-sample-pdfs.mjs)
     appState.setState({ busy: 'Loading the sample documents…', error: null });
     loadPipeline().catch(() => {});
+    /** @type {File[]} */
+    let files;
+    // 받는 부분만 감싼다. 분석 중 오류는 runAnalysis가 단계 이름과 함께 따로 보여 준다.
     try {
-      const files = await Promise.all(
+      files = await Promise.all(
         SAMPLE_FILES.map(async (name) => {
           // BASE_URL = '/rental-safe-helper/' (GitHub Pages 주소 앞부분, vite.config.js)
           // @ts-ignore -- Vite가 import.meta.env를 채운다 (괄호로 감싸면 Vite가 바꾸지 못하므로 그대로 쓴다)
@@ -193,13 +196,14 @@ const act = {
           return new File([await res.blob()], name, { type: 'application/pdf' });
         }),
       );
-      await runAnalysis(files);
     } catch {
       appState.setState({
         busy: null,
         error: { step: 'sample', code: 'LOAD_FAILED', message: 'Please check your internet connection and try again.' },
       });
+      return;
     }
+    await runAnalysis(files);
   },
   goTo(step) {
     appState.setState({ step, error: null });
