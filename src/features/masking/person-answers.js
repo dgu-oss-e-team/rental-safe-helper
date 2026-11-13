@@ -127,7 +127,8 @@ export function buildPersonQuestions(fields, personGroups) {
         .filter((o) => o !== g)
         .filter((o) => {
           const other = info(o);
-          const sameName = me.names.some((a) => other.names.some((b) => isSimilarName(a, b)));          const sameBirth = [...me.births].some((b) => other.births.has(b));
+          const sameName = me.names.some((a) => other.names.some((b) => isSimilarName(a, b)));
+          const sameBirth = [...me.births].some((b) => other.births.has(b));
           return sameName || sameBirth;
         })
         .map((o) => ({ personId: o.personId, alias: o.alias, roles: [...o.roles], names: info(o).names }));

@@ -143,3 +143,4 @@ export function groupPeople(people) {
   }
   return groups;
 }
+
