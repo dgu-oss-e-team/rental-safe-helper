@@ -58,6 +58,7 @@ const ROLE_MEANING = {
   LANDLORD: 'landlord on the contract',
   TENANT: 'tenant on the contract',
   ACCOUNT_HOLDER: 'holder of the payment account on the contract',
+  PREVIOUS_OWNER: 'previous owner on the register',
 };
 
 /**
