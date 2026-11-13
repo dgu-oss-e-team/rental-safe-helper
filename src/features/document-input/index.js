@@ -277,3 +277,6 @@ export async function readDocument(file) {
     return fail(ERROR_CODE.PDF_READ_FAILED, 'Failed to process document fields');
   }
 }
+
+// OCR 결과 수정 화면 (PART 5 slots.js의 ocrEditor 자리)
+export { renderOcrEditor, isLowConfidenceBlock } from './ocr-editor.js';

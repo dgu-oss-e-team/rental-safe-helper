@@ -15,6 +15,7 @@
 import { el } from './ui.js';
 import { RISK_STATUS, DOCUMENT_TYPE } from '../shared/document-model.js';
 import { renderMaskingReview, renderPersonQuestions } from '../features/masking/index.js';
+import { renderOcrEditor } from '../features/document-input/index.js';
 
 /** @typedef {import('../shared/document-model.js').RiskResult} RiskResult */
 
@@ -73,4 +74,6 @@ export const slots = {
   personQuestions: renderPersonQuestions,
   /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement  (analysis는 답을 반영한 것) */
   maskingReview: renderMaskingReview,
+  /** PART 1: ({ documents, document, onConfirm, onCancel }) => HTMLElement */
+  ocrEditor: renderOcrEditor,
 };
