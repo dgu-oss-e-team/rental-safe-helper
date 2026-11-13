@@ -57,6 +57,7 @@ const STEP_TEXT = {
  * @property {(edits: import('./masking-edits.js').MaskingEdits) => Promise<void>} setMaskingEdits  PART 4 확인 화면의 onChange
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
+ * @property {() => Promise<void>} doubleCheckPdfs  ⑤ 마스킹 PDF를 OCR로 다시 검사
  * @property {() => void} restart
  */
 
@@ -372,7 +373,23 @@ const act = {
     const p = await pipeline();
     if (!p) return;
     const pdfs = await p.exportMaskedPdfs(analysis, prepared.maskingPlan);
-    appState.setState({ busy: null, pdfs, step: 'done' });
+    appState.setState({ busy: null, pdfs, doubleCheck: null, step: 'done' });
+  },
+  async doubleCheckPdfs() {
+    const state = appState.getState();
+    const analysis = currentAnalysis(state);
+    const { prepared, pdfs } = state;
+    if (!analysis || !prepared || !pdfs) return;
+    appState.setState({ doubleCheck: 'running', error: null });
+    const p = await pipeline();
+    if (!p) {
+      appState.setState({ doubleCheck: null });
+      return;
+    }
+    const results = await p.doubleCheckPdfs(analysis, prepared.maskingPlan, pdfs);
+    // 검사하는 동안 PDF가 바뀌었으면(처음부터 다시 등) 이 결과는 버린다
+    if (appState.getState().pdfs !== pdfs) return;
+    appState.setState({ doubleCheck: results });
   },
   restart() {
     clearTimeout(previewTimer);
