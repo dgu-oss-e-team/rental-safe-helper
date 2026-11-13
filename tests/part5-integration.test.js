@@ -15,6 +15,8 @@ const samplePdf = (name) =>
 const FAKE_PERSONAL_INFO = [
   '김철수', // 소유자·임대인·예금주 이름
   'NGUYEN VAN A', // 임차인 이름
+  '박영수', // 예전 소유자 이름 (소유권보존 → 2026년 8월 김철수에게 이전)
+  '700101-1', // 예전 소유자 주민등록번호
   '800101-1', // 소유자 주민등록번호
   '750315-1', // 임대인 주민등록번호
   '990505-5', // 임차인 외국인등록번호
@@ -67,6 +69,17 @@ describe('PART 5 통합: ② 개인정보 탐지·위험 점검', () => {
 
   it('시연 시나리오: 소유자와 임대인은 이름이 같지만 생년월일이 달라서 STOP', () => {
     expect(statusOf(analysis.riskResults, 'OWNER_MISMATCH')).toBe(RISK_STATUS.STOP);
+  });
+
+  it('지금 소유자와 예전 소유자를 나눠 읽는다 (김철수 / 박영수)', () => {
+    expect(analysis.fields.registry.owners.map((o) => o.name)).toEqual(['김철수']);
+    expect(analysis.fields.registry.previousOwners.map((o) => o.name)).toEqual(['박영수']);
+  });
+
+  it('최근 소유권 이전: 이전 접수일(2026-08-03)이 계약일(2026-11-01) 6개월 안이라 CHECK', () => {
+    expect(analysis.fields.registry.lastTransferDate).toBe('2026-08-03');
+    expect(analysis.fields.contract.contractDate).toBe('2026-11-01');
+    expect(statusOf(analysis.riskResults, 'RECENT_OWNERSHIP_CHANGE')).toBe(RISK_STATUS.CHECK);
   });
 
   it('등기부 권리: 근저당(채권최고액 1억 2천만 원)은 CHECK, 신탁·압류는 없음', () => {

@@ -21,6 +21,7 @@ import { doneScreen } from './screens/done.js';
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
   loading: 'loading the document tools',
+  sample: 'loading the sample documents',
   input: 'choosing files',
   readDocument: 'reading the documents',
   classifyDocument: 'recognizing the document type',
@@ -50,6 +51,9 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} finish
  * @property {() => void} restart
  */
+
+/** 샘플 버튼이 불러오는 가짜 서류 (public/samples/) */
+const SAMPLE_FILES = ['sample-registry.pdf', 'sample-lease.pdf'];
 
 /**
  * 실패 결과를 화면 상태로 바꾼다. (메시지에는 개인정보가 들어가지 않도록 각 파트가 영어 안내만 넣는다)
@@ -174,11 +178,28 @@ const act = {
     await runAnalysis(/** @type {File[]} */ ([registry, lease].filter(Boolean)));
   },
   async analyzeSample() {
-    // 빈 파일 = 샘플 데이터 (PART 1이 가상 등기부·계약서를 돌려준다)
-    await runAnalysis([
-      new File([''], 'sample-registry.pdf', { type: 'application/pdf' }),
-      new File([''], 'sample-lease.pdf', { type: 'application/pdf' }),
-    ]);
+    // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.
+    // (이름·번호·주소는 모두 가짜. 만드는 방법은 scripts/make-sample-pdfs.mjs)
+    appState.setState({ busy: 'Loading the sample documents…', error: null });
+    loadPipeline().catch(() => {});
+    try {
+      const files = await Promise.all(
+        SAMPLE_FILES.map(async (name) => {
+          // BASE_URL = '/rental-safe-helper/' (GitHub Pages 주소 앞부분, vite.config.js)
+          // @ts-ignore -- Vite가 import.meta.env를 채운다 (괄호로 감싸면 Vite가 바꾸지 못하므로 그대로 쓴다)
+          const base = import.meta.env.BASE_URL;
+          const res = await fetch(`${base}samples/${name}`);
+          if (!res.ok) throw new Error('SAMPLE_LOAD_FAILED');
+          return new File([await res.blob()], name, { type: 'application/pdf' });
+        }),
+      );
+      await runAnalysis(files);
+    } catch {
+      appState.setState({
+        busy: null,
+        error: { step: 'sample', code: 'LOAD_FAILED', message: 'Please check your internet connection and try again.' },
+      });
+    }
   },
   goTo(step) {
     appState.setState({ step, error: null });
