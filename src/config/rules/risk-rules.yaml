@@ -85,6 +85,22 @@ rules:
       UNVERIFIABLE:
         explanation: We could not read the address on the registry or on the contract.
         action: Compare the address on the registry and the contract yourself, including the unit number.
+      UNVERIFIABLE.region_unclear:
+        explanation: >-
+          We did not compare the two addresses because at least one of them does not start
+          with a full city or province name (for example, Seoul Special City). The text may
+          be shortened or may not have been read correctly.
+        action: >-
+          Compare the address on the registry and the contract yourself, including the city,
+          the district, and the unit number.
+      UNVERIFIABLE.format_differs:
+        explanation: >-
+          The two addresses look different, but they are written in different styles
+          (a road-name address and a lot-number address), or the style could not be
+          recognized. So we could not tell whether they are the same home.
+        action: >-
+          Check yourself that the registry and the contract are for the same home,
+          including the unit number. If you are not sure, ask the agent.
 
 
   TRUST_REGISTERED:
@@ -206,6 +222,14 @@ rules:
           The ownership of this home was transferred within {months} months before the
           contract date. A very recent sale can be a sign of a risky deal or a quick resale.
         action: Look at the date of the last ownership transfer. If it is recent, ask why the home was sold.
+      CHECK.after_contract:
+        explanation: >-
+          The registry shows an ownership transfer dated after the contract date. The home
+          may have been sold after the contract was made, or a date may have been read
+          incorrectly.
+        action: >-
+          Compare the contract date and the date of the last ownership transfer, and ask
+          who owns the home now.
       NO_FLAG:
         explanation: >-
           The last ownership transfer was more than {months} months before the contract date.

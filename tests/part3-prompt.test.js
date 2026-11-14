@@ -58,6 +58,12 @@ describe('PART 3 프롬프트: 가림 해제된 가명 처리', () => {
     );
   });
 
+  it('쉼표로 이어지거나 셋 이상이어도 복수로 합친다', () => {
+    expect(replaceUnlistedAliases('Owners: [Owner_A], [Owner_E].', {})).toBe('Owners: the owners.');
+    expect(replaceUnlistedAliases('[Owner_A], [Owner_E] and [Owner_F] sign.', {})).toBe('The owners sign.');
+    expect(replaceUnlistedAliases('[Owner_A] and [Owner_E] and [Owner_F] sign.', {})).toBe('The owners sign.');
+  });
+
   it('다른 역할 둘은 합치지 않는다', () => {
     expect(replaceUnlistedAliases('[Owner_A] and [Landlord_B] differ.', {})).toBe(
       'The owner and the landlord differ.',

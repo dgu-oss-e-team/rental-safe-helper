@@ -73,6 +73,15 @@ describe('PART 3 소유자 ↔ 임대인 비교 (OWNER_MISMATCH)', () => {
     expect(compareOwnerAndLandlord(fields(), g).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
   });
 
+  it('등기부 소유자가 null이거나 []이면 공동 소유 CHECK가 아니라 UNVERIFIABLE', () => {
+    for (const owners of [null, []]) {
+      const f = fields();
+      f.registry.owners = owners;
+      const r = compareOwnerAndLandlord(f, mergeOwnerAndLandlord(groups()));
+      expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    }
+  });
+
   it('personGroups에서 사람을 찾지 못하면 UNVERIFIABLE', () => {
     expect(compareOwnerAndLandlord(fields(), []).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
   });
@@ -132,6 +141,58 @@ describe('PART 3 소재지 비교 (ADDRESS_MISMATCH)', () => {
   it('호수가 다르면 STOP', () => {
     const f = fields();
     f.contract.address = '서울특별시 중구 필동로 00, 102호';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+  });
+
+  it('같은 형식(지번)에서 호수가 다르면 STOP, 같으면 NO_FLAG', () => {
+    const f = fields();
+    f.registry.address = '서울특별시 중구 필동 123-4, 101호';
+    f.contract.address = '서울특별시 중구 필동 123-4, 102호';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+    f.contract.address = '서울특별시 중구 필동 123-4, 101호';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+  });
+
+  it('한쪽이 정식 시·도 이름으로 시작하지 않으면 STOP이 아니라 UNVERIFIABLE', () => {
+    const f = fields();
+    f.contract.address = '서울 중구 필동로 00, 102호';
+    const r = compareAddresses(f);
+    expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(r.data.explanation).toContain('full city or province name');
+  });
+
+  it('양쪽 다 줄임말이면 글자가 같아도 비교하지 않는다', () => {
+    const f = fields();
+    f.registry.address = '서울 중구 필동로 00, 101호';
+    f.contract.address = '서울 중구 필동로 00, 101호';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('시·도 이름으로 시작하는 다른 단어("서울대로")는 시·도 이름으로 보지 않는다', () => {
+    const f = fields();
+    f.contract.address = '서울대로 00, 101호';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('도로명 주소와 지번 주소가 섞여 있으면 STOP이 아니라 UNVERIFIABLE', () => {
+    const f = fields();
+    f.contract.address = '서울특별시 중구 필동 123-4, 101호';
+    const r = compareAddresses(f);
+    expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(r.data.explanation).toContain('different styles');
+  });
+
+  it('형식을 알 수 없고 글자가 다르면 UNVERIFIABLE', () => {
+    const f = fields();
+    f.registry.address = '서울특별시 중구';
+    f.contract.address = '서울특별시 종로구';
+    expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('괄호 안 지번은 형식 판정에 쓰지 않는다 (도로명 주소로 본다)', () => {
+    const f = fields();
+    f.registry.address = '서울특별시 중구 필동로 45 필동빌라(필동 123-4) 제201호';
+    f.contract.address = '서울특별시 중구 필동로 45 필동빌라 제202호';
     expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
   });
 
