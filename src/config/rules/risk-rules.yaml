@@ -240,3 +240,37 @@ rules:
         action: >-
           Look at the date of the last ownership transfer on the registry. If it is recent,
           ask why the home was sold.
+
+  RISKY_SPECIAL_TERM:
+    title: Special terms check
+    evidence:
+      left: Special terms read
+      right: Terms that matched
+    results:
+      CHECK:
+        explanation: >-
+          Some special terms in this contract match types of terms that are often unfavorable
+          to tenants: {matched}. {reasons}
+        action: >-
+          Ask the landlord or the agent to explain or remove these terms before you sign.
+          If you are not sure what they mean, ask a legal aid service or another adviser you trust.
+      NO_FLAG:
+        explanation: >-
+          None of the special terms we could read matched our list of terms that are often
+          unfavorable to tenants. This check only looks for certain keywords, so it does not
+          mean the contract is safe.
+        action: >-
+          Read all special terms yourself, and ask the agent to explain anything you do not understand.
+      NO_FLAG.no_terms:
+        explanation: >-
+          The special terms section of the contract is empty. This does not mean the contract
+          is safe, because other parts of the contract can also be unfavorable.
+        action: >-
+          Read the whole contract yourself, and ask the agent to explain anything you do not understand.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not read the special terms (특약사항) section of the contract,
+          so we could not check it.
+        action: >-
+          Read the special terms yourself. Look for terms about cash payment, address registration
+          (전입신고), restoring or repairing the home, brokerage fees, and returning the deposit.
