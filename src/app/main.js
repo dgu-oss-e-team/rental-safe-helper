@@ -19,6 +19,7 @@ import { reviewScreen } from './screens/review.js';
 import { doneScreen } from './screens/done.js';
 import { confirmScreen } from './screens/confirm.js';
 import { slots } from './slots.js';
+import { stepFromHash, hashFor, reachableStep, historyAction } from './step-history.js';
 
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
@@ -458,5 +459,33 @@ function render() {
 /** @type {string | undefined} */
 render.lastStep = undefined;
 
+/*
+ * 브라우저 기록 연결 (#90): 휴대폰 뒤로 가기가 사이트를 나가지 않고 이전 단계로 가게 한다.
+ * 주소에는 단계 이름만 남긴다 (#results 등). 서류 정보·개인정보는 넣지 않는다. 규칙은 step-history.js.
+ */
+
+/** 앱 안에서 단계가 바뀌면 기록에 남긴다 */
+function syncHistory() {
+  const { step } = appState.getState();
+  const action = historyAction(stepFromHash(location.hash), step);
+  if (action === 'push') history.pushState(null, '', hashFor(step));
+  else if (action === 'replace') history.replaceState(null, '', hashFor(step));
+}
+
+/** 뒤로·앞으로 가기: 그 단계로 간다. 결과가 없는 단계면(예: 처음부터 다시 한 뒤의 ⑤) 갈 수 있는 앞 단계로 */
+window.addEventListener('popstate', () => {
+  const state = appState.getState();
+  const wanted = stepFromHash(location.hash);
+  const step = reachableStep(state, wanted);
+  if (step !== wanted) history.replaceState(null, '', hashFor(step));
+  if (step !== state.step) appState.setState({ step, error: null });
+});
+
+// 새로고침하면 서류와 결과가 없으므로 ①부터. 남아 있던 단계 이름은 지운다 (#review로 새로고침 등)
+if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+// 단계가 바뀌면 render()가 맨 위로 올리므로 브라우저가 스크롤 위치를 되돌리지 않게 한다
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+appState.subscribe(syncHistory);
 appState.subscribe(render);
 render();
