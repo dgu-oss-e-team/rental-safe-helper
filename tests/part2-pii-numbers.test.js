@@ -89,3 +89,58 @@ describe('PART 2 전체 탐지 순서 (findPatternPII)', () => {
     ]);
   });
 });
+
+describe('PART 2 OCR이 숫자를 비슷한 글자로 잘못 읽은 번호 (이슈 #100)', () => {
+  it('0을 O로 읽은 주민번호·연락처·계좌번호도 찾는다 (PR #98 사례)', () => {
+    const cases = [
+      ['소유자 김철수 8OO1O1-1******', '8OO1O1-1******', PII_TYPE.RESIDENT_ID],
+      ['임대인 김철수 75O315-1******', '75O315-1******', PII_TYPE.RESIDENT_ID],
+      ['연락처 01O-0000-0000', '01O-0000-0000', PII_TYPE.PHONE_NUMBER],
+      ['입금 계좌 가상은행 000-0OO000-00000 예금주 김철수', '000-0OO000-00000', PII_TYPE.BANK_ACCOUNT],
+    ];
+    for (const [text, value, type] of cases) {
+      const r = findPatternPII(text);
+      expect(r.map((x) => [x.value, x.type])).toEqual([[value, type]]);
+    }
+  });
+
+  it('1을 l·I·|로 읽은 번호도 찾는다', () => {
+    expect(findPatternPII('연락처 0l0-l234-5678')[0].value).toBe('0l0-l234-5678');
+    expect(findPatternPII('주민번호 80OI0I-I234567')[0].type).toBe(PII_TYPE.RESIDENT_ID);
+    expect(findPatternPII('연락처 010-|234-5678')[0].value).toBe('010-|234-5678');
+  });
+
+  it('값과 위치는 원문 그대로다 (마스킹이 원래 글자를 덮도록)', () => {
+    const text = '소유자 김철수 8OO1O1-1******';
+    const [r] = findPatternPII(text);
+    expect(text.slice(r.start, r.end)).toBe('8OO1O1-1******');
+  });
+
+  it('잘못 읽은 글자가 섞인 번호는 uncertain(확인 필요)이다', () => {
+    expect(findPatternPII('연락처 01O-1234-5678')[0].uncertain).toBe(true);
+    expect(findPatternPII('연락처 010-1234-5678')[0].uncertain).toBeUndefined();
+  });
+
+  it('번호 앞에 붙은 영어 글자 때문에 원래 찾던 번호를 놓치지 않는다', () => {
+    const r = findPatternPII('Tel010-1234-5678');
+    expect(r.map((x) => [x.value, x.uncertain])).toEqual([['010-1234-5678', undefined]]);
+  });
+
+  it('진짜 숫자가 절반도 안 되면 번호로 보지 않는다 (영어 글자 오탐 방지)', () => {
+    expect(findPatternPII('연락처 OlO-lOOO-OOOO')).toEqual([]);
+  });
+
+  it('은행 단어는 원문에서 찾는다 ("IBK"가 "1BK"로 바뀌어도 계좌로 인정)', () => {
+    expect(findPatternPII('IBK 123-45O-678901')[0].type).toBe(PII_TYPE.BANK_ACCOUNT);
+  });
+
+  it('여권번호의 영문 앞글자(O 등)는 바꾸지 않는다', () => {
+    expect(findPatternPII('여권 O12345678')).toEqual([
+      { type: PII_TYPE.PASSPORT_ID, value: 'O12345678', start: 3, end: 12 },
+    ]);
+  });
+
+  it('보통 글의 영어 단어는 번호로 잡지 않는다', () => {
+    expect(findPatternPII('Hello World, Ollie lol IOI')).toEqual([]);
+  });
+});
