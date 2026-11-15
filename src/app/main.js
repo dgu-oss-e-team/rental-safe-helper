@@ -19,6 +19,7 @@ import { reviewScreen } from './screens/review.js';
 import { doneScreen } from './screens/done.js';
 import { confirmScreen } from './screens/confirm.js';
 import { slots } from './slots.js';
+import { resetRiskResultsView } from '../features/risk-check/risk-result-ui.js';
 
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
@@ -208,6 +209,8 @@ async function finishAnalysis(p, read) {
   if (r.ok) {
     ocrDraft = [];
     releasePreviews();
+    // 새 서류면 이전에 고른 결과 필터를 풀어서 STOP 카드가 가려지지 않게 한다 (#63)
+    resetRiskResultsView();
     appState.setState({
       busy: null,
       analysis: r.data,

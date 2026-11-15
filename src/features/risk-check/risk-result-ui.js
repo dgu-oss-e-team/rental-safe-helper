@@ -48,6 +48,16 @@ const view = {
 };
 
 /**
+ * 새 서류를 분석했을 때 고른 필터와 펼친 칸을 처음 상태(전체 보기, 모두 접힘)로 되돌린다.
+ * 이전에 고른 필터가 남아 새 결과의 STOP 카드를 가리지 않게 하려는 것이다.
+ * PART 5 main.js의 finishAnalysis()에서 새 분석 결과가 나올 때 부른다. (#63 리뷰)
+ */
+export function resetRiskResultsView() {
+  view.filter = null;
+  view.open.clear();
+}
+
+/**
  * 결과 카드 한 장
  * @param {RiskResult} r
  */
