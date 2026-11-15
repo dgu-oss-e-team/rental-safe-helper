@@ -1,0 +1,66 @@
+# 위험 특약 키워드 (PART 3, RISKY_SPECIAL_TERM)
+# 계약서 특약(contract.specialTerms)에서 임차인에게 불리할 수 있는 문구를 찾는 키워드 목록이다.
+# 코드를 고치지 않고 이 파일만 고쳐서 키워드를 추가·삭제할 수 있다.
+#
+# 키워드 쓰는 법 (한 줄이 키워드 하나)
+#   "현금"                      → 특약에 "현금"이 들어 있으면 걸린다
+#   "현금 & 지급|납부"           → & 로 이은 칸이 모두 있어야 걸린다 (같은 특약 안에서)
+#   "전입|확정일자 & 금지|불가"   → | 는 "또는". 위 줄은 (전입 또는 확정일자) 그리고 (금지 또는 불가)
+# - 띄어쓰기와 가운뎃점(·)은 무시하고 비교한다. ("현금 지급"과 "현금지급"은 같다)
+# - 한 키워드에 & 칸을 여러 개 써서 오탐(불리하지 않은 문장이 걸리는 것)을 줄인다.
+# - 부정문("전입신고를 금지하지 않는다")도 걸릴 수 있다. 그래서 결과는 STOP이 아니라 CHECK(확인 필요)이다.
+#
+# 항목 설명
+#   label:    화면·AI 프롬프트의 설명에 나오는 이름 (영어 + 한국어 짧은 말). 개인정보를 쓰지 않는다.
+#   reason:   왜 확인해야 하는지 (영어 한두 문장). 설명에 그대로 들어간다.
+#   keywords: 위 형식의 키워드 목록
+#
+# 키워드는 팀이 HUG(주택도시보증공사) 등 공식 임차인 안내 자료를 보고 대조해서 정한다. (이슈 #61, #77)
+# 자료 이름과 확인한 날짜는 PR 설명에 적는다.
+
+categories:
+  CASH_PAYMENT:
+    label: Cash payment (현금 지급)
+    reason: >-
+      Paying in cash leaves no bank record, so it can be hard to prove that you paid.
+    keywords:
+      - "현금 & 지급|납부|지불|전달"
+      - "계좌이체 & 불가|하지않|못"
+
+  REGISTRATION_BAN:
+    label: Ban on address registration or fixed date (전입신고·확정일자 금지)
+    reason: >-
+      Address registration (전입신고) and the fixed date (확정일자) are what protect your deposit
+      if the home is sold or goes to auction. A term that bans them can leave your deposit unprotected.
+    keywords:
+      - "전입|확정일자 & 금지|불가|하지않|못|할수없|안된다|안됨|제한"
+      - "대항력 & 포기|불가"
+
+  REPAIR_COST_TENANT:
+    label: Repair or restoration costs on the tenant (원상복구·수리비 임차인 부담)
+    reason: >-
+      The landlord generally has a duty to keep the home in a usable condition. A term that puts
+      all restoration or repair costs on the tenant can lead to large costs when you move out.
+    keywords:
+      - "원상복구|원상회복 & 임차인|세입자 & 부담|비용|책임"
+      - "수리|수선 & 임차인|세입자 & 부담|비용|책임"
+      - "도배|장판|청소비 & 임차인|세입자 & 부담|비용"
+
+  BROKER_FEE_TENANT:
+    label: Brokerage fee on the tenant (중개수수료 임차인 부담)
+    reason: >-
+      In Korea the brokerage fee is normally paid by each side separately and has a legal maximum.
+      A term that makes the tenant pay all of it is worth checking.
+    keywords:
+      - "중개수수료|중개보수|복비 & 임차인|세입자 & 부담|전액|책임"
+      - "중개수수료|중개보수|복비 & 임차인|세입자 & 지급|지불|납부 & 전액|모두|일체"
+
+  DEPOSIT_RETURN_LIMIT:
+    label: Limits on getting the deposit back (보증금 반환 조건 제한)
+    reason: >-
+      Your deposit should be returned when the contract ends. A term that makes the return depend on
+      another condition (for example, finding a new tenant) can delay or block getting your money back.
+    keywords:
+      - "보증금 & 반환|돌려|지급 & 새로운임차|새임차|신규임차|후임|다음임차|다른임차|임차인을구|임차인이구|재임대"
+      - "보증금 & 반환|돌려 & 불가|포기|하지않|못|없"
+      - "보증금 & 반환 & 경우에만|에한하|한해"

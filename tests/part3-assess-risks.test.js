@@ -228,7 +228,7 @@ describe('PART 3 최근 소유권 이전 (RECENT_OWNERSHIP_CHANGE)', () => {
 });
 
 describe('PART 3 assessRisks() 연결 (#11)', () => {
-  it('Mock 입력으로 점검 결과 7개가 나오고, 근저당은 CHECK다', () => {
+  it('Mock 입력으로 점검 결과 8개가 나오고, 근저당과 위험 특약은 CHECK다', () => {
     const r = assessRisks(fields(), mockPersonGroups);
     expect(r.ok).toBe(true);
     const byId = Object.fromEntries(r.data.map((x) => [x.ruleId, x.status]));
@@ -240,6 +240,7 @@ describe('PART 3 assessRisks() 연결 (#11)', () => {
       SEIZURE_ACTIVE: NO_FLAG,
       MORTGAGE_EXISTS: CHECK,
       RECENT_OWNERSHIP_CHANGE: UNVERIFIABLE,
+      RISKY_SPECIAL_TERM: CHECK,
     });
   });
 

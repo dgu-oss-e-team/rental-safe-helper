@@ -333,7 +333,7 @@ describe('PART 3 카드 제목은 상태와 상관없이 중립적이다', () =>
   it('"일치하지 않음", "등록됨" 같은 결과를 단정하는 말이 제목에 없다', () => {
     const r = assessRisks(fields(), groups());
     expect(r.ok).toBe(true);
-    expect(r.data.length).toBe(7);
+    expect(r.data.length).toBe(8);
     for (const risk of r.data) {
       expect(risk.title).not.toContain('not');
       expect(risk.title).not.toContain('mismatch');
@@ -343,8 +343,8 @@ describe('PART 3 카드 제목은 상태와 상관없이 중립적이다', () =>
     }
   });
 
-  it('제목 7개가 모두 다르다', () => {
+  it('제목 8개가 모두 다르다', () => {
     const r = assessRisks(fields(), groups());
-    expect(new Set(r.data.map((x) => x.title)).size).toBe(7);
+    expect(new Set(r.data.map((x) => x.title)).size).toBe(8);
   });
 });
