@@ -17,8 +17,8 @@ import './masking-review.css';
 import { el } from '../../app/ui.js';
 import { DOCUMENT_TYPE, PII_TYPE } from '../../shared/document-model.js';
 import { buildReviewRows, setRowShown, addSelection, removeAdd } from './review-model.js';
-// block마다 가린 글을 만들 때 쓴다 (화면을 그릴 때만 부르므로 index.js와 서로 불러도 괜찮음)
-import { applyMaskingPlan } from './index.js';
+// block마다 가린 글을 만들 때 쓴다
+import { applyMaskingPlan } from './apply-masking-plan.js';
 
 /** 개인정보 종류 → 화면 이름 (화면 문구는 영어, 제안서 기준) */
 const TYPE_TEXT = {
