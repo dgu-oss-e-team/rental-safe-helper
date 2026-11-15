@@ -1,0 +1,152 @@
+// @ts-check
+/**
+ * PART 4. 목적에 맞는 마스킹 계획 만들기
+ *
+ *   createMaskingPlan(findings, personGroups, purpose, edits?) → Result<MaskingPlan>
+ *   coarsenAddress(address) → 시·구(동)까지 줄인 주소 (못 줄이면 '')
+ *
+ * 목적별 규칙은 src/config/masking/masking-policy.json, 사용자 수정(edits) 규칙은 user-edits.js
+ */
+
+import { ok, fail, ERROR_CODE, MASKING_ACTION, MASKING_PURPOSE, PII_TYPE } from '../../shared/document-model.js';
+import { resolveRemovals, addEditsToItems, hasInvalidAddPosition } from './user-edits.js';
+import policy from '../../config/masking/masking-policy.json';
+// 시·도 이름 목록 (정식 이름 + 줄임말). PART 2가 관리하는 설정 파일을 같이 읽는다.
+import personLabels from '../../config/templates/person-labels.json';
+
+/** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
+/** @typedef {import('./index.js').PersonGroup} PersonGroup */
+
+/** 가린 자리에 넣는 글자 */
+export const REDACTED = '[REDACTED]';
+
+/** 시·도 이름 목록 (person-labels.json의 addressRegions) */
+const ADDRESS_REGIONS = new Set(personLabels.addressRegions ?? []);
+/** 목록에 없더라도 정식 시·도 이름 모양이면 인정 */
+const REGION_PATTERN = /^[가-힣]+(특별시|광역시|특별자치시|특별자치도|도|시)$/;
+
+/**
+ * 주소에서 시·도, 시·군·구, 동·읍·면까지만 남기고 번지·호수는 지운다.
+ * (최종 제안서 목적별 가림 표: 사기 위험 확인 → "시·구(동)만 남김")
+ *
+ * 예: "서울특별시 중구 필동로 00, 101호"        → "서울특별시 중구"
+ *     "경기도 성남시 분당구 정자동 178-1"       → "경기도 성남시 분당구 정자동"
+ *     "경기도 성남시 분당구 불정로 6 (정자동)"  → "경기도 성남시 분당구 정자동"
+ *     "경기 수원시 팔달구 …"                  → "경기 수원시 팔달구" (줄임말도 인정)
+ *
+ * 남길 부분을 하나도 못 찾으면 빈 문자열을 돌려준다 (→ 호출하는 쪽에서 통째로 가림).
+ * @param {string} address
+ */
+export function coarsenAddress(address) {
+  const text = String(address ?? '');
+  // 괄호 안 동 이름 (도로명 주소의 참고 항목) 따로 꺼내 두기: "(정자동)" → "정자동"
+  const refDong = text.match(/\(([가-힣][가-힣0-9]*(?:동|가))[,)]/)?.[1] ?? null;
+  const tokens = text.replace(/\(.*?\)/g, ' ').split(/[\s,]+/).filter(Boolean);
+
+  const kept = [];
+  let i = 0;
+  // 1) 시·도: 정식 이름("서울특별시")이나 줄임말("서울", "경기") 모두 인정
+  if (tokens[0] && (ADDRESS_REGIONS.has(tokens[0]) || REGION_PATTERN.test(tokens[0]))) {
+    kept.push(tokens[0]);
+    i = 1;
+  }
+  // 2) 시·군·구: "성남시", "분당구", "양평군"
+  while (i < tokens.length && /^[가-힣]+(시|군|구)$/.test(tokens[i])) {
+    kept.push(tokens[i]);
+    i += 1;
+  }
+  if (kept.length === 0) return '';
+
+  // 3) 바로 다음이 동·읍·면이면 하나 더 남긴다: "정자동", "필동2가", "봉담읍"
+  //    "101동", "래미안101동"(아파트 동 번호)은 집을 특정하므로 남기지 않는다.
+  //    → 한글 뒤에 숫자는 한 자리까지만 허용 ("역삼1동", "필동2가"는 남김)
+  const next = tokens[i];
+  if (next && /^[가-힣]+[0-9]?(동|가|읍|면)$/.test(next)) kept.push(next);
+  else if (refDong) kept.push(refDong);
+
+  return kept.join(' ');
+}
+
+/**
+ * 목적에 맞는 마스킹 계획을 만든다.
+ * @param {PiiFinding[]} findings
+ * @param {PersonGroup[]} personGroups
+ * @param {string} purpose  MASKING_PURPOSE 값
+ * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자 수정 (없으면 빈 값)
+ */
+export function createMaskingPlan(findings, personGroups, purpose, edits) {
+  if (!Object.values(MASKING_PURPOSE).includes(purpose)) {
+    return fail(ERROR_CODE.INVALID_INPUT, 'Unknown purpose.');
+  }
+  if (!Array.isArray(findings) || !Array.isArray(personGroups)) {
+    return fail(ERROR_CODE.INVALID_INPUT, 'Findings or person groups are missing.');
+  }
+  // 사용자가 더 가린 글자는 PDF 위치가 꼭 있어야 한다 (빼면 PDF에서 안 가려짐)
+  if (hasInvalidAddPosition(edits)) {
+    return fail(ERROR_CODE.COORDINATE_INVALID, 'A user-selected area has no valid position.');
+  }
+
+  /** @type {Record<string, string>} */
+  const rules = policy[/** @type {keyof typeof policy} */ (purpose)];
+  /** @type {Map<string, string>} findingId → 가명 */
+  const aliasByFinding = new Map();
+  for (const group of personGroups) {
+    for (const id of group.findingIds) aliasByFinding.set(id, group.alias);
+  }
+
+  // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)
+  /** @type {Map<string, { firstId: string, text: string }>} */
+  const addressGroups = new Map();
+  for (const f of findings) {
+    if (f.type !== PII_TYPE.ADDRESS || !f.groupId) continue;
+    const g = addressGroups.get(f.groupId);
+    if (g) g.text += ` ${f.value}`;
+    else addressGroups.set(f.groupId, { firstId: f.id, text: f.value });
+  }
+
+  // 사용자가 해제한 것 (규칙 적용 후)
+  const keepIds = resolveRemovals(findings, personGroups, edits);
+
+  const items = findings.map((f) => {
+    let action = rules[f.type] ?? MASKING_ACTION.REDACT; // 모르는 종류는 안전하게 가림
+    if (keepIds.has(f.id)) action = MASKING_ACTION.KEEP;
+    /** @type {string | null} */
+    let replacement = REDACTED;
+
+    if (action === MASKING_ACTION.REPLACE) {
+      if (f.type === PII_TYPE.PERSON_NAME) {
+        const alias = aliasByFinding.get(f.id);
+        // 인물 판정이 없으면 가명을 붙일 수 없으므로 가린다
+        if (alias) replacement = alias;
+        else action = MASKING_ACTION.REDACT;
+      } else if (f.type === PII_TYPE.ADDRESS) {
+        const group = f.groupId ? addressGroups.get(f.groupId) : undefined;
+        if (group && group.firstId !== f.id) {
+          // 두 줄 주소의 둘째 조각부터는 가린다 (줄인 주소는 첫 조각에만 넣음)
+          action = MASKING_ACTION.REDACT;
+        } else {
+          const coarse = coarsenAddress(group ? group.text : f.value);
+          // 남길 부분을 못 찾으면 안전하게 통째로 가린다
+          if (coarse) replacement = coarse;
+          else action = MASKING_ACTION.REDACT;
+        }
+      }
+    } else if (action === MASKING_ACTION.KEEP) {
+      replacement = null;
+    }
+
+    return {
+      findingId: f.id,
+      action,
+      replacement,
+      documentId: f.documentId,
+      pageIndex: f.pageIndex,
+      bbox: { ...f.bbox },
+    };
+  });
+
+  // 사용자가 더 가린 글자는 항상 REDACT로 뒤에 붙인다
+  items.push(...addEditsToItems(edits));
+
+  return ok({ purpose, items });
+}
