@@ -17,7 +17,12 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 | PART 1 | `tests/part1-document-input.test.js` | PDF 읽기, 이미지 OCR, 좌표 | 형식 검사만 (Mock) |
 | PART 2 | `tests/part2-document-analysis.test.js` | 개인정보 탐지(정탐·오탐), 문서 판별 | 형식 검사만 (Mock) |
 | PART 3 | `tests/part3-risk-check.test.js` | 위험 규칙별 해당/해당 아님/값 없음, 프롬프트 | 형식·프롬프트 기본 |
-| PART 4 | `tests/part4-masking.test.js` | 동명이인, 역할 가명, 목적별 마스킹, 유출 검사 | 기본 동작 |
+| PART 4 | `tests/part4-person-matcher.test.js` | 같은 사람 판별(이름·생년월일), 동명이인, 비슷한 이름(Fuse.js)은 AMBIGUOUS, 역할 가명 | 작성됨 |
+| PART 4 | `tests/part4-person-answers.test.js` | "같은 사람인가요?" 답으로 그룹 합치기, 잘못된 답(자기 자신·순환·모르는 id) 거절 | 작성됨 |
+| PART 4 | `tests/part4-prev-owner.test.js` | 예전 소유자 `[PrevOwner_?]` 가명, 기존 A~D 유지, 지금 소유자와 같은 사람이면 합치기 | 작성됨 |
+| PART 4 | `tests/part4-masking.test.js` | 목적별 마스킹, 고유식별정보 항상 가림, 주소 시·구(동)까지 줄이기, 유출 검사 | 작성됨 |
+| PART 4 | `tests/part4-edits.test.js` | 사용자 수정(가림 해제·더 가리기), 해제 못 하는 항목, 좌표 없는 add 거절 | 작성됨 |
+| PART 4 | `tests/part4-review-model.test.js` | ④ 확인 화면 표 만들기, 선택한 글자 가리기(빈 값·중복·이미 가림) | 작성됨 |
 | PART 5 | `tests/part5-pipeline.test.js` | PDF 생성, 좌표 적용, 메타데이터, 전체 연결 | 전체 연결(Mock) |
 
 ## 개인정보·PDF 검증 체크리스트 (발표 전 전원 확인)
