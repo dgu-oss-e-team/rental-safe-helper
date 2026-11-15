@@ -138,30 +138,89 @@ export function findRegistryIds(text) {
 /**
  * 계좌번호를 찾는다. 숫자 개수가 10-16개이고, 앞이나 뒤에 은행 관련 단어가 있을 때만 인정한다.
  * @param {string} text
+ * @param {string} [keywordText] 은행 단어를 찾을 글 (같은 길이). OCR 보정한 글로 번호를 찾을 때
+ *   은행 단어는 원문에서 찾는다. ("IBK"가 "1BK"로 바뀌면 안 되므로)
  */
-export function findBankAccounts(text) {
+export function findBankAccounts(text, keywordText = text) {
   return findByRegex(text, BANK_CANDIDATE_REGEX, PII_TYPE.BANK_ACCOUNT).filter((r) => {
     const digitCount = r.value.replace(/\D/g, '').length;
     if (digitCount < 10 || digitCount > 16) return false;
-    const before = text.slice(Math.max(0, r.start - BANK_KEYWORD_BEFORE), r.start);
-    const after = text.slice(r.end, r.end + BANK_KEYWORD_AFTER);
+    const before = keywordText.slice(Math.max(0, r.start - BANK_KEYWORD_BEFORE), r.start);
+    const after = keywordText.slice(r.end, r.end + BANK_KEYWORD_AFTER);
     return BANK_KEYWORD_REGEX.test(before) || BANK_KEYWORD_REGEX.test(after);
   });
+}
+
+/*
+ * OCR이 숫자를 비슷한 글자로 잘못 읽은 번호 (이슈 #100)
+ * 스캔 서류에서 OCR이 0을 O로, 1을 l로 읽으면("8OO1O1-1******") 위 정규식이 번호를 못 찾는다.
+ * 사용자가 확인 단계에서 고치지 않고 넘어가면 번호가 AI 프롬프트에 그대로 남는다.
+ * 그래서 번호를 찾을 때만 비슷한 글자를 숫자로 보고 한 번 더 찾는다.
+ * - 한 글자를 한 글자로 바꿔서 위치(start/end)가 원문과 같다. 값은 원문 글자 그대로 돌려준다. (마스킹이 원래 글자를 덮도록)
+ * - 원문으로 찾은 결과를 먼저 쓰고, 보정한 글에서 새로 찾은 것만 더한다.
+ *   (글 전체를 바꾸면 "Tel010-…"의 l이 1이 되어 원래 찾던 번호를 놓친다)
+ * - 새로 찾은 것은 uncertain(확인 필요)이다.
+ * - 번호의 숫자 자리 중 진짜 숫자가 절반 이상일 때만 인정한다. (영어 글자만으로 된 오탐 방지)
+ * - 여권번호는 앞글자가 영문(O 등)이라 보정하지 않는다.
+ * - 생년월일(동일 인물 판정용)은 원문 그대로의 번호에서만 읽는다. (name-detector.js의 findIdNumbers, 추측한 숫자로 판단하지 않음)
+ */
+/** @type {Record<string, string>} OCR이 숫자 대신 자주 읽는 글자 → 숫자 */
+const OCR_DIGIT_LOOKALIKES = { O: '0', o: '0', l: '1', I: '1', '|': '1' };
+const OCR_LOOKALIKE_REGEX = /[OolI|]/g;
+/** 글자가 하나라도 있는지만 볼 때 (g 없이: .test()가 이전 위치를 기억하지 않게) */
+const HAS_OCR_LOOKALIKE = /[OolI|]/;
+const MIN_REAL_DIGIT_RATIO = 0.5;
+
+/**
+ * 숫자처럼 생긴 글자를 숫자로 바꾼다. 글자 수는 그대로다.
+ * @param {string} text
+ */
+function toOcrDigits(text) {
+  return text.replace(OCR_LOOKALIKE_REGEX, (ch) => OCR_DIGIT_LOOKALIKES[ch]);
+}
+
+/**
+ * 번호의 숫자 자리(진짜 숫자 + 숫자처럼 생긴 글자) 중 진짜 숫자가 충분한지
+ * @param {string} value 원문 글자
+ */
+function hasEnoughRealDigits(value) {
+  const real = (value.match(/\d/g) ?? []).length;
+  const lookalike = (value.match(OCR_LOOKALIKE_REGEX) ?? []).length;
+  return real > 0 && real / (real + lookalike) >= MIN_REAL_DIGIT_RATIO;
+}
+
+/**
+ * 탐지 함수 하나에 OCR 보정 찾기를 더한다.
+ * @param {(text: string, original: string) => {type: string, value: string, start: number, end: number, uncertain?: boolean}[]} find
+ * @returns {(text: string) => {type: string, value: string, start: number, end: number, uncertain?: boolean}[]}
+ */
+function withOcrLookalikes(find) {
+  return (text) => {
+    const exact = find(text, text);
+    const fixed = toOcrDigits(text);
+    if (fixed === text) return exact;
+    const extra = find(fixed, text)
+      .map((r) => ({ ...r, value: text.slice(r.start, r.end), uncertain: true }))
+      .filter((r) => HAS_OCR_LOOKALIKE.test(r.value) && hasEnoughRealDigits(r.value))
+      .filter((r) => !exact.some((e) => r.start < e.end && e.start < r.end));
+    return [...exact, ...extra];
+  };
 }
 
 /**
  * 모든 정규식 탐지를 정해진 순서로 실행한다.
  * 구체적인 패턴을 먼저 찾고, 이미 찾은 구간과 겹치는 결과는 버린다.
  * 예: 등기 고유번호를 먼저 찾았으면, 같은 숫자를 계좌번호로 다시 잡지 않는다.
+ * 숫자를 비슷한 글자로 잘못 읽은 번호(OCR)도 찾는다. (위 withOcrLookalikes 설명)
  * @param {string} text
  */
 export function findPatternPII(text) {
   const finders = [
-    findIdNumbers, // 1. 주민·외국인등록번호
-    findRegistryIds, // 2. 등기 고유번호
-    findPassportNumbers, // 3. 여권번호
-    findPhoneNumbers, // 4. 전화번호
-    findBankAccounts, // 5. 계좌번호 (가장 느슨하니까 마지막)
+    withOcrLookalikes(findIdNumbers), // 1. 주민·외국인등록번호
+    withOcrLookalikes(findRegistryIds), // 2. 등기 고유번호
+    findPassportNumbers, // 3. 여권번호 (영문 앞글자라 보정 안 함)
+    withOcrLookalikes(findPhoneNumbers), // 4. 전화번호
+    withOcrLookalikes(findBankAccounts), // 5. 계좌번호 (가장 느슨하니까 마지막)
   ];
   /** @type {{type: string, value: string, start: number, end: number, uncertain?: boolean}[]} */
   const results = [];

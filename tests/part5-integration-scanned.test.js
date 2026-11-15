@@ -139,21 +139,12 @@ describe('PART 5 통합(스캔): 고치기 전 결과는 안전하다고 확정�
     expect(statusOf(unfixed.riskResults, 'ACCOUNT_HOLDER_MISMATCH')).not.toBe(RISK_STATUS.NO_FLAG);
   });
 
-  it('잘못 읽힌 번호는 개인정보로 탐지되지 않는다 → 그래서 확인 단계에서 반드시 고쳐야 한다', () => {
-    // 지금 탐지 규칙(PART 2)은 숫자 자리의 O를 인식하지 못한다. 이 테스트는 현재 동작을 기록한다.
-    const values = unfixed.findings.map((f) => f.value).join('\n');
-    for (const t of MISREAD_TEXT) expect(values).not.toContain(t);
-  });
-
-  // 확인 단계에서 고치지 않고 Confirm만 누르면 잘못 읽힌 번호가 프롬프트에 남는다 (#97에서 발견).
-  // PART 2 탐지(숫자 자리의 O·l 허용) 또는 PART 4 외부 전달 전 검사에서 막아야 한다.
-  // 막히면 위의 "탐지되지 않는다"와 아래 "(현재 동작 기록)" 테스트가 실패한다 → 둘을 지우고 이 todo를 it으로 바꾼다.
-  it.todo('고치지 않고 Confirm만 눌러도 잘못 읽힌 번호가 프롬프트에 남지 않는다');
-
-  it('(현재 동작 기록) 고치지 않고 Confirm만 누르면 잘못 읽힌 번호가 프롬프트에 남는다', () => {
+  // 확인 단계에서 고치지 않고 Confirm만 누르면 잘못 읽힌 번호가 프롬프트에 남던 문제 (#97에서 발견)
+  // → PART 2 탐지가 숫자 자리의 O·l을 숫자로 보고 찾아서 막는다 (이슈 #100)
+  it('고치지 않고 Confirm만 눌러도 잘못 읽힌 번호가 프롬프트에 남지 않는다', () => {
     const r = prepareForAi(analyze(confirmedWithoutFixing(asScanned(read.documents))), MASKING_PURPOSE.FRAUD_CHECK);
     expect(r.ok).toBe(true);
-    expect(MISREAD_TEXT.some((t) => r.data.prompt.includes(t))).toBe(true);
+    for (const t of MISREAD_TEXT) expect(r.data.prompt).not.toContain(t);
   });
 });
 
