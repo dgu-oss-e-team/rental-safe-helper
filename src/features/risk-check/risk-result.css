@@ -1,0 +1,96 @@
+/* PART 3. 위험 결과 카드 (.risk, .badge, .evidence 같은 기본 모양은 app/style.css를 그대로 쓴다) */
+
+.risk-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 위쪽 요약: 눌러서 그 상태만 보는 버튼 */
+.risk-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.risk-chip {
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 4px 12px;
+  min-height: 44px;
+}
+
+button.risk-chip[aria-pressed='true'] {
+  border-color: currentColor;
+  text-decoration: underline;
+}
+
+.chip-no_flag {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.risk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.risk-note {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 접는 칸: 확인 불가 / 문제 없음 */
+.risk-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.risk-group > summary,
+.risk-questions > summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 12px;
+  min-height: 20px;
+}
+
+.risk-group[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.risk-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* 근거 칸 */
+.evidence-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.risk .evidence-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* AI 추천 질문 */
+.risk-questions {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.risk-questions ul {
+  margin: 0;
+  padding: 0 12px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}

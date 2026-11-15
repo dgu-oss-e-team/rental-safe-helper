@@ -7,6 +7,7 @@
  *   assessRisks(fields, personGroups)                          → Result<RiskResult[]>
  *   buildPrompt({ purpose, riskResults, maskedText, legend })  → Result<string>
  *   getRecommendedQuestions(purpose)                           → string[] | null
+ *   renderRiskResults(riskResults)                             → HTMLElement  (slots.js riskResults)
  *
  * 규칙: 프롬프트에는 PART 4가 만든 "마스킹 완료 텍스트"와 범례만 넣는다. 원본 개인정보를 다시 넣지 않는다.
  *
@@ -15,7 +16,7 @@
  *         신탁, 압류·가압류, 근저당, 최근 소유권 이전 (assess-risks.js)
  *         위험 특약 문구 (special-terms.js, 키워드는 src/config/rules/special-term-keywords.yaml)
  *         프롬프트 (prompt-builder.js), 추천 질문 (recommended-questions.js)
- *   TODO(PART 3): 위험 결과 카드 UI. 값이 없으면 반드시 UNVERIFIABLE.
+ *         위험 결과 카드 UI (risk-result-ui.js, slots.js에 연결 #63)
  */
 
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
@@ -25,6 +26,7 @@ import { assessSpecialTerms } from './special-terms.js';
 
 export { buildPrompt } from './prompt-builder.js';
 export { getRecommendedQuestions } from './recommended-questions.js';
+export { renderRiskResults } from './risk-result-ui.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
 
