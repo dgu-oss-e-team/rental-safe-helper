@@ -83,6 +83,20 @@ export function shouldGoHome(state) {
 }
 
 /**
+ * ①에서 "Back to your results"를 누르면 갈 단계 (#124). 이전 결과가 없으면 null (버튼을 보여 주지 않음).
+ * 결과가 있는 가장 먼 단계로 간다: PDF까지 만들었으면 ⑤, 확인 화면까지면 ④, 분석만 했으면 ② 결과.
+ * (③ 목적 고르기는 결과가 아니므로 분석만 했을 때는 ②로 간다)
+ * @param {{ ocrReview?: unknown, analysis?: unknown, prepared?: unknown, pdfs?: unknown }} state
+ * @returns {'results' | 'review' | 'done' | null}
+ */
+export function resumeStep(state) {
+  if (!state.analysis) return null;
+  const step = reachableStep(state, 'done');
+  if (step === 'review' || step === 'done') return step;
+  return 'results';
+}
+
+/**
  * 앱 안에서 단계가 바뀌었을 때 브라우저 기록을 어떻게 할지
  * - 'none': 그대로 (같은 단계)
  * - 'replace': 지금 기록을 바꿔 쓴다. "Confirm text"에서 떠날 때 (결과로 갔다가 뒤로 가면 확인 화면이 아니라 ①로)
