@@ -20,7 +20,9 @@ import { validAdds } from './user-edits.js';
  * 남아 있으면 멈춘다. PART 2가 놓쳐도 마지막에 막아 주는 그물이다.
  * - 비슷한 글자가 실제로 섞인 번호만 본다. (정상 숫자는 위 검사와 PART 2 탐지가 맡는다)
  * - 번호의 숫자 자리 중 진짜 숫자가 절반 이상일 때만 본다. (영어 단어 오탐 방지)
- * - 날짜(2026-08-03)는 숫자가 8개라 계좌번호(10~16개)로 보지 않는다. 등기 고유번호(4-4-6) 모양은 뺀다.
+ * - 날짜(2026-08-03)는 숫자가 8개라 계좌번호(10~16개)로 보지 않는다. 
+ * - 계좌번호는 앞 20글자·뒤 10글자 안에 계좌·은행·입금 같은 말이 있을 때만 본다. (PART 2 findBankAccounts와 같은 기준)
+ *   표 테두리(|2026-08-03|), 중개사무소 등록번호, 사업자등록번호 같은 숫자 덩어리에서 멈추지 않게 한다.
  */
 /** OCR이 숫자 대신 자주 읽는 글자 → 숫자 */
 const LOOKALIKE_DIGITS = { O: '0', o: '0', l: '1', I: '1', '|': '1' };
@@ -36,6 +38,11 @@ const NUMBER_SHAPES = [
 ];
 /** 등기 고유번호 모양 (개인정보가 아니라 남겨도 되는 번호) */
 const REGISTRY_ID_SHAPE = /^\d{4}-\d{4}-\d{6}$/;
+/** 계좌번호 근처에 있는 말 (PART 2 pii-patterns.js의 BANK_KEYWORD_REGEX와 같은 목록) */
+const BANK_KEYWORD =
+  /계좌|은행|예금주|입금|뱅크|농협|수협|우체국|새마을금고|신협|카뱅|토스|IBK|account|bank/i;
+const BANK_KEYWORD_BEFORE = 20; // 번호 앞 20글자
+const BANK_KEYWORD_AFTER = 10; // 번호 뒤 10글자
 
 /**
  * 가린 글 한 줄에서 비슷한 글자가 섞인 번호를 찾는다. 없으면 null.
@@ -56,6 +63,10 @@ export function findLookalikeNumber(line) {
       if (shape === NUMBER_SHAPES[2]) {
         const count = m[0].replace(/\D/g, '').length;
         if (count < 10 || count > 16 || REGISTRY_ID_SHAPE.test(m[0])) continue;
+        const end = m.index + m[0].length;
+        const near =
+          line.slice(Math.max(0, m.index - BANK_KEYWORD_BEFORE), m.index) + ' ' + line.slice(end, end + BANK_KEYWORD_AFTER);
+        if (!BANK_KEYWORD.test(near)) continue;
       }
       return original;
     }
