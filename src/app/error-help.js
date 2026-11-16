@@ -61,6 +61,12 @@ const BY_STEP = {
     title: 'No file was chosen.',
     help: 'Choose your property register and/or lease contract, or try the sample documents.',
   },
+  // 위험 점검이 전부 실패하면(규칙 파일 오류 등) 결과를 하나도 보여 주지 않는다 (#120, PART 3 #117 "전부 아니면 전무").
+  // 결과가 없다고 위험이 없는 것이 아니므로 그렇게 읽히지 않게 쓰고, 서류 탓이 아닐 수 있어서 "다른 파일"을 권하지 않는다.
+  assessRisks: {
+    title: 'We could not finish the risk check, so no results are shown.',
+    help: 'This does not mean there are no warning signs. Please try again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
+  },
   applyPersonAnswers: {
     title: 'That answer could not be used.',
     help: 'Your previous answers are kept. Please choose a different option.',
