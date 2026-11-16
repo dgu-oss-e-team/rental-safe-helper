@@ -10,6 +10,8 @@
  * 
  * 미리보기에서 글자를 골라 "더 가리기"를 하면 edits.add에 넣는다. (addSelection / removeAdd)
  *   value는 미리보기(가린 글)에서 고른 글자, pageIndex·bbox는 그 글자가 있는 block 위치 (INTERFACES.md 8번)
+ *   같은 글자가 다른 줄에도 있으면 그 줄들도 같이 가린다. (한 곳만 가리면 다른 줄에서 AI에게 그대로 감)
+ *   취소(removeAdd)도 같은 글자를 전부 함께 되돌린다.
  */
 
 import { MASKING_ACTION, PII_TYPE } from '../../shared/document-model.js';
@@ -19,6 +21,10 @@ import { NON_REMOVABLE_TYPES } from './user-edits.js';
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
 /** @typedef {import('./user-edits.js').MaskingEdits} MaskingEdits */
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
+/**
+ * 미리보기의 한 줄 (block 하나)
+ * @typedef {{ documentId: string, blockId: string, pageIndex: number, bbox: { x: number, y: number, width: number, height: number }, text?: string }} PreviewLine
+ */
 
 /**
  * 확인 화면의 한 줄
@@ -102,41 +108,57 @@ const ALREADY_HIDDEN = /^(\[REDACTED\]\s*)+$/;
 
 /**
  * 사용자가 미리보기에서 고른 글자를 add에 넣은 새 edits를 만든다. (원래 edits는 바꾸지 않음)
+ * 같은 글자가 들어 있는 다른 줄(lines)에도 add를 하나씩 만든다. 각 줄의 위치를 넣어서 PDF에서도 같이 덮인다.
  * @param {MaskingEdits | undefined} edits
- * @param {{ documentId: string, blockId: string, pageIndex: number, bbox: { x: number, y: number, width: number, height: number }, value: string }} selection
+ * @param {PreviewLine & { value: string }} selection  고른 글자와 그 줄
+ * @param {PreviewLine[]} [lines]  미리보기의 모든 줄 (글자는 가린 글 기준)
  * @returns {{ ok: true, edits: { remove: string[], add: any[] } } | { ok: false, reason: 'EMPTY' | 'ALREADY_HIDDEN' | 'DUPLICATE' }}
  */
-export function addSelection(edits, selection) {
+export function addSelection(edits, selection, lines = []) {
   const remove = [...(edits?.remove ?? [])];
   const add = (edits?.add ?? []).map((a) => ({ ...a }));
   const value = String(selection.value ?? '').trim();
 
   if (value === '') return { ok: false, reason: 'EMPTY' };
   if (ALREADY_HIDDEN.test(value)) return { ok: false, reason: 'ALREADY_HIDDEN' };
-  if (add.some((a) => a.documentId === selection.documentId && a.blockId === selection.blockId && a.value === value)) {
-    return { ok: false, reason: 'DUPLICATE' };
+  /** @param {{ documentId: string, blockId: string }} line */
+  const alreadyAdded = (line) =>
+    add.some((a) => a.documentId === line.documentId && a.blockId === line.blockId && a.value === value);
+  if (alreadyAdded(selection)) return { ok: false, reason: 'DUPLICATE' };
+
+  // 고른 줄을 맨 앞에, 같은 글자가 있는 다른 줄을 그 뒤에 (같은 줄은 한 번만)
+  const targets = [selection];
+  for (const line of lines) {
+    if (!String(line.text ?? '').includes(value)) continue;
+    if (targets.some((t) => t.documentId === line.documentId && t.blockId === line.blockId)) continue;
+    if (alreadyAdded(line)) continue;
+    targets.push(line);
   }
 
-  add.push({
-    id: nextUserId(add),
-    documentId: selection.documentId,
-    blockId: selection.blockId,
-    value,
-    pageIndex: selection.pageIndex,
-    bbox: { ...selection.bbox },
-  });
+  for (const t of targets) {
+    add.push({
+      id: nextUserId(add),
+      documentId: t.documentId,
+      blockId: t.blockId,
+      value,
+      pageIndex: t.pageIndex,
+      bbox: { ...t.bbox },
+    });
+  }
   return { ok: true, edits: { remove, add } };
 }
 
 /**
- * 더 가린 글자 하나를 취소한 새 edits를 만든다.
+ * 더 가린 글자를 취소한 새 edits를 만든다. 같은 글자로 가린 줄은 전부 함께 되돌린다.
  * @param {MaskingEdits | undefined} edits
  * @param {string} id  add 항목의 id
  */
 export function removeAdd(edits, id) {
+  const all = edits?.add ?? [];
+  const value = all.find((a) => a.id === id)?.value;
   return {
     remove: [...(edits?.remove ?? [])],
-    add: (edits?.add ?? []).filter((a) => a.id !== id).map((a) => ({ ...a })),
+    add: all.filter((a) => a.id !== id && (value === undefined || a.value !== value)).map((a) => ({ ...a })),
   };
 }
 
