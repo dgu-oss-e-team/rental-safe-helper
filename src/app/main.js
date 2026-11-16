@@ -423,8 +423,8 @@ const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
 function errorCard(error, screenStep) {
   const { title, help } = errorHelp(error);
   // ①에서 실패하면 파일을 바꿔 다시 하면 되고, 그 뒤 단계에서는 이전 상태가 남아 있으므로 닫고 계속하면 된다
-  // (인터넷 문제면 같은 파일로 다시 하면 되므로 "Try again")
-  const retryLabel = error.code === 'LOAD_FAILED' ? 'Try again' : 'Try another file';
+  // (인터넷 문제나 위험 점검 실패는 서류 탓이 아니어서 같은 파일로 다시 하면 되므로 "Try again")
+  const retryLabel = error.code === 'LOAD_FAILED' || error.step === 'assessRisks' ? 'Try again' : 'Try another file';
   const retry =
     screenStep === 'upload'
       ? button(retryLabel, () => act.dismissError(), { id: 'error-retry' })

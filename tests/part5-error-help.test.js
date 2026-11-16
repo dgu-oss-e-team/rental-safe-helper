@@ -38,6 +38,15 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
     }
   });
 
+  it('위험 점검이 전부 실패하면 결과가 없다고 위험이 없는 것이 아니라고 안내한다 (#120)', () => {
+    const h = errorHelp({ step: 'assessRisks', code: ERROR_CODE.INVALID_INPUT });
+    expect(h.title).toBe('We could not finish the risk check, so no results are shown.');
+    expect(h.help).toContain('does not mean there are no warning signs');
+    expect(h.help).toContain('check the register and the contract yourself');
+    // 서류 탓이 아닐 수 있으므로 다른 파일을 올리라고 하지 않는다
+    expect(h.help).not.toMatch(/another file|different file|upload/i);
+  });
+
   it('인터넷 문제(LOAD_FAILED)는 연결을 확인하라고 안내한다', () => {
     expect(errorHelp({ step: 'sample', code: 'LOAD_FAILED' }).help).toContain('internet connection');
   });
@@ -49,7 +58,7 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
 
   it('안내 문구에 "safe"(안전하다)라는 표현을 쓰지 않는다 — 결과를 안전하다고 오해하지 않게', () => {
     for (const code of [...Object.values(ERROR_CODE), 'LOAD_FAILED']) {
-      for (const step of ['input', 'applyPersonAnswers', 'validateMaskedText', 'createMaskingPlan', 'applyMaskingPlan', 'readDocument']) {
+      for (const step of ['input', 'assessRisks', 'applyPersonAnswers', 'validateMaskedText', 'createMaskingPlan', 'applyMaskingPlan', 'readDocument']) {
         const { title, help } = errorHelp({ step, code });
         expect(`${title} ${help}`).not.toMatch(/\bsafe\b/i);
       }
