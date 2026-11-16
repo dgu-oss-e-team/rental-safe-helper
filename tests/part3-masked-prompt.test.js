@@ -160,7 +160,11 @@ describe('PART 3 assessRisks() 전체 실패 (ok: false)', () => {
     const help = errorHelp({ step: 'assessRisks', code: ERROR_CODE.INVALID_INPUT });
     expect(help.title.length).toBeGreaterThan(5);
     expect(help.help.length).toBeGreaterThan(5);
-    expect(`${help.title} ${help.help}`).not.toMatch(/\b(safe|no risk|no warning)\b/i);
+    const text = `${help.title} ${help.help}`;
+    // "This does not mean there are no warning signs"처럼 안전하다는 말을 부정하는 문장은 허용한다.
+    // 그 문장을 뺀 나머지에 "safe / no risk / no warning" 같은 안전 단서가 없어야 한다.
+    const withoutDenials = text.replace(/[^.!?]*\b(?:does not|doesn't|do not|don't|cannot|can't) mean\b[^.!?]*[.!?]?/gi, '');
+    expect(withoutDenials).not.toMatch(/\b(safe|no risk|no warning)\b/i);
   });
 
   it('프롬프트: 점검 결과가 없으면(undefined 또는 빈 배열) 점검 결과 칸을 만들지 않고, 오류도 아니다', () => {

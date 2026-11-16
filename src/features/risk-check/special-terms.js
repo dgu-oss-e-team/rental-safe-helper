@@ -135,6 +135,24 @@ function hasException(normalized, category) {
 }
 
 /**
+ * 예외 문구(except)가 두 줄의 경계에 걸쳐 있는가. (앞줄 끝 + 뒷줄 시작에 걸쳐 있을 때만 true)
+ * 예외 문구가 앞줄 또는 뒷줄 안에 통째로 있으면 false다. 그 문구는 그 줄 자신의 일이라서,
+ * 마침표 없이 이어진 옆 줄의 위험 특약까지 가려 버리면 안 되기 때문이다.
+ * @param {string} left   앞줄 (normalizeTerm()을 거친 문장)
+ * @param {string} right  뒷줄 (normalizeTerm()을 거친 문장)
+ * @param {KeywordCategory} category
+ */
+function hasExceptionAcross(left, right, category) {
+  const joined = left + right;
+  return category.except.some((phrase) => {
+    for (let at = joined.indexOf(phrase); at !== -1; at = joined.indexOf(phrase, at + 1)) {
+      if (at < left.length && at + phrase.length > left.length) return true;
+    }
+    return false;
+  });
+}
+
+/**
  * 특약 한 덩어리가 이 분류에 걸리는가. (키워드에 걸리고, 예외 문구가 없을 때)
  * @param {string} normalized  normalizeTerm()을 거친 문장
  * @param {KeywordCategory} category
@@ -165,15 +183,15 @@ export function findRiskyTerms(terms, categories) {
     normalized.forEach((current, i) => {
       const next = normalized[i + 1];
       if (matchesKeywords(current, category)) {
-        // 이어지는 문장의 뒷줄에 예외 문구가 있을 수 있다 ("…현금 지급은" / "받지 않는다.")
+                // 예외 문구가 두 줄에 걸쳐 있을 수 있다 ("…현금 지급은" / "받지 않는다.", "…임차인 여부와" / "관계없이 …").
+        // 문장이 끝난 줄은 이어 보지 않고, 예외 문구가 옆 줄 안에 통째로 있는 것은 인정하지 않는다. (경계에 걸친 것만)
         const continues = next !== undefined && !SENTENCE_END.test(terms[i].trim());
-        // 앞줄에 예외 문구의 앞부분이 있을 수도 있다 ("…임차인 여부와" / "관계없이 …"). 앞줄이 끝난 문장이면 이어 보지 않는다.
         const prev = normalized[i - 1];
         const followsPrev = prev !== undefined && !SENTENCE_END.test(terms[i - 1].trim());
         const excepted =
           hasException(current, category) ||
-          (continues && hasException(current + next, category)) ||
-          (followsPrev && hasException(prev + current, category));
+          (continues && hasExceptionAcross(current, next, category)) ||
+          (followsPrev && hasExceptionAcross(prev, current, category));
         if (!excepted) {
           found = true;
           indexes.add(i);
