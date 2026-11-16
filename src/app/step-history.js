@@ -72,6 +72,17 @@ export function reachableStep(state, wanted) {
 }
 
 /**
+ * 위의 서비스 제목(홈 링크)을 눌렀을 때 ① upload로 갈지 (#118)
+ * 결과는 지우지 않는다 (뒤로 가기로 ①에 간 것과 같음. 모두 지우는 건 "Start over").
+ * - 이미 ①이면 가지 않는다 (같은 기록이 쌓이지 않게)
+ * - 서류를 읽는 중이면 가지 않는다 (읽기가 끝나면서 화면이 다시 바뀌어 꼬이지 않게)
+ * @param {{ step: string, busy?: unknown }} state
+ */
+export function shouldGoHome(state) {
+  return state.step !== 'upload' && !state.busy;
+}
+
+/**
  * 앱 안에서 단계가 바뀌었을 때 브라우저 기록을 어떻게 할지
  * - 'none': 그대로 (같은 단계)
  * - 'replace': 지금 기록을 바꿔 쓴다. "Confirm text"에서 떠날 때 (결과로 갔다가 뒤로 가면 확인 화면이 아니라 ①로)
