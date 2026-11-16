@@ -228,3 +228,83 @@ describe('PART 3 assessRisks()에 위험 특약이 포함된다', () => {
     }
   });
 });
+
+describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
+  const notFlagged = [
+    ['현금 지급을 받지 않는다는 문장', '월세는 계좌이체로 지급하며 현금 지급은 받지 않는다.'],
+    ['새로운 임차인과 관계없이 반환', '새로운 임차인 여부와 관계없이 보증금을 즉시 반환한다.'],
+    ['띄어쓰기가 달라도 예외 문구로 본다', '새로운 임차인 여부와 관 계 없 이 보증금을 즉시 반환한다.'],
+  ];
+
+  it.each(notFlagged)('CHECK가 아니다: %s', (_name, sentence) => {
+    expect(assess([sentence]).data.status).toBe(NO_FLAG);
+  });
+
+  it('예외 문구가 없는 현금 지급 특약은 그대로 CHECK이다', () => {
+    const r = assess(['월세는 현금으로 지급한다.']);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain('Cash payment');
+  });
+
+  it('한 문장이 두 줄로 갈라져도 예외 문구를 본다 (예외 문구가 뒷줄에 있어도, 앞줄에 있어도)', () => {
+    expect(assess(['월세는 계좌이체로 지급하며 현금 지급은', '받지 않는다.']).data.status).toBe(NO_FLAG);
+    expect(assess(['새로운 임차인 여부와', '관계없이 보증금을 즉시 반환한다.']).data.status).toBe(NO_FLAG);
+    expect(assess(['새로운 임차인 여부와 관계없이 보증금을', '즉시 반환한다.']).data.status).toBe(NO_FLAG);
+  });
+
+  it('문장이 끝난 줄은 다음 줄의 예외 문구를 빌리지 않는다 (서로 다른 특약이 섞이지 않게)', () => {
+    const r = assess(['월세는 현금으로 지급한다.', '쓰레기는 받지 않는다.']);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다.');
+  });
+
+  it('예외 문구는 그 분류만 뺀다 (다른 분류는 그대로 걸린다)', () => {
+    const r = assess(['월세는 계좌이체로 지급하며 현금 지급은 받지 않는다.', '임차인은 전입신고를 하지 않는다.']);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain('address registration');
+    expect(r.data.explanation).not.toContain('Cash payment');
+  });
+
+  it('부정문 한계는 그대로다: 걸리더라도 STOP이 아니라 CHECK이다', () => {
+    const r = assess(['임차인은 전입신고를 금지하지 않는다.']);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.status).not.toBe('STOP');
+  });
+
+  it('except가 걸린 오탐 문장은 assessRisks()에서도 CHECK로 뜨지 않는다', () => {
+    const r = assessRisks(withTerms(['새로운 임차인 여부와 관계없이 보증금을 즉시 반환한다.']), mockPersonGroups);
+    expect(r.data.find((x) => x.ruleId === 'RISKY_SPECIAL_TERM')?.status).toBe(NO_FLAG);
+  });
+});
+
+describe('PART 3 위험 특약 키워드 파일: except 검사', () => {
+  const file = (except) =>
+    `categories:\n  A:\n    label: x\n    reason: y\n    keywords: ["현금"]\n${except === undefined ? '' : `    except: ${except}\n`}`;
+
+  it('except는 선택이다. 없으면 빈 목록이다', () => {
+    const r = parseSpecialTermKeywords(file(undefined));
+    expect(r.ok).toBe(true);
+    expect(r.data[0].except).toEqual([]);
+  });
+
+  it('except 문구도 띄어쓰기를 없앤 상태로 읽힌다', () => {
+    const r = parseSpecialTermKeywords(file('["받지 않", "관계없이"]'));
+    expect(r.ok).toBe(true);
+    expect(r.data[0].except).toEqual(['받지않', '관계없이']);
+  });
+
+  it('except가 목록이 아니거나, 글자가 아닌 값·빈 문구가 있으면 실패한다', () => {
+    for (const bad of ['"받지않"', '[123]', '[""]', '["  "]', '["받지않", ""]']) {
+      expect(parseSpecialTermKeywords(file(bad)).ok).toBe(false);
+    }
+  });
+
+  it('실제 키워드 파일: 현금 지급과 보증금 반환 분류에 예외 문구가 있고, &·|는 쓰지 않았다', () => {
+    const byId = Object.fromEntries(getSpecialTermKeywords().data.map((c) => [c.id, c]));
+    expect(byId.CASH_PAYMENT.except).toContain('받지않');
+    expect(byId.DEPOSIT_RETURN_LIMIT.except).toContain('관계없이');
+    for (const category of Object.values(byId)) {
+      for (const phrase of category.except) expect(phrase).not.toMatch(/[&|]/);
+    }
+  });
+});
