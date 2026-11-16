@@ -163,6 +163,17 @@ export function removeAdd(edits, id) {
 }
 
 /**
+ * 같은 글자를 여러 줄에서 가렸을 때 버튼 바로 옆에 보여 줄 안내. 한 곳만 가렸으면 빈 문자열.
+ * ("원"처럼 짧고 흔한 글자를 고르면 PDF에서 여러 줄이 통째로 덮이므로 바로 알려 준다)
+ * @param {string} value  가린 글자
+ * @param {number} places  가린 줄 수
+ */
+export function hiddenPlacesNote(value, places) {
+  if (places <= 1) return '';
+  return `Hid "${value}" in ${places} places. In the PDF, each of those lines is covered.`;
+}
+
+/**
  * 겹치지 않는 새 add id ("USER_001", "USER_002", …)
  * @param {{ id: string }[]} add
  */

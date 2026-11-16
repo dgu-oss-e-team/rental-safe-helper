@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { addSelection, removeAdd } from '../src/features/masking/review-model.js';
+import { addSelection, removeAdd, hiddenPlacesNote } from '../src/features/masking/review-model.js';
 import { analyzeDocuments, prepareForAi } from '../src/app/pipeline.js';
 import { MASKING_PURPOSE } from '../src/shared/document-model.js';
 
@@ -50,6 +50,11 @@ describe('PART 4 더 가리기: 같은 글자가 여러 줄에 있을 때', () =
     const after = removeAdd(edits, 'USER_002');
     expect(after.add.map((a) => a.value)).toEqual(['현금으로']);
     expect(edits.add).toHaveLength(3); // 원래 edits는 그대로
+  });
+  
+  it('여러 줄을 가리면 몇 군데인지 안내하고, 한 곳만 가리면 안내하지 않는다 (상욱님 리뷰)', () => {
+    expect(hiddenPlacesNote('원', 12)).toBe('Hid "원" in 12 places. In the PDF, each of those lines is covered.');
+    expect(hiddenPlacesNote('현금으로', 1)).toBe('');
   });
 });
 
