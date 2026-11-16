@@ -151,6 +151,16 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
   }));
   /** @type {Map<string, { doc: any, block: any, pageIndex: number }>} 줄 id → 원래 block */
   const lineInfo = new Map();
+  // 같은 글자를 다른 줄에서도 같이 가리려고 미리보기의 모든 줄을 모아 둔다
+  const previewLines = blocksByDoc.flatMap(({ doc, lines }) =>
+    lines.map(({ block, pageIndex, text }) => ({
+      documentId: doc.documentId,
+      blockId: block.blockId,
+      pageIndex,
+      bbox: block.bbox,
+      text,
+    })),
+  );
   const preview = el(
     'div',
     { class: 'mr-preview' },
@@ -192,7 +202,7 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
       pageIndex: info.pageIndex,
       bbox: info.block.bbox,
       value: picked.value,
-    });
+    }, previewLines);
     picked = { ok: false, reason: 'NONE' };
     if (!r.ok) {
       hint.textContent = SELECT_HINT[r.reason];
@@ -202,20 +212,28 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
     onChange(r.edits);
   });
 
-  const adds = edits?.add ?? [];
+  // 같은 글자로 가린 줄은 목록에서 한 줄로 묶는다 (Undo하면 전부 함께 되돌아감)
+  /** @type {Map<string, any[]>} */
+  const addsByValue = new Map();
+  for (const a of edits?.add ?? []) {
+    const list = addsByValue.get(a.value) ?? [];
+    list.push(a);
+    addsByValue.set(a.value, list);
+  }
   const addedList =
-    adds.length === 0
+    addsByValue.size === 0
       ? null
       : el('div', {}, [
           el('h4', {}, ['Text you hid']),
           el(
             'ul',
             { class: 'mr-added' },
-            adds.map((a) => {
+            [...addsByValue].map(([value, list]) => {
               const undo = el('button', { type: 'button', class: 'secondary mr-undo' }, ['Undo']);
-              undo.addEventListener('click', () => onChange(removeAdd(edits, a.id)));
-              const where = DOC_SHORT[docType.get(a.documentId)] ?? 'Document';
-              return el('li', {}, [el('span', {}, [`"${a.value}" `, el('span', { class: 'mr-note' }, [`(${where})`])]), undo]);
+              undo.addEventListener('click', () => onChange(removeAdd(edits, list[0].id)));
+              const docs = [...new Set(list.map((a) => DOC_SHORT[docType.get(a.documentId)] ?? 'Document'))].join(', ');
+              const places = list.length > 1 ? `${list.length} places, ` : '';
+              return el('li', {}, [el('span', {}, [`"${value}" `, el('span', { class: 'mr-note' }, [`(${places}${docs})`])]), undo]);
             }),
           ),
         ]);
