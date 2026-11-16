@@ -272,6 +272,25 @@ describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
     expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다.');
   });
 
+    it('예외 문구가 옆 줄 안에 통째로 있으면, 마침표 없이 이어져도 이 줄의 위험 특약을 가리지 않는다', () => {
+    // 앞줄에 예외 문구가 통째로 있는 경우 (마침표 없음)
+    const before = assess(['임차인과 관계없이 임대인은 관리비를 정한다', '보증금은 새로운 임차인이 구해지면 반환한다.']);
+    expect(before.data.status).toBe(CHECK);
+    expect(before.data.explanation).toContain('Limits on getting the deposit back');
+    expect(before.data.evidence.right.value).toBe('보증금은 새로운 임차인이 구해지면 반환한다.');
+
+    // 뒷줄에 예외 문구가 통째로 있는 경우
+    const after = assess(['보증금은 새로운 임차인이 구해지면 반환한다', '임차인과 관계없이 관리비는 임대인이 정한다.']);
+    expect(after.data.status).toBe(CHECK);
+    expect(after.data.explanation).toContain('Limits on getting the deposit back');
+    expect(after.data.evidence.right.value).toBe('보증금은 새로운 임차인이 구해지면 반환한다');
+
+    // 현금: 뒷줄의 "현금 지급은 받지 않는다"는 앞 특약의 예외가 아니다
+    const cash = assess(['월세는 현금으로 지급한다', '현금 지급은 받지 않는다.']);
+    expect(cash.data.status).toBe(CHECK);
+    expect(cash.data.explanation).toContain('Cash payment');
+  });
+
   it('예외 문구는 그 분류만 뺀다 (다른 분류는 그대로 걸린다)', () => {
     const r = assess(['월세는 계좌이체로 지급하며 현금 지급은 받지 않는다.', '임차인은 전입신고를 하지 않는다.']);
     expect(r.data.status).toBe(CHECK);
