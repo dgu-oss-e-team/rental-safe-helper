@@ -62,11 +62,14 @@ function resultBadge(row) {
 
 /**
  * 여러 줄을 가린 직후 보여 줄 안내. 가리면 화면을 새로 그리므로 (여러 번 그릴 수도 있음),
- * 마지막으로 더한 add의 id와 함께 기억해 두고, 그 add가 맨 끝에 있을 때만 보여 준다.
- * 다른 체크를 바꾸거나 Undo하면 지운다.
- * @type {{ lastId: string, text: string } | null}
+ * 마지막으로 더한 add의 id와 목적을 함께 기억해 두고, 그 add가 맨 끝에 있을 때만 보여 준다.
+ * 다른 체크를 바꾸거나 Undo하거나 목적이 바뀌면 지운다.
+ * @type {{ lastId: string, purpose: string, text: string } | null}
  */
 let lastHideNote = null;
+
+/** 화면을 그린 뒤 안내 글을 넣기까지 기다리는 시간. 화면 읽기 프로그램이 "바뀐 내용"으로 읽게 한다. (ms) */
+const ANNOUNCE_DELAY = 100;
 
 /** 고르기 실패 이유 → 안내 문구 */
 const SELECT_HINT = {
@@ -191,9 +194,18 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
     ),
   );
 
+  const purpose = prepared.maskingPlan.purpose;
+  // 목적을 바꿔서 다시 그리면 예전 안내는 지운다
+  if (lastHideNote && lastHideNote.purpose !== purpose) lastHideNote = null;
   const lastAdd = edits?.add?.[edits.add.length - 1];
   const note = lastHideNote && lastAdd?.id === lastHideNote.lastId ? lastHideNote.text : '';
-  const hint = el('span', { class: 'mr-note', role: 'status' }, [note]);
+  // role="status"는 글이 "바뀔 때" 읽어 준다. 빈 칸으로 먼저 그리고, 조금 뒤에 글을 넣는다.
+  const hint = el('span', { class: 'mr-note', role: 'status' }, []);
+  if (note) {
+    setTimeout(() => {
+      if (hint.textContent === '') hint.textContent = note;
+    }, ANNOUNCE_DELAY);
+  }
   /** @type {ReturnType<typeof readSelection>} 버튼을 누르는 순간 고른 글자 (누르면 선택이 풀리는 기기가 있어서 미리 읽어 둠) */
   let picked = { ok: false, reason: 'NONE' };
   const hideButton = el('button', { type: 'button', class: 'secondary' }, ['Hide selected text']);
@@ -224,7 +236,7 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
     window.getSelection()?.removeAllRanges();
     const added = r.edits.add[r.edits.add.length - 1];
     const places = r.edits.add.length - (edits?.add?.length ?? 0);
-    lastHideNote = { lastId: added.id, text: hiddenPlacesNote(added.value, places) };
+    lastHideNote = { lastId: added.id, purpose, text: hiddenPlacesNote(added.value, places) };
     onChange(r.edits);
   });
 
