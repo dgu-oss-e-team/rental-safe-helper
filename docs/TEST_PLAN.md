@@ -17,6 +17,7 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 | PART 1 | `tests/part1-document-input.test.js` | PDF 읽기, 이미지 OCR, 좌표 | 형식 검사만 (Mock) |
 | PART 2 | `tests/part2-document-analysis.test.js` | 개인정보 탐지(정탐·오탐), 문서 판별 | 형식 검사만 (Mock) |
 | PART 3 | `tests/part3-risk-check.test.js` | 위험 규칙별 해당/해당 아님/값 없음, 프롬프트 | 형식·프롬프트 기본 |
+| PART 3 | `tests/part3-masked-prompt.test.js` | 마스킹 완료 텍스트·범례 프롬프트, 원본 개인정보 미포함, `assessRisks()` 전체 실패, HUG 대조 추천 질문 | 프롬프트 개인정보·실패 처리 |
 | PART 4 | `tests/part4-person-matcher.test.js` | 같은 사람 판별(이름·생년월일), 동명이인, 비슷한 이름(Fuse.js)은 AMBIGUOUS, 역할 가명 | 작성됨 |
 | PART 4 | `tests/part4-person-answers.test.js` | "같은 사람인가요?" 답으로 그룹 합치기, 잘못된 답(자기 자신·순환·모르는 id) 거절 | 작성됨 |
 | PART 4 | `tests/part4-prev-owner.test.js` | 예전 소유자 `[PrevOwner_?]` 가명, 기존 A~D 유지, 지금 소유자와 같은 사람이면 합치기 | 작성됨 |

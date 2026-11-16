@@ -34,6 +34,7 @@ const MAX_EVIDENCE_CHARS = 200;
  * @property {string} label
  * @property {string} reason
  * @property {string[][][]} expressions  키워드 하나 = 칸(&)들의 목록, 칸 하나 = 대안(|)들의 목록
+ * @property {string[]} except  예외 문구(띄어쓰기 등을 없앤 상태). 키워드에 걸린 글에 이 문구가 있으면 이 분류는 걸지 않는다.
  */
 
 /** 비교할 때 무시하는 글자: 띄어쓰기, 가운뎃점, 마침표, 쉼표 */
@@ -91,7 +92,18 @@ export function parseSpecialTermKeywords(text) {
       if (!parsed) return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty keyword.`);
       expressions.push(parsed);
     }
-    result.push({ id, label: label.trim(), reason: reason.trim(), expressions });
+    // except는 선택 항목이다. 있으면 글자 목록이어야 하고, 비교용으로 다듬은 뒤 비어 있으면 안 된다.
+    const rawExcept = /** @type {any} */ (category).except ?? [];
+    if (!Array.isArray(rawExcept)) {
+      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an except that is not a list.`);
+    }
+    const except = [];
+    for (const phrase of rawExcept) {
+      const normalized = typeof phrase === 'string' ? normalizeTerm(phrase) : '';
+      if (normalized === '') return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty except phrase.`);
+      except.push(normalized);
+    }
+    result.push({ id, label: label.trim(), reason: reason.trim(), expressions, except });
   }
   return ok(result);
 }
@@ -105,17 +117,40 @@ export function getSpecialTermKeywords() {
 }
 
 /**
- * 특약 한 덩어리가 이 분류의 키워드에 걸리는가.
+ * 키워드만 보고 걸리는가. (예외 문구는 보지 않는다)
  * @param {string} normalized  normalizeTerm()을 거친 문장
  * @param {KeywordCategory} category
  */
-function matchesCategory(normalized, category) {
+function matchesKeywords(normalized, category) {
   return category.expressions.some((parts) => parts.every((alts) => alts.some((alt) => normalized.includes(alt))));
 }
 
 /**
+ * 예외 문구(except)가 들어 있는가. 있으면 불리하지 않은 문장일 가능성이 커서 이 분류는 걸지 않는다.
+ * @param {string} normalized  normalizeTerm()을 거친 문장
+ * @param {KeywordCategory} category
+ */
+function hasException(normalized, category) {
+  return category.except.some((phrase) => normalized.includes(phrase));
+}
+
+/**
+ * 특약 한 덩어리가 이 분류에 걸리는가. (키워드에 걸리고, 예외 문구가 없을 때)
+ * @param {string} normalized  normalizeTerm()을 거친 문장
+ * @param {KeywordCategory} category
+ */
+function matchesCategory(normalized, category) {
+  return matchesKeywords(normalized, category) && !hasException(normalized, category);
+}
+
+/** 문장이 끝난 줄인가. 끝나지 않았으면 다음 줄이 이어지는 문장일 수 있다. */
+const SENTENCE_END = /[.!?。…]\s*$/;
+
+/**
  * 특약 목록에서 키워드에 걸린 분류와 특약 줄 번호를 찾는다.
  * PDF·OCR은 한 문장이 두 줄로 갈라질 수 있어서, 한 줄로 안 걸리면 바로 다음 줄과 이어 붙여서 한 번 더 본다.
+ * 예외 문구(except)도 같은 단위로 본다: 한 줄 안에 있거나, 문장이 끝나지 않은 줄과 다음 줄을 이어 붙인 글 안에 있으면
+ * 그 분류는 걸지 않는다. (문장이 끝난 줄은 다음 줄과 이어 보지 않는다. 서로 다른 특약의 예외 문구가 섞이지 않게)
  * @param {string[]} terms
  * @param {KeywordCategory[]} categories
  * @returns {{ matched: KeywordCategory[], indexes: number[] }}
@@ -128,13 +163,24 @@ export function findRiskyTerms(terms, categories) {
   for (const category of categories) {
     let found = false;
     normalized.forEach((current, i) => {
-      if (matchesCategory(current, category)) {
-        found = true;
-        indexes.add(i);
+      const next = normalized[i + 1];
+      if (matchesKeywords(current, category)) {
+        // 이어지는 문장의 뒷줄에 예외 문구가 있을 수 있다 ("…현금 지급은" / "받지 않는다.")
+        const continues = next !== undefined && !SENTENCE_END.test(terms[i].trim());
+        // 앞줄에 예외 문구의 앞부분이 있을 수도 있다 ("…임차인 여부와" / "관계없이 …"). 앞줄이 끝난 문장이면 이어 보지 않는다.
+        const prev = normalized[i - 1];
+        const followsPrev = prev !== undefined && !SENTENCE_END.test(terms[i - 1].trim());
+        const excepted =
+          hasException(current, category) ||
+          (continues && hasException(current + next, category)) ||
+          (followsPrev && hasException(prev + current, category));
+        if (!excepted) {
+          found = true;
+          indexes.add(i);
+        }
         return;
       }
-      const next = normalized[i + 1];
-      if (next !== undefined && !matchesCategory(next, category) && matchesCategory(current + next, category)) {
+      if (next !== undefined && !matchesKeywords(next, category) && matchesCategory(current + next, category)) {
         found = true;
         indexes.add(i);
         indexes.add(i + 1);
