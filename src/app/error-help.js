@@ -67,6 +67,12 @@ const BY_STEP = {
     title: 'We could not finish the risk check, so no results are shown.',
     help: 'This does not mean there are no warning signs. Please try again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
   },
+  // "같은 사람인가요?" 답으로 다시 점검하다 실패하면(#126) 이전 결과가 화면에 그대로 남아 있으므로 그렇다고 알려 준다.
+  // 남은 결과에는 답이 반영되지 않았다는 점을 밝히고, "no warning"·"no risk"·"safe"는 쓰지 않는다.
+  recheckRisks: {
+    title: 'We could not update the results with your answer.',
+    help: 'Your answer was not applied. The results on this page are from before your answer. Please choose your answer again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
+  },
   applyPersonAnswers: {
     title: 'That answer could not be used.',
     help: 'Your previous answers are kept. Please choose a different option.',

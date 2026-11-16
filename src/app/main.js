@@ -34,6 +34,7 @@ const STEP_TEXT = {
   matchPeople: 'matching people',
   applyPersonAnswers: 'applying your answer about who is who',
   assessRisks: 'checking risks',
+  recheckRisks: 'checking risks again with your answer',
   createMaskingPlan: 'hiding personal information',
   applyMaskingPlan: 'hiding personal information',
   validateMaskedText: 'checking that nothing is left',

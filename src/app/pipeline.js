@@ -164,7 +164,8 @@ export function recheckPeople(analysis, personAnswers) {
   if (!merged.ok) return stoppedAt('applyPersonAnswers', merged);
 
   const risks = assessRisks(analysis.fields, merged.data);
-  if (!risks.ok) return stoppedAt('assessRisks', risks);
+  // 처음 분석('assessRisks')과 달리 이전 결과가 화면에 남아 있으므로 단계를 따로 둔다 (#126)
+  if (!risks.ok) return stoppedAt('recheckRisks', risks);
 
   /** @type {Checked} */
   const checked = { personGroups: merged.data, riskResults: risks.data };
