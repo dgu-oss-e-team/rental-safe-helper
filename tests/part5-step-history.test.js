@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { STEP_ORDER, stepFromHash, hashFor, reachableStep, historyAction } from '../src/app/step-history.js';
+import {
+  STEP_ORDER,
+  stepFromHash,
+  hashFor,
+  reachableStep,
+  historyAction,
+  shouldGoHome,
+} from '../src/app/step-history.js';
 
 const none = { ocrReview: null, analysis: null, prepared: null, pdfs: null };
 const analyzed = { ...none, analysis: {} };
@@ -68,5 +75,26 @@ describe('PART 5 브라우저 기록: 기록을 남기는 방법', () => {
   it('"Confirm text"에서 떠날 때는 바꿔 쓴다 → 결과에서 뒤로 가면 ①', () => {
     expect(historyAction('confirm', 'results')).toBe('replace');
     expect(historyAction('confirm', 'upload')).toBe('replace');
+  });
+});
+
+describe('PART 5 서비스 제목 = 홈 링크 (#118)', () => {
+  it('②~⑤와 "Confirm text"에서 누르면 ①로 간다 (새 기록 → 뒤로 가기로 돌아옴)', () => {
+    for (const step of STEP_ORDER.filter((s) => s !== 'upload')) {
+      expect(shouldGoHome({ step, busy: null })).toBe(true);
+    }
+    expect(historyAction('review', 'upload')).toBe('push');
+  });
+
+  it('이미 ①이면 아무것도 하지 않는다 (같은 기록이 쌓이지 않게)', () => {
+    expect(shouldGoHome({ step: 'upload', busy: null })).toBe(false);
+  });
+
+  it('서류를 읽는 중에는 가지 않는다', () => {
+    expect(shouldGoHome({ step: 'results', busy: 'Reading your documents…' })).toBe(false);
+  });
+
+  it('①로 가도 결과는 남아 있어서 앞으로 가기로 돌아갈 수 있다', () => {
+    expect(reachableStep(finished, 'done')).toBe('done');
   });
 });

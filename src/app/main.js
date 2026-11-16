@@ -20,7 +20,7 @@ import { doneScreen } from './screens/done.js';
 import { confirmScreen } from './screens/confirm.js';
 import { slots } from './slots.js';
 import { resetRiskResultsView } from '../features/risk-check/risk-result-ui.js';
-import { stepFromHash, hashFor, reachableStep, historyAction } from './step-history.js';
+import { stepFromHash, hashFor, reachableStep, historyAction, shouldGoHome } from './step-history.js';
 
 /** 단계 이름 → 사용자에게 보여 줄 실패 안내 */
 const STEP_TEXT = {
@@ -423,8 +423,8 @@ const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
 function errorCard(error, screenStep) {
   const { title, help } = errorHelp(error);
   // ①에서 실패하면 파일을 바꿔 다시 하면 되고, 그 뒤 단계에서는 이전 상태가 남아 있으므로 닫고 계속하면 된다
-  // (인터넷 문제면 같은 파일로 다시 하면 되므로 "Try again")
-  const retryLabel = error.code === 'LOAD_FAILED' ? 'Try again' : 'Try another file';
+  // (인터넷 문제나 위험 점검 실패는 서류 탓이 아니어서 같은 파일로 다시 하면 되므로 "Try again")
+  const retryLabel = error.code === 'LOAD_FAILED' || error.step === 'assessRisks' ? 'Try again' : 'Try another file';
   const retry =
     screenStep === 'upload'
       ? button(retryLabel, () => act.dismissError(), { id: 'error-retry' })
@@ -444,11 +444,29 @@ function errorCard(error, screenStep) {
   return node;
 }
 
+/**
+ * 서비스 제목. 누르면 ① 첫 화면으로 간다 (#118). 결과는 지우지 않고, 기록을 남겨서 뒤로 가기로 돌아올 수 있다.
+ * 새 탭으로 열기(Ctrl·Cmd·Shift·가운데 버튼)는 브라우저에 맡긴다. 새 탭은 새로고침과 같아서 ①부터 시작한다.
+ */
+function homeLink() {
+  const link = el(
+    'a',
+    { href: hashFor('upload'), class: 'home-link', 'aria-label': 'Rental Safety Helper, go to the first step' },
+    ['Rental Safety Helper'],
+  );
+  link.addEventListener('click', (e) => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    if (shouldGoHome(appState.getState())) act.goTo('upload');
+  });
+  return link;
+}
+
 function render() {
   const state = appState.getState();
   const screen = SCREENS[state.step] ?? uploadScreen;
   const parts = [
-    el('header', {}, [el('h1', {}, ['Rental Safety Helper']), disclaimer()]),
+    el('header', {}, [el('h1', {}, [homeLink()]), disclaimer()]),
     stepper(state.step),
     state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
     state.error ? errorCard(state.error, state.step) : null,

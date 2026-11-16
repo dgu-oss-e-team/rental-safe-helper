@@ -45,6 +45,12 @@ h1 {
   font-size: 24px;
 }
 
+/* 서비스 제목 = 홈 링크 (#118). 겉모습은 제목 그대로 */
+.home-link {
+  color: inherit;
+  text-decoration: none;
+}
+
 h2 {
   margin: 0 0 4px;
   font-size: 18px;
