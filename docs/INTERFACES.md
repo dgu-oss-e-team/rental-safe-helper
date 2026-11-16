@@ -44,6 +44,15 @@
 }
 ```
 
+### 위험 결과 카드: PART 3 `renderRiskResults` (#63)
+
+- PART 3 `renderRiskResults(riskResults)` → `HTMLElement` (slots.js `riskResults`). 입력은 `RiskResult[]`, 입력 배열은 바꾸지 않는다.
+- 위쪽 요약(Stop / Check / Could not check / No warning found 개수)을 누르면 그 상태만 보고, 다시 누르면 전체를 본다. 요약은 이 화면 안에 있다(PART 5 `results.js`에는 없음).
+- STOP → CHECK 카드를 먼저 보여 주고, 확인 불가·문제 없음은 기본으로 접는다. "No warning found"는 안전하다는 뜻이 아니라고 안내한다.
+- `evidence`(실제 이름·주소가 들어갈 수 있음)는 화면에만 보여 주고 AI 프롬프트에는 넣지 않는다.
+- 고른 필터와 펼친 칸은 모듈 안에 기억해서, PART 5가 화면을 다시 그려도 유지된다.
+- 새 서류를 분석할 때는 PART 5가 `resetRiskResultsView()`를 불러 필터와 펼친 칸을 처음 상태로 되돌린다. ("같은 사람인가요?" 답으로 결과가 바뀔 때는 부르지 않는다.)
+
 ### OCR 결과 확인: "Confirm text" 단계 (#93 PART 1 · #54 PART 5 합의)
 
 사진(`sourceType: 'image'`)이나 글자 없는 스캔 PDF(`'image_pdf'`)가 있으면 ①과 ② 사이에서 사용자가 OCR 글자를 확인한다. (노션 PART 1 완료 기준 "OCR 결과를 사용자가 수정할 수 있다")
