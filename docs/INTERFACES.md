@@ -53,6 +53,44 @@
 - 고른 필터와 펼친 칸은 모듈 안에 기억해서, PART 5가 화면을 다시 그려도 유지된다.
 - 새 서류를 분석할 때는 PART 5가 `resetRiskResultsView()`를 불러 필터와 펼친 칸을 처음 상태로 되돌린다. ("같은 사람인가요?" 답으로 결과가 바뀔 때는 부르지 않는다.)
 
+### 위험 점검·AI 프롬프트: PART 3 `assessRisks()`, `buildPrompt()` (#106)
+
+#### `assessRisks(fields, personGroups)` → `Result<RiskResult[]>`
+
+| | 내용 |
+|---|---|
+| 입력 | `fields`: 비교용 추출 데이터(5번). `personGroups`: 인물 판별 결과(6번), **배열이어야 한다** (빈 배열은 허용) |
+| 성공 | `{ ok: true, data: RiskResult[] }` — 소유자·임대인, 예금주·임대인, 소재지, 신탁, 압류·가압류, 근저당, 최근 소유권 이전, 위험 특약 문구 순서. 모든 항목이 항상 들어 있다 (읽지 못해도 빼지 않고 `UNVERIFIABLE`로 넣는다) |
+| 실패 | `{ ok: false, error: { code: 'INVALID_INPUT', message } }` — `fields`가 없거나 `personGroups`가 배열이 아닐 때, 규칙·키워드 파일(YAML)이 잘못됐을 때 |
+| 실패 범위 | **전부 아니면 전무.** 한 규칙이라도 실패하면 일부 결과만 돌려주지 않고 `ok: false`로 끝낸다 (일부만 보여 주면 빠진 항목이 "문제 없음"처럼 보일 수 있다) |
+| 읽지 못한 값 | `null` → `UNVERIFIABLE` (5번 null 규칙). `[]`(읽었는데 없음)만 `NO_FLAG` |
+
+- 실패했을 때 PART 5(`pipeline.js`)는 `step: 'assessRisks'`로 멈추고 `analysis`를 만들지 않는다. 결과 화면과 AI 프롬프트 단계로 넘어가지 않고 오류 안내만 보인다. `riskResults`를 빈 배열로 채워 넘기지 않는다.
+- 오류 메시지에는 개인정보를 넣지 않는다 (영어 고정 문구).
+
+#### `buildPrompt({ purpose, riskResults, maskedText, legend })` → `Result<string>`
+
+| 입력 | 내용 |
+|---|---|
+| `purpose` | `MASKING_PURPOSE` 값(`CLAUSE_EXPLANATION` / `FRAUD_CHECK` / `CONTRACT_EXPLANATION`). 다른 값이면 `INVALID_INPUT` |
+| `maskedText` | PART 4 `applyMaskingPlan()`이 돌려준 `{ [documentId]: 마스킹 완료 텍스트 }`. **없거나 비어 있으면 `MISSING_REQUIRED_FIELD`로 실패**한다 (원본 글자로 대신하지 않는다) |
+| `legend` | PART 4가 돌려준 역할 범례 `{ '[Owner_A]': 'owner on the register' }`. 없어도(undefined) 된다 |
+| `riskResults` | `assessRisks()`의 `data`. 없거나 `[]`여도 오류가 아니다. 이때는 "Automatic check results" 칸만 빠지고 다른 칸은 그대로 만든다 |
+
+프롬프트 칸 순서: 안내 문장 → `## Role legend`(사기 위험 확인 + 범례 있을 때) → `## Automatic check results`(사기 위험 확인 + 결과 있을 때) → `## Documents (masked)` → `## Questions` → `Please answer in English.`
+
+- **"evidence는 프롬프트로 가지 않는다":** 위험 결과에서 프롬프트에 들어가는 것은 `status`, `title`, `explanation`뿐이다. `evidence`(실제 이름·주소·특약 원문이 들어갈 수 있는 화면 근거 칸)와 `action`은 넣지 않는다.
+- 설명에 남은 가명이 범례에 없으면(사용자가 가림을 해제한 사람) `the landlord` 같은 역할 이름으로 바꿔서 넣는다.
+- 프롬프트에 들어가는 글은 PART 4의 마스킹 완료 텍스트와 범례, 그리고 규칙 문구·추천 질문뿐이다. 원본 개인정보(`findings`의 `value`, `fields`의 이름·주소·계좌, 특약 원문)를 다시 넣지 않는다.
+- 추천 질문(`getRecommendedQuestions(purpose)`)에는 개인정보와 가명을 쓰지 않는다.
+
+#### 규칙을 추가·수정하는 방법
+
+1. **문구만 바꿀 때**: `src/config/rules/risk-rules.yaml`. 규칙 id 아래에 `title`, `evidence`(화면 근거 칸 제목), `results`(상태 또는 `상태.변형`마다 `explanation`·`action`). 문구의 `{owner}` `{landlord}` `{accountHolder}` 자리에는 역할 가명이 들어간다. **실제 이름을 쓰지 않는다** (설명은 프롬프트에 그대로 들어간다).
+2. **새 규칙을 더할 때**: 판정 함수를 `compare-documents.js` / `assess-risks.js` / `special-terms.js` 중 알맞은 곳에 만들고(`buildRiskResult(ruleId, status, ...)`로 결과 생성), `assessRisks()`에서 불러 결과에 합친다. YAML에 같은 `ruleId`의 문구를 먼저 적는다. 읽지 못한 값은 `UNVERIFIABLE`로 돌려준다. 규칙별 테스트(`tests/part3-*.test.js`)도 같이 추가한다.
+3. **위험 특약 키워드를 바꿀 때**: `src/config/rules/special-term-keywords.yaml`. 분류(`categories`)마다 `label`, `reason`, `keywords`, 그리고 선택으로 `except`(이 문구가 들어 있으면 그 분류는 걸지 않는다). 형식 설명은 파일 맨 위에 있다. 키워드를 바꿀 때는 대조한 자료의 주소와 확인한 날짜를 파일 맨 위 주석과 PR 본문에 남긴다.
+4. 특약 점검 결과는 `CHECK`까지만 낸다 (키워드만으로는 불리한지 확정할 수 없고, 부정문도 걸릴 수 있다). 특약 원문은 `evidence`에만 넣는다.
+
 ### OCR 결과 확인: "Confirm text" 단계 (#93 PART 1 · #54 PART 5 합의)
 
 사진(`sourceType: 'image'`)이나 글자 없는 스캔 PDF(`'image_pdf'`)가 있으면 ①과 ② 사이에서 사용자가 OCR 글자를 확인한다. (노션 PART 1 완료 기준 "OCR 결과를 사용자가 수정할 수 있다")

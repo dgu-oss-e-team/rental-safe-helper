@@ -14,7 +14,7 @@
  * 구현 상태
  *   완료: 소유자·임대인 / 예금주·임대인 / 소재지 비교 (compare-documents.js)
  *         신탁, 압류·가압류, 근저당, 최근 소유권 이전 (assess-risks.js)
- *         위험 특약 문구 (special-terms.js, 키워드는 src/config/rules/special-term-keywords.yaml)
+  *         위험 특약 문구 (special-terms.js, 키워드·예외 문구는 src/config/rules/special-term-keywords.yaml)
  *         프롬프트 (prompt-builder.js), 추천 질문 (recommended-questions.js)
  *         위험 결과 카드 UI (risk-result-ui.js, slots.js에 연결 #63)
  */
