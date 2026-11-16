@@ -167,7 +167,13 @@ export function findRiskyTerms(terms, categories) {
       if (matchesKeywords(current, category)) {
         // 이어지는 문장의 뒷줄에 예외 문구가 있을 수 있다 ("…현금 지급은" / "받지 않는다.")
         const continues = next !== undefined && !SENTENCE_END.test(terms[i].trim());
-        const excepted = hasException(current, category) || (continues && hasException(current + next, category));
+        // 앞줄에 예외 문구의 앞부분이 있을 수도 있다 ("…임차인 여부와" / "관계없이 …"). 앞줄이 끝난 문장이면 이어 보지 않는다.
+        const prev = normalized[i - 1];
+        const followsPrev = prev !== undefined && !SENTENCE_END.test(terms[i - 1].trim());
+        const excepted =
+          hasException(current, category) ||
+          (continues && hasException(current + next, category)) ||
+          (followsPrev && hasException(prev + current, category));
         if (!excepted) {
           found = true;
           indexes.add(i);

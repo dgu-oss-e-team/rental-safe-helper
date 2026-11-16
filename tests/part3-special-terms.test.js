@@ -246,6 +246,20 @@ describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
     expect(r.data.explanation).toContain('Cash payment');
   });
 
+  // 예외 문구가 "무엇을" 받지 않는지까지 담고 있어야, 위험한 특약이 예외로 가려지지 않는다 (PR #117 리뷰)
+  const stillChecked = [
+    ['계좌이체는 받지 않으며 월세는 현금으로 지급한다.', 'Cash payment'],
+    ['임대인은 계좌이체를 받을 수 없으므로 월세는 현금으로 지급한다.', 'Cash payment'],
+    ['계약 기간과 관계없이 보증금은 새로운 임차인이 구해진 후 반환한다.', 'Limits on getting the deposit back'],
+    ['임대인 사정과 상관없이 보증금은 신규 임차인 입주 후에 돌려준다.', 'Limits on getting the deposit back'],
+  ];
+
+  it.each(stillChecked)('CHECK 유지: %s', (sentence, label) => {
+    const r = assess([sentence]);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain(label);
+  });
+
   it('한 문장이 두 줄로 갈라져도 예외 문구를 본다 (예외 문구가 뒷줄에 있어도, 앞줄에 있어도)', () => {
     expect(assess(['월세는 계좌이체로 지급하며 현금 지급은', '받지 않는다.']).data.status).toBe(NO_FLAG);
     expect(assess(['새로운 임차인 여부와', '관계없이 보증금을 즉시 반환한다.']).data.status).toBe(NO_FLAG);
@@ -301,10 +315,18 @@ describe('PART 3 위험 특약 키워드 파일: except 검사', () => {
 
   it('실제 키워드 파일: 현금 지급과 보증금 반환 분류에 예외 문구가 있고, &·|는 쓰지 않았다', () => {
     const byId = Object.fromEntries(getSpecialTermKeywords().data.map((c) => [c.id, c]));
-    expect(byId.CASH_PAYMENT.except).toContain('받지않');
-    expect(byId.DEPOSIT_RETURN_LIMIT.except).toContain('관계없이');
+    expect(byId.CASH_PAYMENT.except).toContain('현금지급은받지않');
+    expect(byId.DEPOSIT_RETURN_LIMIT.except).toContain('임차인여부와관계없이');
     for (const category of Object.values(byId)) {
       for (const phrase of category.except) expect(phrase).not.toMatch(/[&|]/);
     }
+  });
+
+  it('실제 키워드 파일: 예외 문구가 너무 넓지 않다 ("받지않"·"관계없이"만으로는 예외가 되지 않는다)', () => {
+    const byId = Object.fromEntries(getSpecialTermKeywords().data.map((c) => [c.id, c]));
+    for (const phrase of ['받지않', '받을수없']) expect(byId.CASH_PAYMENT.except).not.toContain(phrase);
+    for (const phrase of ['관계없이', '상관없이', '무관하게']) expect(byId.DEPOSIT_RETURN_LIMIT.except).not.toContain(phrase);
+    expect(byId.CASH_PAYMENT.except.every((phrase) => phrase.includes('현금'))).toBe(true);
+    expect(byId.DEPOSIT_RETURN_LIMIT.except.every((phrase) => phrase.includes('임차인'))).toBe(true);
   });
 });
