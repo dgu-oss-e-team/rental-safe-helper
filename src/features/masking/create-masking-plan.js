@@ -31,6 +31,8 @@ export function unconfirmedAlias(alias) {
 
 /** 시·도 이름 목록 (person-labels.json의 addressRegions) */
 const ADDRESS_REGIONS = new Set(personLabels.addressRegions ?? []);
+/** 이름 뒤에 붙는 조사 (person-labels.json의 nameParticles, PART 2와 같은 목록. 긴 것부터, 한글만이라 그대로 잇는다) */
+const NAME_PARTICLE = new RegExp(`(?:${(personLabels.nameParticles ?? []).join('|')})$`);
 /** 목록에 없더라도 정식 시·도 이름 모양이면 인정 */
 const REGION_PATTERN = /^[가-힣]+(특별시|광역시|특별자치시|특별자치도|도|시)$/;
 
@@ -124,7 +126,13 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
     const direct = aliasByFinding.get(f.id);
     if (direct) return direct;
     const same = aliasesByName.get(normalizeName(f.value));
-    return same && same.size === 1 ? unconfirmedAlias([...same][0]) : undefined;
+    if (same) return same.size === 1 ? unconfirmedAlias([...same][0]) : undefined;
+    // 똑같은 이름이 없으면 끝의 조사를 떼고 다시 본다. ("김철수는" → "김철수" + "는" → "[Owner_A?]는")
+    // 조사를 뗀 나머지가 이미 있는 사람 이름과 같을 때만 연결한다. "김지은"을 "김지" + "은"으로 쪼개 남의 가명을 붙이지 않게.
+    const particle = NAME_PARTICLE.exec(f.value);
+    if (!particle || particle.index === 0) return undefined;
+    const stem = aliasesByName.get(normalizeName(f.value.slice(0, particle.index)));
+    return stem && stem.size === 1 ? unconfirmedAlias([...stem][0]) + particle[0] : undefined;
   };
 
   // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)

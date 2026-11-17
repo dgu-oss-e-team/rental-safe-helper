@@ -24,9 +24,8 @@ const spaced = (word) => [...word].map(escapeRegex).join('\\s*');
 const NAME_FIELD = rules.nameFieldWords.map(spaced).join('|');
 const NOT_NAMES = new Set(rules.notNames);
 
-/** 낱말 끝의 조사 (긴 것부터) */
-const TRAILING_PARTICLE = /(?:으로|에서|에게|까지|부터|에는|의|에|로|은|는|이|가|을|를|과|와|도|만)$/;
-
+/** 낱말 끝의 조사 (긴 것부터, person-labels.json의 nameParticles. PART 4도 같은 목록을 읽는다) */
+const TRAILING_PARTICLE = new RegExp(`(?:${rules.nameParticles.map(escapeRegex).join('|')})$`);
 /**
  * 조사를 뗀 나머지가 이름이 아닌 단어(notNames)인지. (#158)
  * 예: 특약 "임대인 자산에 대한 수입으로" → "자산에" = "자산" + "에" → 이름 아님
