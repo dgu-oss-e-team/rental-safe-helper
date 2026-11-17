@@ -110,7 +110,7 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
     for (const n of CORPORATE_NUMBERS) expect(personalIds).not.toContain(n);
   });
 
-  it.fails('"공유자" 라벨 다음 줄의 공유자 이름(이몽룡·심청)이 AI로 가지 않는다', () => {
+  it('"공유자" 라벨 다음 줄의 공유자 이름(이몽룡·심청)이 AI로 가지 않는다', () => {
     const shared = sharedText(coowner);
     expect(shared).not.toBe('');
     for (const name of ['이몽룡', '심청']) expect(shared).not.toContain(name);
@@ -153,7 +153,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(statusOf(trust, 'ADDRESS_MISMATCH')).not.toBe(RISK_STATUS.UNVERIFIABLE);
   });
 
-  it.fails('두 줄로 나뉜 등기목적("공유자전원지분전부" / "이전")을 소유권 이전으로 읽는다', () => {
+  it('두 줄로 나뉜 등기목적("공유자전원지분전부" / "이전")을 소유권 이전으로 읽는다', () => {
     expect(coowner.fields.registry.lastTransferDate).toBe('2025-09-15');
     expect(coowner.fields.registry.owners?.map((o) => o.name)).toEqual(['박문수']);
   });

@@ -446,6 +446,31 @@ describe('PART 2 등기부 마지막 소유권이전 접수일 (findLastTransfer
   });
 });
 
+describe('PART 2 등기목적이 두 줄로 나뉜 소유권이전 (#165)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const lines = [
+    GAP,
+    '1 소유권보존 2015년4월6일 공유자',
+    '이몽룡 790521-*******',
+    '2 공유자전원지분전부 2025년9월15일 2025년8월28일 소유자 박문수 820914-*******',
+    '이전 제80246호 매매 서울특별시 송파구 가상대로 1',
+  ];
+
+  it('"공유자전원지분전부" / "이전"을 소유권이전으로 읽어 접수일을 쓴다', () => {
+    expect(findLastTransferDate(lines)).toBe('2025-09-15');
+  });
+
+  it('지금 소유자는 2번 기록, 예전 소유자는 1번 기록이다', () => {
+    expect(findCurrentOwnerLines(lines)).toEqual([3, 4]);
+    expect(findPreviousOwnerLines(lines)).toEqual([1, 2]);
+  });
+
+  it('다음 줄이 "이전"으로 시작하지 않으면 붙이지 않는다', () => {
+    const other = [GAP, '1 소유권보존 2015년4월6일', '2 공유자전원지분전부 2025년9월15일', '이전등기 신청 안내'];
+    expect(findLastTransferDate(other)).toBeNull();
+  });
+});
+
 describe('PART 2 지금 소유자가 적힌 줄 (findCurrentOwnerLines)', () => {
   const GAP = '【 갑 구 】 (소유권에 관한 사항)';
   const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
