@@ -29,6 +29,12 @@ Tesseract.js downloads these files from the jsDelivr CDN the first time a photo 
 | Tesseract.js core (`tesseract.js-core` 7.0.0, WebAssembly build of Tesseract OCR) | Apache-2.0 | [naptha/tesseract.js-core](https://github.com/naptha/tesseract.js-core), [tesseract-ocr/tesseract](https://github.com/tesseract-ocr/tesseract) |
 | Korean and English language data (`@tesseract.js-data/kor`, `@tesseract.js-data/eng`) | MIT (npm packages); the trained data comes from tesseract-ocr/tessdata, Apache-2.0 | [naptha/tessdata](https://github.com/naptha/tessdata), [tesseract-ocr/tessdata](https://github.com/tesseract-ocr/tessdata) |
 
+## Font in the sample documents
+
+| Font | License | Where |
+|---|---|---|
+| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | Embedded (subset) in the fake sample PDFs `public/samples/*.pdf`, made by `scripts/make-sample-pdfs.mjs` from Google Fonts |
+
 ## Rules referenced in our code
 
 | Project | License | Where |
@@ -38,3 +44,5 @@ Tesseract.js downloads these files from the jsDelivr CDN the first time a photo 
 ## Development only (not included in the website)
 
 [Vite](https://github.com/vitejs/vite) (MIT), [Vitest](https://github.com/vitest-dev/vitest) (MIT), [happy-dom](https://github.com/capricorn86/happy-dom) (MIT).
+
+[argparse](https://github.com/nodeca/argparse) (PSF-2.0) is installed together with js-yaml for its command-line tool. The website does not use it, and it is not in `dist/`.
