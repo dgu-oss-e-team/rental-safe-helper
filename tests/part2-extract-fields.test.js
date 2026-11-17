@@ -464,3 +464,23 @@ describe('PART 2 extractFields 주소 정식 이름', () => {
     expect(r.data.contract.address).toBeNull();
   });
 });
+
+describe('PART 2 extractFields 등기부 집 주소 (#141)', () => {
+  const REG_HEAD = '등기사항전부증명서 표제부 갑구 을구';
+
+  it('맨 위 "[집합건물]" 줄의 주소를 표 안 "[도로명주소]"보다 먼저 고른다 (좁은 칸이 섞여 읽히는 경우)', () => {
+    const doc = leaseDoc([
+      REG_HEAD,
+      '고유번호 0000-0000-000001 [집합건물] 서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호',
+      '[도로명주소] 서울특별시 중구 가상로 1층 410.52㎡',
+    ]);
+    expect(extractFields([doc], []).data.registry.address).toBe(
+      '서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호',
+    );
+  });
+
+  it('"[건물]", "[토지]"도 같다', () => {
+    const doc = leaseDoc([REG_HEAD, '소재지번 서울특별시 중구 가상동 1', '[건물] 서울특별시 중구 가상로 5']);
+    expect(extractFields([doc], []).data.registry.address).toBe('서울특별시 중구 가상로 5');
+  });
+});

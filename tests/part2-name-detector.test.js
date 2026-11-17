@@ -297,3 +297,32 @@ describe('PART 2 사람 정보 (extractFields 재료)', () => {
     expect(r[1]).toMatchObject({ value: '이영희', birthDate: '750315' });
   });
 });
+
+// 표준계약서 서명란은 "주민등록번호 → 전화 → 성명" 순서라 번호가 이름 앞에 있다 (#141)
+describe('PART 2 사람 정보: 서명란 "성명" 칸 앞의 번호 (#141)', () => {
+  it('"성명" 칸 이름 뒤에 번호가 없으면 같은 줄 앞의 번호를 쓴다', () => {
+    const r = findPeople('주민등록번호 750315-1****** 전화 010-0000-0002 성명 김철수 (서명 또는', 'LANDLORD');
+    expect(r[0]).toMatchObject({ value: '김철수', role: 'LANDLORD', birthDate: '750315' });
+  });
+
+  it('외국인등록번호도 같다', () => {
+    const r = findPeople('외국인등록번호 990505-5****** 전화 010-0000-0001 성명 NGUYEN VAN A', 'TENANT');
+    expect(r[0]).toMatchObject({ value: 'NGUYEN VAN A', birthDate: '990505' });
+  });
+
+  it('윗줄의 번호는 가져오지 않는다', () => {
+    expect(findPeople('주민등록번호 750315-1******\n성명 김철수')[0].birthDate).toBeNull();
+  });
+
+  it('앞사람이 이미 쓴 번호는 가져오지 않는다', () => {
+    const r = findPeople('임대인 김철수 750315-1****** 성명 이영희');
+    expect(r.map((p) => [p.value, p.birthDate])).toEqual([
+      ['김철수', '750315'],
+      ['이영희', null],
+    ]);
+  });
+
+  it('"성명" 칸이 아닌 이름은 앞의 번호를 쓰지 않는다', () => {
+    expect(findPeople('주민등록번호 750315-1****** 예금주 김철수')[0].birthDate).toBeNull();
+  });
+});

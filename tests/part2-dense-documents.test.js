@@ -1,0 +1,63 @@
+// PART 2. 빽빽한 가짜 서류에서 위험 점검 재료(fields)를 바르게 읽는지 (#141)
+// tests/fixtures/dense-*.pdf는 PART 5(#140)가 공개 양식 구조를 따라 만든 가짜 서류다. 이름·번호·주소는 모두 가짜다.
+// 실제 서류처럼 칸이 좁아서 글자가 다음 줄로 넘어가고, 서명란은 "주민등록번호 → 전화 → 성명" 순서다.
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { readDocuments, analyzeReadDocuments } from '../src/app/pipeline.js';
+
+const fixture = (name) =>
+  new File([readFileSync(new URL(`./fixtures/${name}`, import.meta.url))], name, { type: 'application/pdf' });
+
+/** @type {any} */
+let fields;
+/** @type {any[]} */
+let risks;
+
+beforeAll(async () => {
+  const read = await readDocuments({ files: [fixture('dense-registry.pdf'), fixture('dense-lease.pdf')] });
+  if (!read.ok) throw new Error(`readDocuments stopped at ${read.step}: ${read.error.code}`);
+  const r = analyzeReadDocuments(read.data);
+  if (!r.ok) throw new Error(`analyzeReadDocuments stopped at ${r.step}: ${r.error.code}`);
+  fields = r.data.fields;
+  risks = r.data.riskResults;
+});
+
+const statusOf = (ruleId) => risks.find((r) => r.ruleId === ruleId)?.status;
+
+describe('PART 2 빽빽한 등기부 (#141)', () => {
+  it('말소된 가압류·근저당은 말소로 읽고, 다음 줄로 넘어간 등기원인을 새 권리로 세지 않는다', () => {
+    expect(fields.registry.rights.map((r) => [r.kind, r.maxClaimAmount, r.cancelled])).toEqual([
+      ['PROVISIONAL_SEIZURE', null, true],
+      ['MORTGAGE', 180000000, true],
+      ['MORTGAGE', 240000000, false],
+    ]);
+    expect(statusOf('SEIZURE_ACTIVE')).toBe('NO_FLAG');
+  });
+
+  it('집 주소는 맨 위 "[집합건물]" 줄에서 읽는다 (표 안의 섞인 칸이 아니라)', () => {
+    expect(fields.registry.address).toBe('서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호');
+  });
+
+  it('지금 소유자·예전 소유자·마지막 소유권이전 날짜', () => {
+    expect(fields.registry.owners.map((p) => [p.name, p.birthDate])).toEqual([['김철수', '800101']]);
+    expect(fields.registry.previousOwners.map((p) => [p.name, p.birthDate])).toEqual([['박영수', '700101']]);
+    expect(fields.registry.lastTransferDate).toBe('2026-08-03');
+  });
+});
+
+describe('PART 2 빽빽한 계약서 (#141)', () => {
+  it('서명란에서 이름 앞에 있는 주민·외국인등록번호로 생년월일을 읽는다', () => {
+    expect(fields.contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([['김철수', '750315']]);
+    expect(fields.contract.tenants.map((p) => [p.name, p.birthDate])).toEqual([['NGUYEN VAN A', '990505']]);
+  });
+
+  it('소유자(800101)와 임대인(750315)의 생년월일이 달라서 STOP이다 (확인 불가가 아니라)', () => {
+    expect(statusOf('OWNER_MISMATCH')).toBe('STOP');
+  });
+
+  it('보증금·월세·계약일', () => {
+    expect([fields.contract.deposit, fields.contract.monthlyRent, fields.contract.contractDate]).toEqual([
+      50000000, 500000, '2026-11-01',
+    ]);
+  });
+});

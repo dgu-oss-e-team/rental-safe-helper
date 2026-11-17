@@ -253,6 +253,66 @@ describe('PART 2 등기부 권리: 한 권리를 두 번 세지 않는다', () =
   });
 });
 
+// 실제 등기부처럼 좁은 칸의 글자가 다음 줄로 넘어간 경우 (#141, tests/fixtures/dense-registry.pdf에서 찾음)
+describe('PART 2 등기부 권리: 좁은 칸에서 줄이 넘어간 경우 (#141)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+
+  it('다음 줄로 넘어간 등기원인 "가압류결정(…"은 새 가압류가 아니다', () => {
+    const r = findRegistryRights([
+      GAP,
+      '3 가압류 2021년4월8일 2021년4월7일 청구금액 금15,000,000원',
+      '제20031호 서울중앙지방법원의 채권자 이가상',
+      '가압류결정(2021카단 서울특별시 종로구 가상길 3',
+      '4 3번가압류등기말소 2021년9월1일',
+      EUL,
+    ]);
+    expect(r?.map((x) => [x.kind, x.cancelled])).toEqual([['PROVISIONAL_SEIZURE', true]]);
+  });
+
+  it('"압류(세무과-1234)"처럼 넘어간 등기원인도 새 압류가 아니다', () => {
+    const r = findRegistryRights([GAP, '2 압류 2022년1월3일', '압류(세무과-1234)', EUL]);
+    expect(r).toHaveLength(1);
+  });
+
+  it('순위번호만 못 읽은 진짜 가압류 줄은 그대로 센다 (등기목적이 먼저 온다)', () => {
+    const r = findRegistryRights([GAP, '가압류 2021년4월8일 서울중앙지방법원의 가압류결정(2021카단0000)', EUL]);
+    expect(r?.map((x) => x.kind)).toEqual(['PROVISIONAL_SEIZURE']);
+  });
+
+  it('"1번근저당권설정등 / 기말소"처럼 두 줄로 잘린 말소도 1번을 말소한다', () => {
+    const r = findRegistryRights([
+      GAP,
+      EUL,
+      '1 근저당권설정 2015년6월15일 채권최고액 금180,000,000원',
+      '2 1번근저당권설정등 2026년8월3일',
+      '기말소 제51204호 해지',
+      '3 근저당권설정 2026년8월3일 채권최고액 금240,000,000원',
+    ]);
+    expect(r?.map((x) => [x.maxClaimAmount, x.cancelled])).toEqual([
+      [180000000, true],
+      [240000000, false],
+    ]);
+  });
+
+  it('다음 줄이 말소로 시작하지 않으면 붙이지 않는다', () => {
+    const r = findRegistryRights([GAP, EUL, '1 근저당권설정', '2 1번근저당권변경', '채권최고액 금100,000,000원']);
+    expect(r?.every((x) => x.cancelled === false)).toBe(true);
+  });
+
+  it('갑구의 잘린 소유권이전 말소도 읽어서 그 전 소유권이전 날짜를 쓴다', () => {
+    const lines = [
+      GAP,
+      '1 소유권이전 2020년1월2일 소유자 박영수',
+      '2 소유권이전 2024년5월10일 소유자 김철수',
+      '3 2번소유권이전등',
+      '기말소 2024년6월1일',
+    ];
+    expect(findLastTransferDate(lines)).toBe('2020-01-02');
+    expect(findCurrentOwnerLines(lines)).toEqual([1]);
+  });
+});
+
 describe('PART 2 날짜 읽기 (parseDate)', () => {
   it('여러 표기를 YYYY-MM-DD로 바꾼다', () => {
     expect(parseDate('2025년 3월 5일')).toBe('2025-03-05');
