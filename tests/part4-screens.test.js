@@ -168,7 +168,7 @@ describe('PART 4 화면 ④ 보내기 전 확인 (renderMaskingReview)', () => {
     expect(hint()).toBe('');
     vi.advanceTimersByTime(100);
     expect(hint()).toBe('Hid "월세" in 2 places. In the PDF, each of those lines is covered.');
-    
+
     // 이미 알린 뒤 한 번 더 그려지면 글이 처음부터 들어 있다 (바뀌지 않으니 화면 읽기 프로그램이 다시 읽지 않음)
     const third = render(edits, MASKING_PURPOSE.FRAUD_CHECK, onChange).node;
     expect(third.querySelector('[role="status"]')?.textContent).toBe(
