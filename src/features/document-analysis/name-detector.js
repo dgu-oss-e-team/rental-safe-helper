@@ -224,15 +224,22 @@ const ADDRESS_REGEX = new RegExp(
  * 주소는 줄 끝까지 잡으므로, 좁은 표에서는 옆 칸 글자가 주소에 붙는다.
  * 예: "서울특별시 중구 가상동 123 대 5321.4㎡ 2015년3월2일 등기", "… 가상로 20, 1층 사무소명칭 가상공인중개사사무소"
  * 띄어쓰기 뒤에 면적(㎡), 날짜, 항목 이름(person-labels.json의 addressStopWords)이 오면 그 앞에서 끊는다.
- * 가림 상자는 블록 전체라서, 주소 값이 짧아져도 가리는 범위는 그대로다.
+ * 가림 상자는 블록 전체라서, 주소 값이 짧아져도 PDF에서 가리는 범위는 그대로다.
+ * 다만 AI에게 보내는 글은 주소 값만 바꾸므로, 끊긴 뒷부분은 그대로 남는다.
+ * 그래서 짧은 항목 이름(3글자 이하: "대표", "등기", "구조")은 낱말 전체가 같을 때만 끊는다.
+ * ("필동로 00, 대표빌딩 101호"처럼 건물 이름으로 시작하는 진짜 주소를 끊어서 호수를 남기지 않게. #152 정연님 리뷰)
  */
+const MIN_PREFIX_STOP_WORD = 4;
+/** @param {string} word */
+const stopWord = (word) =>
+  word.length >= MIN_PREFIX_STOP_WORD ? spaced(word) : `${spaced(word)}(?=[\\s:：]|$)`;
 const ADDRESS_STOP = new RegExp(
   '\\s(?:' +
     [
       '\\d[\\d,.]*\\s*(?:㎡|m²|m2)', // 면적
       '\\d{4}\\s*년', // 날짜 "2015년3월2일"
       '\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}', // 날짜 "2015.03.02"
-      ...rules.addressStopWords.map(spaced), // 항목 이름
+      ...rules.addressStopWords.map(stopWord), // 항목 이름
     ].join('|') +
     ')',
 );
