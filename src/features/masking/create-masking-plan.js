@@ -21,6 +21,14 @@ import personLabels from '../../config/templates/person-labels.json';
 /** 가린 자리에 넣는 글자 */
 export const REDACTED = '[REDACTED]';
 
+/**
+ * 이름만 같고 같은 사람인지 확인하지 않은 가명: "[PrevOwner_E]" → "[PrevOwner_E?]"
+ * @param {string} alias
+ */
+export function unconfirmedAlias(alias) {
+  return alias.replace(/\]$/, '?]');
+}
+
 /** 시·도 이름 목록 (person-labels.json의 addressRegions) */
 const ADDRESS_REGIONS = new Set(personLabels.addressRegions ?? []);
 /** 목록에 없더라도 정식 시·도 이름 모양이면 인정 */
@@ -95,7 +103,8 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
     for (const id of group.findingIds) aliasByFinding.set(id, group.alias);
   }
   // 역할 없는 이름(등기부 "채무자 김철수", 계약금 "영수자 김철수" 등, role: null)은 인물 묶음에 들어 있지 않다.
-  // 글자가 똑같은 이름의 묶음이 딱 하나면 그 가명을 쓰고, 둘 이상(동명이인)이거나 없으면 가린다.
+  // 글자가 똑같은 이름의 묶음이 딱 하나면 그 가명에 "?"를 붙여 쓰고([PrevOwner_E?]), 둘 이상(동명이인)이거나 없으면 가린다.
+  // "?"는 이름만 같을 뿐 같은 사람인지 확인하지 않았다는 표시다. (범례에도 적는다, apply-masking-plan.js)
   // 비슷한 이름(Fuse.js)은 연결하지 않는다. 자동으로 같은 사람이라고 정하지 않는 원칙과 같다.
   const findingById = new Map(findings.map((f) => [f.id, f]));
   /** @type {Map<string, Set<string>>} 정리한 이름 → 그 이름을 가진 묶음의 가명들 */
@@ -115,7 +124,7 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
     const direct = aliasByFinding.get(f.id);
     if (direct) return direct;
     const same = aliasesByName.get(normalizeName(f.value));
-    return same && same.size === 1 ? [...same][0] : undefined;
+    return same && same.size === 1 ? unconfirmedAlias([...same][0]) : undefined;
   };
 
   // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)

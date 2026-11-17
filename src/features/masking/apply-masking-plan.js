@@ -7,7 +7,7 @@
 
 import { ok, fail, ERROR_CODE, MASKING_ACTION } from '../../shared/document-model.js';
 import { maskAddsInBlock } from './user-edits.js';
-import { REDACTED } from './create-masking-plan.js';
+import { REDACTED, unconfirmedAlias } from './create-masking-plan.js';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -60,9 +60,15 @@ export function applyMaskingPlan(documents, plan, findings, personGroups, edits)
   /** @type {Record<string, string>} */
   const legend = {};
   const usedAliases = new Set(plan.items.map((i) => i.replacement));
+
   for (const group of personGroups) {
-    if (!usedAliases.has(group.alias)) continue;
-    legend[group.alias] = group.roles.map((r) => ROLE_MEANING[/** @type {keyof typeof ROLE_MEANING} */ (r)] ?? r).join(', ');
+    const meaning = group.roles.map((r) => ROLE_MEANING[/** @type {keyof typeof ROLE_MEANING} */ (r)] ?? r).join(', ');
+    if (usedAliases.has(group.alias)) legend[group.alias] = meaning;
+    // 이름만 같은 사람 (역할 없는 이름, create-masking-plan.js): 같은 사람인지 확인하지 않았다고 적는다
+    const unconfirmed = unconfirmedAlias(group.alias);
+    if (usedAliases.has(unconfirmed)) {
+      legend[unconfirmed] = `same name as ${group.alias} (${meaning}), not confirmed to be the same person`;
+    }
   }
 
   return ok({ maskedText, legend });
