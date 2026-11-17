@@ -211,7 +211,7 @@ rights: null  // 을구를 읽지 못함 → 확인 불가
 
 같은 사람 = 같은 가명, 동명이인 = 다른 가명. 판정이 애매하면 `AMBIGUOUS`로 두고 사용자에게 확인한다.
 
-역할 없는 이름(`role: null`, 등기부 채무자·채권자, 계약금 영수자 등)은 인물 묶음에 들어가지 않는다. 마스킹할 때 글자가 똑같은 이름의 묶음이 **딱 하나**면 그 가명에 `?`를 붙여 쓰고(`[PrevOwner_E?]`, 범례: "same name as [PrevOwner_E] (…), not confirmed to be the same person"), 둘 이상(동명이인)이거나 없으면 `[REDACTED]`로 가린다. 비슷한 이름은 연결하지 않는다. (`create-masking-plan.js`)
+역할 없는 이름(`role: null`, 등기부 채무자·채권자, 계약금 영수자 등)은 인물 묶음에 들어가지 않는다. 마스킹할 때 글자가 똑같은 이름의 묶음이 **딱 하나**면 그 가명에 `?`를 붙여 쓰고(`[PrevOwner_E?]`, 범례: "same name as [PrevOwner_E] (…), not confirmed to be the same person"), 둘 이상(동명이인)이거나 없으면 `[REDACTED]`로 가린다. 비슷한 이름은 연결하지 않는다. 똑같은 이름이 없으면 끝의 조사(`person-labels.json`의 `nameParticles`)를 떼고 같은 규칙으로 찾는다(`김철수는` → `[Owner_A?]는`). 조사를 뗀 나머지가 이미 있는 이름과 같을 때만 연결하므로 `김지은`은 쪼개지 않는다. (`create-masking-plan.js`)
 
 판정 규칙 (비슷한 이름은 Fuse.js 유사도로 찾는다. **비슷한 이름이라고 자동으로 합치지 않고**, `AMBIGUOUS`로 두고 "같은 사람인가요?"에서 사용자가 확인한다):
 
