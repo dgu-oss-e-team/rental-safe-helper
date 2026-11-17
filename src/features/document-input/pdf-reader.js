@@ -133,7 +133,9 @@ export async function readPdfText(buffer) {
       const rawItems = [];
 
       for (const item of textContent.items) {
-        if ('str' in item && item.str.trim().length > 0) {
+        if ('str' in item) {
+        const sanitizedStr = item.str.replace(/[\u0000-\u001f]/g, ' ');
+        if (sanitizedStr.trim().length > 0) {
           // Use pdfjsLib.Util.transform to apply viewport rotation & transform matrix
           const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
           const itemWidth = item.width || 0;
@@ -144,12 +146,13 @@ export async function readPdfText(buffer) {
           const y = tx[5] - itemHeight;
 
           rawItems.push({
-            text: item.str,
+            text: sanitizedStr,
             x,
             y,
             w: itemWidth,
             h: itemHeight,
           });
+        }
         }
       }
 

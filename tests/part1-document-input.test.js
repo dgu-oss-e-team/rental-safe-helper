@@ -6,6 +6,14 @@ import * as ocrModule from '../src/features/document-input/ocr.js';
 import { readDocument, isSupportedFile } from '../src/features/document-input/index.js';
 
 const mockRecognize = vi.fn();
+const mockGetDocument = vi.fn();
+vi.mock('pdfjs-dist/legacy/build/pdf.mjs', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getDocument: (...args) => (mockGetDocument.getMockImplementation() ? mockGetDocument(...args) : actual.getDocument(...args)),
+  };
+});
 vi.mock('tesseract.js', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, createWorker: vi.fn(async () => ({ recognize: mockRecognize })) };
@@ -261,5 +269,35 @@ describe('PART 1 readDocument()', () => {
         expect(r.data.pages[0].blocks[0].bbox).toEqual({ x: 0.12, y: 0.0997, width: 0.5, height: 0.0403 });
       }
     } finally { globalThis.createImageBitmap = orig; }
+  });
+
+  it('readPdfText() replaces U+0000-U+001F control characters with spaces before building blocks', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, 1, 0, 0] }),
+          getTextContent: async () => ({
+            items: [
+              {
+                str: '2026\uB144\u000111\uC6D4\u00011\uC77C\u0000\u001f\uACC4\uC57D\uCCB4\uACB0',
+                transform: [1, 0, 0, 12, 72, 120],
+                width: 180,
+                height: 12,
+              },
+            ],
+          }),
+        }),
+      }),
+      destroy: vi.fn().mockResolvedValue(undefined),
+    }));
+
+    try {
+      const res = await pdfReader.readPdfText(new Uint8Array([1, 2, 3]).buffer);
+      expect(res.textPages[0]).toBe('2026\uB144 11\uC6D4 1\uC77C \uACC4\uC57D\uCCB4\uACB0');
+      expect(res.pages[0].blocks[0].text).toBe('2026\uB144 11\uC6D4 1\uC77C \uACC4\uC57D\uCCB4\uACB0');
+    } finally {
+      mockGetDocument.mockReset();
+    }
   });
 });
