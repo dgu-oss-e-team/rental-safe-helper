@@ -1,7 +1,14 @@
 // PART 5. "같은 사람인가요?" 답 → 위험 점검·마스킹 다시 계산 (#52, docs/INTERFACES.md 6번)
 // 가상 데이터(샘플)만 사용한다.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { analyzeDocuments, recheckPeople, prepareForAi } from '../src/app/pipeline.js';
+import { assessRisks } from '../src/features/risk-check/index.js';
+
+// 다시 점검이 실패하는 경우를 만들려고 PART 3 assessRisks를 감싼다 (평소 동작은 그대로)
+vi.mock('../src/features/risk-check/index.js', async (importOriginal) => {
+  const original = /** @type {any} */ (await importOriginal());
+  return { ...original, assessRisks: vi.fn(original.assessRisks) };
+});
 import { initialState, currentAnalysis } from '../src/app/app-state.js';
 import { MASKING_PURPOSE, RISK_STATUS } from '../src/shared/document-model.js';
 
@@ -41,6 +48,14 @@ describe('PART 5 recheckPeople(): 답으로 위험 점검 다시 하기', () => 
   it('이미 확인된 사람에 대한 답은 실패하고, 어느 단계에서 멈췄는지 알려준다 (STOP이 근거 없이 사라지지 않게)', () => {
     const r = recheckPeople(analysis, { [idOf('LANDLORD')]: idOf('OWNER') });
     expect(r).toMatchObject({ ok: false, step: 'applyPersonAnswers', error: { code: 'INVALID_INPUT' } });
+  });
+
+  it('답으로 다시 점검하다 PART 3가 실패하면 처음 분석과 다른 단계(recheckRisks)로 멈춘다 (#126, 이전 결과가 화면에 남아 있음)', () => {
+    vi.mocked(assessRisks).mockReturnValueOnce({ ok: false, error: { code: 'INVALID_INPUT', message: 'test' } });
+    const r = recheckPeople(analysis, { [idOf('ACCOUNT_HOLDER')]: idOf('LANDLORD') });
+    expect(r).toMatchObject({ ok: false, step: 'recheckRisks', error: { code: 'INVALID_INPUT' } });
+    // 다음 답은 다시 정상으로 점검된다
+    expect(recheckPeople(analysis, { [idOf('ACCOUNT_HOLDER')]: idOf('LANDLORD') }).ok).toBe(true);
   });
 
   it('원래 분석 결과는 바꾸지 않는다 (답을 바꾸면 원래 판정에서 다시 계산)', () => {
