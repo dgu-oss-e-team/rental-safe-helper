@@ -1,10 +1,12 @@
 // PART 5. 가상 등기부·계약서 HTML을 글자가 들어 있는 PDF(text_pdf)로 만든다. (테스트·시연용, 가짜 데이터만)
 //
-// 사용법: node scripts/make-sample-pdfs.mjs "<Chrome 또는 Edge 실행 파일 경로>" [--dense]
+// 사용법: node scripts/make-sample-pdfs.mjs "<Chrome 또는 Edge 실행 파일 경로>" [--dense | --forms]
 //   예) node scripts/make-sample-pdfs.mjs "C:/Program Files/Google/Chrome/Application/chrome.exe"
 // 결과: public/samples/sample-registry.pdf, public/samples/sample-lease.pdf (시연용)
 // --dense: tests/fixtures/dense-registry.pdf, tests/fixtures/dense-lease.pdf (테스트용, #139)
 //   공개 양식 구조를 따른 빽빽한 가짜 서류. 마스킹 상자가 옆 글자를 덮지 않는지 확인한다. 사이트에는 들어가지 않는다.
+// --forms: tests/fixtures/form-private-lease.pdf, form-coowner-registry.pdf, form-trust-registry.pdf (테스트용, #165)
+//   실제 양식(민간임대 계약서, 개인 공유 등기부, 법인·신탁 등기부) 모양의 가짜 서류. 실제 서류 점검에서 나온 문제를 각 파트가 재현한다.
 // 한글 글꼴(Noto Sans KR, OFL)을 Google Fonts에서 받으므로 인터넷 연결이 필요하다.
 
 import { spawn } from 'node:child_process';
@@ -21,8 +23,13 @@ if (!browserPath) {
 
 const root = resolve(import.meta.dirname, '..');
 const dense = process.argv.includes('--dense');
-const outDir = dense ? join(root, 'tests', 'fixtures') : join(root, 'public', 'samples');
-const names = dense ? ['dense-registry', 'dense-lease'] : ['sample-registry', 'sample-lease'];
+const forms = process.argv.includes('--forms');
+const outDir = dense || forms ? join(root, 'tests', 'fixtures') : join(root, 'public', 'samples');
+const names = forms
+  ? ['form-private-lease', 'form-coowner-registry', 'form-trust-registry']
+  : dense
+    ? ['dense-registry', 'dense-lease']
+    : ['sample-registry', 'sample-lease'];
 const port = 9335;
 const profile = mkdtempSync(join(tmpdir(), 'sample-pdf-'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

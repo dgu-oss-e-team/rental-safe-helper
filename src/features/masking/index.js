@@ -40,7 +40,7 @@ export { validateMaskedText } from './masking-validator.js';
 export { renderMaskingReview } from './masking-review-ui.js';
 
 // "같은 사람인가요?" 답 반영과 ② 결과 화면 질문 (PART 5 slots.js의 personQuestions 자리, INTERFACES.md 6번)
-export { applyPersonAnswers } from './person-answers.js';
+export { applyPersonAnswers, buildPersonQuestions } from './person-answers.js';
 export { renderPersonQuestions } from './person-questions-ui.js';
 
 /**

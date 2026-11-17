@@ -18,9 +18,18 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
     expect(h.help).toContain('original PDF');
   });
 
+  it('"같은 사람인가요?" 답 오류(#171): 무엇이 그대로인지와 바로 할 수 있는 일("Not sure yet")을 알려 준다', () => {
+    const h = errorHelp({ step: 'applyPersonAnswers', code: ERROR_CODE.INVALID_INPUT });
+    expect(h.help).toContain('Nothing changed');
+    expect(h.help).toContain('earlier answers and the results');
+    expect(h.help).toContain('Not sure yet');
+    // 개발자용 말이나 "safe" 같은 말은 쓰지 않는다
+    for (const word of ['INVALID', 'personId', 'safe', 'no risk', 'no warning']) expect(`${h.title} ${h.help}`).not.toContain(word);
+  });
+
   it('INVALID_INPUT은 단계에 따라 다른 안내를 보여 준다', () => {
     expect(errorHelp({ step: 'input', code: ERROR_CODE.INVALID_INPUT }).title).toBe('No file was chosen.');
-    expect(errorHelp({ step: 'applyPersonAnswers', code: ERROR_CODE.INVALID_INPUT }).help).toContain('previous answers are kept');
+    expect(errorHelp({ step: 'applyPersonAnswers', code: ERROR_CODE.INVALID_INPUT }).title).toContain('who is who');
     expect(errorHelp({ step: 'validateMaskedText', code: ERROR_CODE.INVALID_INPUT }).title).toContain('might still be visible');
   });
 

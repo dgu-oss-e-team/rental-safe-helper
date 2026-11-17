@@ -10,7 +10,8 @@
  *   - 같은 사람: 답의 대상(P2)의 personId·가명을 남기고, P4의 역할·findingIds를 합친다. 합친 그룹은 CONFIRMED.
  *   - 다른 사람: 그 그룹을 CONFIRMED로만 바꾼다.
  *   - 답의 키는 원래 AMBIGUOUS인 사람만 된다. (CONFIRMED인 사람을 합치면 근거 없이 STOP이 사라질 수 있음)
- *   - 없는 personId, 자기 자신, 서로 가리키는 답(P2→P4, P4→P2), CONFIRMED인 사람의 답은 실패 → PART 5가 이전 상태를 유지한다.
+ *   - 서로 같다고 답하면(P2→P4, P4→P2) 둘을 합치고, 원래 순서가 앞인 사람(P2)의 personId·가명을 남긴다.
+ *   - 없는 personId, 자기 자신, CONFIRMED인 사람의 답은 실패 → PART 5가 이전 상태를 유지한다.
  *   - 원래 personGroups는 바꾸지 않는다. (답을 바꾸거나 취소하면 원래 그룹에서 다시 계산)
  *
  * buildPersonQuestions(fields, personGroups) → 물어볼 질문 목록 (화면용, 계산만)
@@ -46,18 +47,26 @@ export function applyPersonAnswers(personGroups, personAnswers) {
     if (target === id) return fail(ERROR_CODE.INVALID_INPUT, 'A person cannot be the same as themselves.');
   }
 
+  /** 원래 순서 (서로 가리킬 때 앞에 있는 사람을 남긴다) */
+  const order = new Map(personGroups.map((g, i) => [g.personId, i]));
   /**
    * 답을 따라가 최종으로 남을 사람을 찾는다. (P4→P2→P1이면 P1)
+   * 서로 같다고 답한 경우(P1→P3, P3→P1처럼 돌아오는 경우)는 둘 다 같은 사람이라는 뜻이라 합친다.
+   * 이때는 돌아오는 고리 안에서 원래 순서가 가장 앞인 사람을 남긴다. (누가 먼저 답했는지와 상관없이 같은 결과)
    * @param {string} id
-   * @returns {string | null}  서로 가리키면 null
+   * @returns {string}
    */
   const finalOf = (id) => {
-    const seen = new Set([id]);
+    const path = [id];
     let cur = id;
     while (typeof answers[cur] === 'string') {
       cur = /** @type {string} */ (answers[cur]);
-      if (seen.has(cur)) return null;
-      seen.add(cur);
+      const at = path.indexOf(cur);
+      if (at !== -1) {
+        // 고리: path[at..]가 서로 같다고 답한 사람들
+        return path.slice(at).reduce((a, b) => ((order.get(a) ?? 0) <= (order.get(b) ?? 0) ? a : b));
+      }
+      path.push(cur);
     }
     return cur;
   };
@@ -66,7 +75,6 @@ export function applyPersonAnswers(personGroups, personAnswers) {
   const members = new Map();
   for (const g of personGroups) {
     const root = finalOf(g.personId);
-    if (root === null) return fail(ERROR_CODE.INVALID_INPUT, 'Answers point at each other.');
     if (!members.has(root)) members.set(root, []);
     members.get(root)?.push(g);
   }

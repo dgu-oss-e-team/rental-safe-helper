@@ -240,12 +240,17 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   - 답을 따라간다: P4·P2가 둘 다 `AMBIGUOUS`이고 `{ P4: 'P2', P2: 'P1' }`이면 셋 다 P1로 합친다.
   - 다른 사람(`{ P4: null }`): 그 그룹을 `CONFIRMED`로만 바꾼다.
   - 답의 키는 **원래 `AMBIGUOUS`인 사람만** 된다. `CONFIRMED`인 사람(예: 생년월일이 다른 소유자·임대인)을 합치면 근거 없이 STOP이 사라질 수 있어서다.
-  - 없는 `personId`, 자기 자신, 서로 가리키는 답(`{ P2: 'P4', P4: 'P2' }`), `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
+  - 서로 같다고 답하면(`{ P2: 'P4', P4: 'P2' }`) 둘을 합치고, 원래 순서가 앞인 사람(`P2`)의 `personId`·가명을 남긴다.
+  - 없는 `personId`, 자기 자신, `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
 - PART 5는 합친 그룹으로 PART 3 `assessRisks(fields, 합친 그룹)`과 PART 4 마스킹(`prepareForAi`)을 다시 계산한다.
   - 이때 `assessRisks()`가 실패하면 `step: 'recheckRisks'`로 멈추고 이전 답·결과를 그대로 둔다. 처음 분석(`'assessRisks'`)과 달리 결과가 화면에 남아 있어서 안내가 다르다. (#126)
 - 질문 화면: PART 4 `renderPersonQuestions({ analysis, personGroups, personAnswers, onChange })` → `HTMLElement | null` (slots.js `personQuestions`)
   - 질문은 원래 판정(`analysis.personGroups`) 기준이라 답한 뒤에도 남는다. 후보는 이름이 같거나 비슷하거나(오타 허용) 생년월일이 같은 다른 사람.
   - `onChange(answers 전체)`, 물어볼 사람이 없으면 `null`.
+  - 같은 두 사람 질문은 한 번만 보인다 (#171, PART 5 `src/app/person-questions.js`). PART 5가 `buildPersonQuestions()` 결과에서 보일 질문을 골라 `questions`로 넘긴다 (안 넘기면 PART 4가 전부 만든다).
+    - 두 사람의 질문은 앞 사람 카드에서만 묻는다. 앞 사람이 다른 후보와 같다고 답했으면 뒤 카드에 다시 보인다.
+    - 후보가 다 빠진 뒤 카드는 숨기고, 앞 사람이 모두 "다른 사람"이면 뒤 사람도 "다른 사람"으로 보고 점검한다 (저장하지 않음).
+    - 숨긴 카드의 답, 화면에 없는 후보를 가리키는 답(엇갈린 답)은 `recheckPeople()`이 지우고 `personAnswers`로 돌려준다. PART 5는 이것을 저장한다.
 - 새 서류를 분석하면 비우고, 목적을 바꿀 때는 유지한다.
 
 ## 7. 위험 점검 결과 (PART 3)
