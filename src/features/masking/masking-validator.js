@@ -74,6 +74,44 @@ export function findLookalikeNumber(line) {
   return null;
 }
 
+/*
+ * 이중 안전장치 (실제 양식 서류 점검에서 발견)
+ * 위 검사는 탐지한 값(findings)이 남았는지만 본다. PART 2가 못 찾은 번호는 그대로 지나간다.
+ * 예: 입력칸이 겹쳐 두 번호가 띄어쓰기 없이 붙어 읽힌 경우 "900101-1234567800202-2345678", "010-1111-2222010-3333-4444"
+ * 그래서 탐지 목록과 상관없이, 가린 글(일부러 남긴 자리는 뺌)에 아래 모양이 남아 있으면 멈춘다.
+ * - 주민·외국인등록번호: 6자리-뒷자리 7자리 (뒷자리 *도 포함). 앞뒤에 숫자가 붙어 있어도 찾는다.
+ * - 휴대폰 번호: 01X-XXXX-XXXX. 뒤에 숫자가 붙어 있어도 찾는다.
+ * - 계좌번호: 계좌·은행·입금 같은 말 근처의 숫자 덩어리 10~16자리만 (오탐이 많아서, 위 OCR 안전망과 같은 기준)
+ * 이름이 탐지되지 않았어도 바로 뒤의 주민번호 모양에서 멈추므로 "이름 + 주민번호" 줄도 함께 막힌다.
+ */
+/** 탐지 목록과 상관없이 남아 있으면 안 되는 번호 모양 */
+const LEFTOVER_SHAPES = [
+  /\d{6}\s?-\s?[1-8*][\d*]{6}/g, // 주민·외국인등록번호
+  /(?<!\d)01[016-9][-.\s]?\d{3,4}[-.\s]?\d{4}/g, // 휴대폰 번호
+  NUMBER_SHAPES[2], // 계좌번호 (아래에서 숫자 수와 근처 단어를 확인)
+];
+
+/**
+ * 가린 글 한 줄에서 남아 있으면 안 되는 번호 모양을 찾는다. 없으면 null.
+ * @param {string} line
+ * @returns {string | null}  찾은 글자 (검사용, 메시지에는 넣지 않음)
+ */
+export function findLeftoverNumber(line) {
+  for (const shape of LEFTOVER_SHAPES) {
+    for (const m of line.matchAll(shape)) {
+      if (shape === NUMBER_SHAPES[2]) {
+        const count = m[0].replace(/\D/g, '').length;
+        if (count < 10 || count > 16 || REGISTRY_ID_SHAPE.test(m[0])) continue;
+        const end = m.index + m[0].length;
+        const near =
+          line.slice(Math.max(0, m.index - BANK_KEYWORD_BEFORE), m.index) + ' ' + line.slice(end, end + BANK_KEYWORD_AFTER);
+        if (!BANK_KEYWORD.test(near)) continue;
+      }
+      return m[0];
+    }
+  }
+  return null;
+}
 /**
  * text 안에서 words 각각이 나오는 모든 자리를 [시작, 끝] 목록으로 돌려준다.
  * @param {string} text
@@ -117,7 +155,8 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
   // 뺀 자리는 줄바꿈으로 바꿔서 양옆 숫자가 이어 붙지 않게 한다.
   const outside = all.split(''); // 글자 하나씩 (allowedSpans의 위치와 같은 기준)
   for (const [a, b] of allowedSpans) outside.fill('\n', a, b);
-  const digitLines = outside.join('').split('\n').map((line) => line.replace(/[^0-9]/g, ''));
+  const outsideLines = outside.join('').split('\n');
+  const digitLines = outsideLines.map((line) => line.replace(/[^0-9]/g, ''));
   const actionById = new Map(plan.items.map((i) => [i.findingId, i.action]));
   let checked = 0;
   for (const f of findings) {
@@ -139,6 +178,10 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
       ERROR_CODE.INVALID_INPUT,
       'Masking check failed: a number that may be misread (for example O instead of 0) is still visible.',
     );
+  }
+  // 탐지 목록과 상관없이 번호 모양이 남아 있으면 안 된다 (이중 안전장치, 일부러 남긴 자리는 뺌)
+  if (outsideLines.some((line) => findLeftoverNumber(line) !== null)) {
+    return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a number that looks like personal information is still visible.');
   }
   // 사용자가 더 가린 글자도 남아 있으면 안 된다
   for (const a of validAdds(edits)) {
