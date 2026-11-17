@@ -465,6 +465,33 @@ describe('PART 2 extractFields 주소 정식 이름', () => {
   });
 });
 
+describe('PART 2 이미 찾은 이름을 문서 안에서 다시 찾기 (#142)', () => {
+  const REG_HEAD = '등기사항전부증명서 표제부 갑구 을구';
+
+  it('갑구 소유자 이름이 을구에 라벨 없이 또 나오면 그곳도 가린다', () => {
+    const doc = leaseDoc([REG_HEAD, '【 갑 구 】', '2 소유권이전 소유자 김철수', '【 을 구 】', '1 근저당권설정 김철수 외 1명']);
+    const names = detectPII(doc).data.filter((f) => f.type === 'PERSON_NAME');
+    expect(names.map((f) => [f.blockId, f.value])).toEqual([
+      ['T_2', '김철수'],
+      ['T_4', '김철수'],
+    ]);
+  });
+
+  it('다시 찾은 이름은 위험 점검용 사람 목록에 들어가지 않는다 (역할을 모르므로)', () => {
+    const doc = leaseDoc([REG_HEAD, '【 갑 구 】', '2 소유권이전 소유자 김철수', '【 을 구 】', '1 근저당권설정 채무자 김철수']);
+    expect(extractFields([doc], []).data.registry.owners.map((p) => p.name)).toEqual(['김철수']);
+  });
+
+  it('ID는 다시 찾은 이름까지 포함해서 문서 순서대로 붙는다', () => {
+    const doc = leaseDoc(['주택임대차계약서 보증금 특약', '임대인(김철수)과 계약한다', '임대인 김철수 750315-1******']);
+    expect(detectPII(doc).data.map((f) => `${f.id}:${f.value}`)).toEqual([
+      'PII_DOC_T_001:김철수',
+      'PII_DOC_T_002:김철수',
+      'PII_DOC_T_003:750315-1******',
+    ]);
+  });
+});
+
 describe('PART 2 extractFields 등기부 집 주소 (#141)', () => {
   const REG_HEAD = '등기사항전부증명서 표제부 갑구 을구';
 

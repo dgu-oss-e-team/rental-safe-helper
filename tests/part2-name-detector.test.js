@@ -5,6 +5,7 @@ import {
   findPeople,
   lastRoleIn,
   findAddressContinuation,
+  findKnownNames,
 } from '../src/features/document-analysis/name-detector.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
@@ -324,5 +325,64 @@ describe('PART 2 사람 정보: 서명란 "성명" 칸 앞의 번호 (#141)', ()
 
   it('"성명" 칸이 아닌 이름은 앞의 번호를 쓰지 않는다', () => {
     expect(findPeople('주민등록번호 750315-1****** 예금주 김철수')[0].birthDate).toBeNull();
+  });
+});
+
+// 빽빽한 가짜 서류(#140)에서 놓치던 이름 (#142)
+describe('PART 2 이름 탐지 보강 (#142)', () => {
+  const namesOf = (text) => findLabeledNames(text).map((r) => [r.value, r.role]);
+
+  it('등기부 "채무자", "채권자"와 계약금 "영수자" 뒤 이름을 역할 없이 찾는다', () => {
+    expect(namesOf('제31003호 설정계약 채무자 박영수')).toEqual([['박영수', null]]);
+    expect(namesOf('제20031호 서울중앙지방법원의 채권자 이가상 760202-2******')).toEqual([['이가상', null]]);
+    expect(namesOf('계약금 금 오백만원정 영수자 김철수 (인)')).toEqual([['김철수', null]]);
+  });
+
+  it('회사 이름은 이름으로 잡지 않는다 ("채권자 주식회사가상은행")', () => {
+    expect(namesOf('채권자 주식회사가상은행')).toEqual([]);
+  });
+
+  it('괄호 안 이름을 역할 없이 찾는다 ("임대인(김철수)과 임차인(NGUYEN VAN A)은")', () => {
+    expect(namesOf('임대인(김철수)과 임차인(NGUYEN VAN A)은 아래와 같이 계약한다.')).toEqual([
+      ['김철수', null],
+      ['NGUYEN VAN A', null],
+    ]);
+  });
+
+  it('괄호 안이 이름만이 아니면 잡지 않는다 ("임대인(이하 갑)", "임대인(본인)")', () => {
+    expect(namesOf('임대인(이하 갑)과 임차인(본인)은')).toEqual([]);
+  });
+
+  it('좁은 칸에서 잘린 "사무소"의 뒷부분 "무소"는 이름이 아니다', () => {
+    expect(namesOf('공인중개사 무소')).toEqual([]);
+  });
+});
+
+describe('PART 2 이미 찾은 이름 다시 찾기 (findKnownNames, #142)', () => {
+  const valuesOf = (text, names) => findKnownNames(text, names).map((r) => [r.value, r.start]);
+
+  it('라벨 없이 나온 같은 이름을 찾는다. 뒤에 조사가 붙어도 찾는다', () => {
+    expect(valuesOf('김철수는 계약금을 받았다', ['김철수'])).toEqual([['김철수', 0]]);
+    expect(findKnownNames('김철수', ['김철수'])[0]).toMatchObject({ type: PII_TYPE.PERSON_NAME, role: null });
+  });
+
+  it('앞에 한글이 붙은 글자는 이름이 아니다 ("가김철수")', () => {
+    expect(valuesOf('가김철수', ['김철수'])).toEqual([]);
+  });
+
+  it('두 글자 이름은 앞뒤 모두 한글이 붙어 있지 않을 때만 찾는다', () => {
+    expect(valuesOf('김수 (인)', ['김수'])).toEqual([['김수', 0]]);
+    expect(valuesOf('김수정', ['김수'])).toEqual([]);
+  });
+
+  it('영문 이름은 다른 영문 단어 안에서 찾지 않는다', () => {
+    expect(valuesOf('NGUYEN VAN A, NGUYEN VAN AN', ['NGUYEN VAN A'])).toEqual([['NGUYEN VAN A', 0]]);
+  });
+
+  it('같은 이름이 여러 번 나오면 모두 찾는다', () => {
+    expect(valuesOf('김철수 김철수', ['김철수', '김철수'])).toEqual([
+      ['김철수', 0],
+      ['김철수', 4],
+    ]);
   });
 });

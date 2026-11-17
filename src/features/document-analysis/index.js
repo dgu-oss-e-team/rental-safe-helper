@@ -18,6 +18,7 @@ import { findPatternPII } from './pii-patterns.js';
 import { toFormalAddress } from './address-normalizer.js';
 import {
   findPeople,
+  findKnownNames,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -169,6 +170,29 @@ function scanDocument(document) {
       // 복사하지 않고 원본에 위치 정보를 붙인다. 다음 블록에서 이어지는 조각이 나오면
       // 이 원본에 groupId를 나중에 붙여야 하기 때문이다.
       for (const hit of found) hits.push(Object.assign(hit, { page, block, order }));
+    }
+  }
+
+  // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
+  // 예: 갑구 "소유자 김철수"를 찾았으면 을구 "채무자 김철수", 계약서 첫 줄 "임대인(김철수)과"도.
+  // 역할은 모르므로 null이다. (위험 점검용 사람 목록에는 영향이 없다)
+  const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME).map((h) => h.value);
+  if (names.length > 0) {
+    /** @type {Map<any, any[]>} 블록 → 그 블록에서 찾은 결과 */
+    const byBlock = new Map();
+    for (const h of hits) byBlock.set(h.block, [...(byBlock.get(h.block) ?? []), h]);
+    let blockOrder = 0;
+    for (const page of document.pages) {
+      for (const block of page.blocks) {
+        blockOrder += 1;
+        const inBlock = byBlock.get(block) ?? [];
+        for (const r of findKnownNames(block.text ?? '', names)) {
+          if (overlapsAny(inBlock, r)) continue;
+          const hit = Object.assign(r, { page, block, order: blockOrder });
+          inBlock.push(hit);
+          hits.push(hit);
+        }
+      }
     }
   }
 

@@ -1,13 +1,16 @@
-// PART 2. 빽빽한 가짜 서류에서 위험 점검 재료(fields)를 바르게 읽는지 (#141)
+// PART 2. 빽빽한 가짜 서류에서 위험 점검 재료(fields)를 바르게 읽는지 (#141), 이름을 빠짐없이 찾는지 (#142)
 // tests/fixtures/dense-*.pdf는 PART 5(#140)가 공개 양식 구조를 따라 만든 가짜 서류다. 이름·번호·주소는 모두 가짜다.
 // 실제 서류처럼 칸이 좁아서 글자가 다음 줄로 넘어가고, 서명란은 "주민등록번호 → 전화 → 성명" 순서다.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readDocuments, analyzeReadDocuments } from '../src/app/pipeline.js';
+import { readDocuments, analyzeReadDocuments, prepareForAi } from '../src/app/pipeline.js';
+import { MASKING_PURPOSE } from '../src/shared/document-model.js';
 
 const fixture = (name) =>
   new File([readFileSync(new URL(`./fixtures/${name}`, import.meta.url))], name, { type: 'application/pdf' });
 
+/** @type {any} */
+let analysis;
 /** @type {any} */
 let fields;
 /** @type {any[]} */
@@ -18,8 +21,27 @@ beforeAll(async () => {
   if (!read.ok) throw new Error(`readDocuments stopped at ${read.step}: ${read.error.code}`);
   const r = analyzeReadDocuments(read.data);
   if (!r.ok) throw new Error(`analyzeReadDocuments stopped at ${r.step}: ${r.error.code}`);
+  analysis = r.data;
   fields = r.data.fields;
   risks = r.data.riskResults;
+});
+
+/** 가짜 서류에 들어 있는 이름 (모두 가짜) */
+const FAKE_NAMES = ['김철수', '박영수', '이가상', 'NGUYEN VAN A', '최가상'];
+
+describe('PART 2 빽빽한 서류의 이름 (#142)', () => {
+  it('채무자·채권자·영수자·괄호 안 이름까지 찾고, "무소"는 이름으로 잡지 않는다', () => {
+    const names = analysis.findings.filter((f) => f.type === 'PERSON_NAME').map((f) => f.value);
+    expect(new Set(names)).toEqual(new Set(FAKE_NAMES));
+  });
+
+  for (const purpose of Object.values(MASKING_PURPOSE)) {
+    it(`${purpose}: ③→④에서 막히지 않고, 프롬프트에 이름이 남지 않는다`, () => {
+      const r = prepareForAi(analysis, purpose);
+      expect(r.ok, r.ok ? '' : `stopped at ${r.step}: ${r.error.message}`).toBe(true);
+      for (const name of FAKE_NAMES) expect(r.data.prompt).not.toContain(name);
+    });
+  }
 });
 
 const statusOf = (ruleId) => risks.find((r) => r.ruleId === ruleId)?.status;
