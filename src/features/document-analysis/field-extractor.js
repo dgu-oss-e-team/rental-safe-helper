@@ -117,6 +117,25 @@ const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:
 const MAX_SPECIAL_TERM_LINES = 30;
 
 /**
+ * 특약사항이 적힌 줄 번호 (제목 줄 포함). 제목이 없으면 [].
+ * "특약사항" 제목 줄부터, 서명란이 나오기 전까지(최대 30줄).
+ * findSpecialTerms()와, 특약 속 이름에 역할을 붙이지 않을 때(index.js) 같이 쓴다.
+ * @param {string[]} lines
+ * @returns {number[]}
+ */
+export function findSpecialTermLines(lines) {
+  const start = lines.findIndex((line) => SPECIAL_TERMS_HEADING.test(line));
+  if (start === -1) return [];
+  const indexes = [start];
+  const end = Math.min(lines.length, start + 1 + MAX_SPECIAL_TERM_LINES);
+  for (let i = start + 1; i < end; i += 1) {
+    if (SPECIAL_TERMS_STOP.test(lines[i])) break;
+    indexes.push(i);
+  }
+  return indexes;
+}
+
+/**
  * 특약사항 문장들을 모은다.
  * "특약사항" 제목이 있는 줄의 나머지 글자 + 다음 줄들을, 서명란이 나오기 전까지 모은다.
  * 제목이 없으면 null(못 찾음), 제목은 있는데 내용이 없으면 [].
@@ -124,15 +143,12 @@ const MAX_SPECIAL_TERM_LINES = 30;
  * @returns {string[] | null}
  */
 export function findSpecialTerms(lines) {
-  const start = lines.findIndex((line) => SPECIAL_TERMS_HEADING.test(line));
-  if (start === -1) return null;
+  const [start, ...rest] = findSpecialTermLines(lines);
+  if (start === undefined) return null;
   const terms = [];
   const firstRest = lines[start].replace(SPECIAL_TERMS_HEADING, '').trim();
   if (firstRest) terms.push(firstRest);
-  for (const line of lines.slice(start + 1, start + 1 + MAX_SPECIAL_TERM_LINES)) {
-    if (SPECIAL_TERMS_STOP.test(line)) break;
-    if (line.trim()) terms.push(line.trim());
-  }
+  for (const i of rest) if (lines[i].trim()) terms.push(lines[i].trim());
   return terms;
 }
 

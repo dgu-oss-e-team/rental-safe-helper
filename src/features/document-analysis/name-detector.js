@@ -24,6 +24,21 @@ const spaced = (word) => [...word].map(escapeRegex).join('\\s*');
 const NAME_FIELD = rules.nameFieldWords.map(spaced).join('|');
 const NOT_NAMES = new Set(rules.notNames);
 
+/** 낱말 끝의 조사 (긴 것부터) */
+const TRAILING_PARTICLE = /(?:으로|에서|에게|까지|부터|에는|의|에|로|은|는|이|가|을|를|과|와|도|만)$/;
+
+/**
+ * 조사를 뗀 나머지가 이름이 아닌 단어(notNames)인지. (#158)
+ * 예: 특약 "임대인 자산에 대한 수입으로" → "자산에" = "자산" + "에" → 이름 아님
+ * 조사로 끝나기만 해서는 빼지 않는다. "김정의", "김지은"처럼 조사 글자로 끝나는 진짜 이름이 있어서다.
+ * 목록에 없는 단어는 지금처럼 이름으로 보고 가린다. (놓치는 것보다 넓게 가리기)
+ * @param {string} name
+ */
+function isWordWithParticle(name) {
+  const particle = TRAILING_PARTICLE.exec(name);
+  return particle !== null && NOT_NAMES.has(name.slice(0, particle.index));
+}
+
 /**
  * 이름 모양
  * - 한글 2-4자 (뒤에 한글이 더 붙어 있으면 이름이 아니다. 예: "임대인은")
@@ -137,7 +152,7 @@ export function findLabeledNames(text, inheritedRole = null) {
    */
   const add = (match, roleAt) => {
     const name = match[1].trim();
-    if (NOT_NAMES.has(name)) return;
+    if (NOT_NAMES.has(name) || isWordWithParticle(name)) return;
     const start = (match.index ?? 0) + match[0].lastIndexOf(match[1]);
     // 같은 이름을 두 규칙이 모두 찾으면("임대인 성명: 이영희") 역할 라벨 쪽을 남긴다.
     if (byStart.has(start)) return;
