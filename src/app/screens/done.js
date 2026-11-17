@@ -4,7 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { DOCUMENT_TEXT } from '../slots.js';
 import { errorHelp } from '../error-help.js';
-import { CHECK_STATUS, PII_TYPE_TEXT } from '../double-check.js';
+import { CHECK_STATUS, PII_TYPE_TEXT, partlyCheckedText } from '../double-check.js';
 
 /**
  * 웹서비스가 AI를 직접 부르지 않는다. 프롬프트를 복사해 두고 사용자가 직접 붙여넣는다 (제안서 ⑨).
@@ -89,6 +89,10 @@ function doubleCheckSection(state, act) {
           `${name}: none of the personal information we detected was found in the page images. `,
           el('span', { class: 'hint' }, ['This covers only what we detected, so please look through the PDF once yourself.']),
         ]);
+      }
+      if (r.status === CHECK_STATUS.PARTLY_CHECKED) {
+        // 읽은 부분만 확인했다고 분명히 말하고, 흐린 줄이 있는 페이지를 직접 보라고 한다 (#146)
+        return el('li', { class: 'warning' }, [`${name}: ${partlyCheckedText(r.unclear)}`]);
       }
       if (r.status === CHECK_STATUS.MAYBE_VISIBLE) {
         const where = r.hits.map((h) => `${PII_TYPE_TEXT[h.type] ?? h.type} (page ${h.pageIndex + 1})`).join(', ');
