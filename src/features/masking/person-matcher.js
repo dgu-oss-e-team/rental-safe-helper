@@ -139,7 +139,6 @@ export function groupPeople(people) {
       groups.push({ name, birthDate, roles: [person.role], findingIds: [person.findingId], status: 'CONFIRMED', sources: new Set([source]) });
     }
   }
-  
 
   // 2단계: 애매한 그룹 표시
   for (const g of groups) {
