@@ -220,17 +220,45 @@ const ADDRESS_REGEX = new RegExp(
 );
 
 /**
+ * 주소 뒤에 붙어 읽힌 표 옆 칸의 시작 (#151)
+ * 주소는 줄 끝까지 잡으므로, 좁은 표에서는 옆 칸 글자가 주소에 붙는다.
+ * 예: "서울특별시 중구 가상동 123 대 5321.4㎡ 2015년3월2일 등기", "… 가상로 20, 1층 사무소명칭 가상공인중개사사무소"
+ * 띄어쓰기 뒤에 면적(㎡), 날짜, 항목 이름(person-labels.json의 addressStopWords)이 오면 그 앞에서 끊는다.
+ * 가림 상자는 블록 전체라서, 주소 값이 짧아져도 가리는 범위는 그대로다.
+ */
+const ADDRESS_STOP = new RegExp(
+  '\\s(?:' +
+    [
+      '\\d[\\d,.]*\\s*(?:㎡|m²|m2)', // 면적
+      '\\d{4}\\s*년', // 날짜 "2015년3월2일"
+      '\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}', // 날짜 "2015.03.02"
+      ...rules.addressStopWords.map(spaced), // 항목 이름
+    ].join('|') +
+    ')',
+);
+
+/**
+ * 주소 값에서 표 옆 칸 글자를 잘라낸다. 끝의 쉼표·공백도 지운다.
+ * @param {string} value
+ */
+function cutAtTableCell(value) {
+  const stop = ADDRESS_STOP.exec(value);
+  return stop ? value.slice(0, stop.index).replace(/[\s,]+$/, '') : value;
+}
+
+/**
  * @param {string} text
  * @returns {{type: string, value: string, start: number, end: number}[]}
  */
 export function findAddresses(text) {
   const results = [];
   for (const match of text.matchAll(ADDRESS_REGEX)) {
+    const value = cutAtTableCell(match[0]);
     results.push({
       type: PII_TYPE.ADDRESS,
-      value: match[0],
+      value,
       start: match.index,
-      end: match.index + match[0].length,
+      end: match.index + value.length,
     });
   }
   return results;
@@ -265,7 +293,8 @@ export function findAddressContinuation(line, afterRegion = false) {
   const m = line.match(afterRegion ? CONTINUATION_AFTER_REGION_REGEX : CONTINUATION_REGEX);
   if (!m) return null;
   const start = (m.index ?? 0) + m[0].length - m[1].length;
-  return { type: PII_TYPE.ADDRESS, value: m[1], start, end: start + m[1].length };
+  const value = cutAtTableCell(m[1]);
+  return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
 }
 
 /**

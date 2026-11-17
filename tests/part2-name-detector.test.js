@@ -362,6 +362,37 @@ describe('PART 2 이름 탐지 보강 (#142)', () => {
   });
 });
 
+describe('PART 2 주소 뒤에 붙은 표 옆 칸 끊기 (#151)', () => {
+  const valuesOf = (text) => findAddresses(text).map((a) => a.value);
+
+  it('면적·날짜 앞에서 끊는다', () => {
+    expect(valuesOf('1 1. 서울특별시 중구 가상동 123 대 5321.4㎡ 2015년3월2일 등기')).toEqual(['서울특별시 중구 가상동 123 대']);
+    expect(valuesOf('서울특별시 중구 가상로 1층 410.52㎡')).toEqual(['서울특별시 중구 가상로 1층']);
+    expect(valuesOf('서울특별시 중구 가상로 5 2015.03.02 접수')).toEqual(['서울특별시 중구 가상로 5']);
+  });
+
+  it('항목 이름(사무소명칭·건물내역·전화 등) 앞에서 끊고, 끝의 쉼표는 지운다', () => {
+    expect(valuesOf('사무소소재지 서울특별시 중구 가상로 20, 1층 사무소명칭 가상공인중개사사')).toEqual([
+      '서울특별시 중구 가상로 20, 1층',
+    ]);
+    expect(valuesOf('서울특별시 중구 가상동 123 철근콘크리트구조')).toEqual(['서울특별시 중구 가상동 123']);
+    expect(valuesOf('주소 서울특별시 중구 가상로 7, 전화 010-0000-0001')).toEqual(['서울특별시 중구 가상로 7']);
+  });
+
+  it('진짜 주소(동·층·호, 도로명·번지)는 그대로 잡는다', () => {
+    expect(valuesOf('[집합건물] 서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호')).toEqual([
+      '서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호',
+    ]);
+    expect(valuesOf('소재지 서울특별시 강남구 대치동 123-4 대치아파트 101동 1001호')).toEqual([
+      '서울특별시 강남구 대치동 123-4 대치아파트 101동 1001호',
+    ]);
+  });
+
+  it('두 줄 주소의 아랫줄도 표 옆 칸 앞에서 끊는다', () => {
+    expect(findAddressContinuation('101동 1001호 59.94㎡')?.value).toBe('101동 1001호');
+  });
+});
+
 describe('PART 2 이미 찾은 이름 다시 찾기 (findKnownNames, #142)', () => {
   const valuesOf = (text, names) => findKnownNames(text, names).map((r) => [r.value, r.start]);
 

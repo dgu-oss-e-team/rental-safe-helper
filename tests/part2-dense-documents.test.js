@@ -60,6 +60,17 @@ describe('PART 2 빽빽한 등기부 (#141)', () => {
     expect(fields.registry.address).toBe('서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호');
   });
 
+  it('등기부 "제7층 제702호"와 계약서 "3동 702호"는 같은 주소로 본다 (PART 3 #148과 함께)', () => {
+    expect(statusOf('ADDRESS_MISMATCH')).toBe('NO_FLAG');
+  });
+
+  it('주소에 표 옆 칸(면적·날짜·건물내역·사무소명칭)을 붙여 잡지 않는다 (#151)', () => {
+    const addresses = analysis.findings.filter((f) => f.type === 'ADDRESS').map((f) => f.value);
+    for (const a of addresses) expect(a, a).not.toMatch(/㎡|\d{4}년|등기|철근|사무소명칭/);
+    expect(addresses).toContain('서울특별시 중구 가상동 123 대');
+    expect(addresses).toContain('서울특별시 중구 가상로 20, 1층');
+  });
+
   it('지금 소유자·예전 소유자·마지막 소유권이전 날짜', () => {
     expect(fields.registry.owners.map((p) => [p.name, p.birthDate])).toEqual([['김철수', '800101']]);
     expect(fields.registry.previousOwners.map((p) => [p.name, p.birthDate])).toEqual([['박영수', '700101']]);
