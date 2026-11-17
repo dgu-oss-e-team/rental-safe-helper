@@ -71,6 +71,7 @@ export function uploadScreen(state, act) {
       el('p', {}, [
         'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo.',
       ]),
+      photoTipsBox(),
       filePicker(
         'registry-file',
         'Property register (등기부등본)',
