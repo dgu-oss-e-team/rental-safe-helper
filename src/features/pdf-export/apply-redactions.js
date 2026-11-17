@@ -33,10 +33,12 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
  * - 가장 작아도 페이지의 0.2% (이전 값), 가장 커도 페이지 긴 변의 1% (여러 줄 묶음처럼 큰 상자가 과하게 커지지 않게)
  * - 옆에 가리지 않는 글자가 있으면 그 글자까지 간격의 절반까지만 넓힌다. 실제 등기부·계약서처럼 줄 간격이 좁거나
  *   표 칸이 붙어 있어도 옆 줄·옆 칸 글자를 덮지 않는다. (공개 양식을 따른 빽빽한 가짜 서류 tests/fixtures/dense-*.pdf로 확인)
+ * - 단, 옆 글자 때문에 줄이더라도 가장 작은 여유(페이지의 0.2%, 이 기능 전과 같은 값)는 항상 지킨다.
+ *   OCR 좌표가 몇 px 어긋나면 개인정보 글자 끝이 보일 수 있어서, 옆 줄 끝을 1~2px 덮는 쪽이 새는 쪽보다 안전하다.
  */
 export const PAD_Y_RATIO = 0.2;
 export const PAD_X_RATIO = 0.25;
-const PAD_MIN = 0.002;
+export const PAD_MIN = 0.002;
 const PAD_MAX = 0.01;
 
 /**
@@ -100,6 +102,13 @@ export function toPixelRect(bbox, pageWidth, pageHeight, neighbors = []) {
     if (sideBySide && nr <= left) pad.left = Math.min(pad.left, (left - nr) / 2);
     if (sideBySide && nl >= right) pad.right = Math.min(pad.right, (nl - right) / 2);
   }
+  // 옆 글자 때문에 줄였어도 가장 작은 여유는 지킨다 (덜 가려서 새는 것보다 옆 줄 끝을 조금 덮는 쪽이 안전)
+  const minX = PAD_MIN * pageWidth;
+  const minY = PAD_MIN * pageHeight;
+  pad.top = Math.max(pad.top, minY);
+  pad.bottom = Math.max(pad.bottom, minY);
+  pad.left = Math.max(pad.left, minX);
+  pad.right = Math.max(pad.right, minX);
 
   const x = Math.max(0, Math.floor(left - pad.left));
   const y = Math.max(0, Math.floor(top - pad.top));

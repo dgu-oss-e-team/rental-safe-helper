@@ -11,6 +11,7 @@ import {
   drawRedactions,
   PAD_X_RATIO,
   PAD_Y_RATIO,
+  PAD_MIN,
 } from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
 const TINY_PNG = Uint8Array.from(
@@ -98,18 +99,32 @@ describe('PART 5 상자 여유: 옆에 가리지 않는 글자가 있으면 간�
   const px = (b) => ({ l: b.x * 2480, t: b.y * 3508, r: (b.x + b.width) * 2480, b: (b.y + b.height) * 3508 });
 
   it('바로 아래 줄이 가까우면(간격 10px) 아래 여유는 5px까지만, 위는 그대로', () => {
-    const below = { x: 0.1, y: 0.32 + 10 / 3508, width: 0.4, height: 0.02 };
+    const below = { x: 0.1, y: 0.32 + 20 / 3508, width: 0.4, height: 0.02 };
     const r = toPixelRect(line, ...A4, [below]);
     expect(r.y + r.height).toBeLessThanOrEqual(px(below).t);
-    expect(r.y + r.height - px(line).b).toBeLessThanOrEqual(6);
+    expect(r.y + r.height - px(line).b).toBeLessThanOrEqual(11);
     expect(px(line).t - r.y).toBeGreaterThanOrEqual(13);
   });
 
-  it('바로 오른쪽 칸 글자가 가까우면(간격 8px) 오른쪽 여유는 4px까지만', () => {
-    const right = { x: 0.5 + 8 / 2480, y: 0.3, width: 0.1, height: 0.02 };
+  it('바로 오른쪽 칸 글자가 가까우면(간격 14px) 오른쪽 여유는 7px까지만', () => {
+    const right = { x: 0.5 + 14 / 2480, y: 0.3, width: 0.1, height: 0.02 };
     const r = toPixelRect(line, ...A4, [right]);
     expect(r.x + r.width).toBeLessThanOrEqual(px(right).l);
-    expect(r.x + r.width - px(line).r).toBeLessThanOrEqual(5);
+    expect(r.x + r.width - px(line).r).toBeLessThanOrEqual(8);
+  });
+
+  it('옆 글자가 거의 붙어 있어도 가장 작은 여유(페이지의 0.2%)는 지킨다 (덜 가려서 새지 않게, #140 리뷰)', () => {
+    const minY = PAD_MIN * 3508; // 약 7px
+    const minX = PAD_MIN * 2480; // 약 5px
+    const touching = [
+      { x: 0.1, y: 0.32, width: 0.4, height: 0.02 }, // 바로 아래 줄, 간격 0
+      { x: 0.1, y: 0.28 - 2 / 3508, width: 0.4, height: 0.02 }, // 바로 위 줄, 간격 2px
+      { x: 0.5, y: 0.3, width: 0.1, height: 0.02 }, // 바로 오른쪽 칸, 간격 0
+    ];
+    const r = toPixelRect(line, ...A4, touching);
+    expect(r.y + r.height - px(line).b).toBeGreaterThanOrEqual(minY);
+    expect(px(line).t - r.y).toBeGreaterThanOrEqual(minY);
+    expect(r.x + r.width - px(line).r).toBeGreaterThanOrEqual(minX);
   });
 
   it('멀리 있는 글자나 다른 열의 글자는 여유에 영향이 없다', () => {
@@ -120,7 +135,7 @@ describe('PART 5 상자 여유: 옆에 가리지 않는 글자가 있으면 간�
 
   it('planRedactions: 가릴 줄은 이웃으로 보지 않고, 가리지 않는 줄만 피한다', () => {
     const masked = { x: 0.1, y: 0.3, width: 0.4, height: 0.02 };
-    const free = { x: 0.1, y: 0.32 + 10 / 3508, width: 0.4, height: 0.02 };
+    const free = { x: 0.1, y: 0.32 + 20 / 3508, width: 0.4, height: 0.02 };
     const plan = { purpose: 'FRAUD_CHECK', items: [item({ bbox: masked })] };
     const pg = { documentId: 'DOC_A', pageIndex: 0, width: 2480, height: 3508 };
     const [box] = planRedactions(plan, { ...pg, textBoxes: [masked, free] });
