@@ -24,6 +24,18 @@ function resumeCard(state, act) {
   );
 }
 
+function photoTipsBox() {
+  return el('div', { class: 'photo-tips' }, [
+    el('strong', {}, ['Tips for taking a clear photo']),
+    el('ul', {}, [
+      el('li', {}, ['Place the paper flat without folds or creases.']),
+      el('li', {}, ['Shoot straight-on from the front so the page is not tilted.']),
+      el('li', {}, ['Use bright, even lighting and avoid shadows over the text.']),
+      el('li', {}, ['Fit the entire page inside the frame so no edges are cut off.']),
+    ]),
+  ]);
+}
+
 /**
  * 파일 고르는 칸 하나
  * @param {string} id
