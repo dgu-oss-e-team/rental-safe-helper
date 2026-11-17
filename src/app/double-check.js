@@ -16,6 +16,10 @@
  * (숫자가 없는 줄을 하나씩 세면 표 선 조각("ㅣ ㅣ")까지 흐린 줄로 세어서, 시연 샘플도 "흐린 줄 있음"이 된다)
  * PART 1은 처음 읽을 때 흐린 줄이 하나라도 있으면 멈추지만, 다시 검사에서 그렇게 하면 작은 글씨·표가 많은 실제 서류는
  * 항상 "확인 불가"가 된다(#146 실험: 해상도를 올려도 같음). 그래서 끝까지 읽고, 흐린 줄은 "확인하지 못함"으로 따로 알린다.
+ *
+ * 한계: 숫자가 없는 흐린 줄은 "확인하지 못한 줄"로 세지 않는다. 그래서 이름처럼 글자만 있는 개인정보가 흐리게 읽혀
+ * 정확히 일치하지 않으면 놓칠 수 있다. (이름은 정확히 같을 때만 찾는다. 숫자 번호는 흐린 줄에서 1개 다른 것까지 찾는다)
+ * 결과 문구가 "탐지한 것만, PDF를 한 번 직접 보라"고 안내하는 이유다.
  */
 
 import { MASKING_ACTION, PII_TYPE } from '../shared/document-model.js';
@@ -152,6 +156,22 @@ export function findVisiblePii(ocrDocument, findings, plan) {
   }
   if (unclearLines.length > 0) return { status: CHECK_STATUS.PARTLY_CHECKED, hits: [], reason: null, unclear };
   return { status: CHECK_STATUS.NOT_FOUND, hits: [], reason: null, unclear };
+}
+
+/**
+ * "부분 확인" 결과 문구 (서류 이름 뒤에 붙는다). 쪽이 여럿이면 "pages"로 쓴다.
+ * @param {{ count: number, pages: number[] } | undefined} unclear  pages는 0부터
+ */
+export function partlyCheckedText(unclear) {
+  const count = unclear?.count ?? 0;
+  const pages = unclear?.pages ?? [];
+  const lines = count === 1 ? '1 line' : `${count} lines`;
+  const where = `${pages.length > 1 ? 'pages' : 'page'} ${pages.map((p) => p + 1).join(', ')}`;
+  return (
+    'in the parts we could read, none of the personal information we detected was found. ' +
+    `${lines} on ${where} could not be read clearly, so we could not check ${count === 1 ? 'it' : 'them'}. ` +
+    `Please look at ${pages.length > 1 ? 'those pages' : 'that page'} of the PDF yourself.`
+  );
 }
 
 /**

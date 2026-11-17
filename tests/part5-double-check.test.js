@@ -1,7 +1,7 @@
 // PART 5. 마스킹 PDF 다시 검사 (노션 10장: 생성된 PDF를 다시 OCR하여 개인정보가 보이는지 확인)
 // OCR 대신, 다시 읽은 결과(DocumentModel)를 직접 만들어 비교 로직을 검사한다. 가짜 데이터만 사용.
 import { describe, it, expect, vi } from 'vitest';
-import { findVisiblePii, unverifiable, CHECK_STATUS } from '../src/app/double-check.js';
+import { findVisiblePii, unverifiable, CHECK_STATUS, partlyCheckedText } from '../src/app/double-check.js';
 
 // pipeline의 readDocument(PART 1)를 가짜로 바꿔, OCR 성공·실패를 흉내 낸다
 vi.mock('../src/features/document-input/index.js', async (importOriginal) => ({
@@ -114,6 +114,13 @@ describe('PART 5 findVisiblePii(): 다시 읽은 글자에서 개인정보 찾�
     it('흐린 숫자 줄이 절반보다 많으면 "부분 확인"이 아니라 확인 불가', () => {
       const r = findVisiblePii(ocrWith(['보증금 50,000,000', 0.7], ['계약일 2026', 0.7], ['특약사항', 0.9]), findings, plan());
       expect(r).toMatchObject({ status: CHECK_STATUS.UNVERIFIABLE, reason: 'LOW_CONFIDENCE', unclear: { count: 2 } });
+    });
+
+    it('"부분 확인" 문구: 줄·쪽이 하나면 단수, 여럿이면 복수 (#150 리뷰)', () => {
+      expect(partlyCheckedText({ count: 1, pages: [0] })).toContain('1 line on page 1 could not be read clearly, so we could not check it. Please look at that page');
+      const many = partlyCheckedText({ count: 3, pages: [0, 1] });
+      expect(many).toContain('3 lines on pages 1, 2 could not be read clearly, so we could not check them. Please look at those pages');
+      expect(`${many}`).not.toMatch(/\b(safe|no risk|no warning)\b/i);
     });
 
     it('신뢰도가 없는 줄(글자 PDF)은 흐린 줄로 세지 않는다', () => {
