@@ -1,6 +1,6 @@
 // PART 4. 역할 없는 이름(채무자·채권자·영수자 등, role: null)에 가명 연결하기
 // 글자가 똑같은 이름의 인물 묶음이 딱 하나면 그 가명에 "?"를 붙여 쓰고, 둘 이상(동명이인)이거나 없으면 가린다.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createMaskingPlan, applyMaskingPlan, validateMaskedText } from '../src/features/masking/index.js';
 import { readDocuments, analyzeReadDocuments, prepareForAi } from '../src/app/pipeline.js';
@@ -126,9 +126,14 @@ describe('PART 4 역할 없는 이름의 가명 연결: 빽빽한 가짜 서류 
   const fixture = (file) =>
     new File([readFileSync(new URL(`./fixtures/${file}`, import.meta.url))], file, { type: 'application/pdf' });
 
-  it('을구 채무자 박영수는 "확인 안 됨" 표시가 붙은 예전 소유자 가명, 동명이인이 있는 김철수는 가린다', async () => {
+  // PDF 읽기는 느려서(컴퓨터에 따라 5초 넘음) 테스트 밖에서 한 번만 읽는다
+  let analysis;
+  beforeAll(async () => {
     const read = await readDocuments({ files: [fixture('dense-registry.pdf'), fixture('dense-lease.pdf')] });
-    const analysis = analyzeReadDocuments(read.data).data;
+    analysis = analyzeReadDocuments(read.data).data;
+  }, 20000);
+
+  it('을구 채무자 박영수는 "확인 안 됨" 표시가 붙은 예전 소유자 가명, 동명이인이 있는 김철수는 가린다', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
     expect(r.ok).toBe(true);
     const lines = r.data.prompt.split('\n');
