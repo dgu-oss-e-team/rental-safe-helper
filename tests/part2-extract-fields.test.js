@@ -534,6 +534,19 @@ describe('PART 2 이미 찾은 이름을 문서 안에서 다시 찾기 (#142)',
   });
 });
 
+describe('PART 2 "생년월일" 칸이 있는 계약서 (#176 리뷰)', () => {
+  it('임대인 아래 "생년월일 750315-…" 줄이 있어도 임대인은 하나이고, 생년월일은 진짜 임대인에게 붙는다', () => {
+    const doc = leaseDoc([
+      '주택임대차계약서 보증금 특약',
+      '임대인 주소 서울특별시 중구 필동로 00, 101호',
+      '생년월일 750315-1****** 전화 010-0000-1357 성명 김철수 (서명 또는 날인)',
+    ]);
+    expect(extractFields([doc], []).data.contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([
+      ['김철수', '750315'],
+    ]);
+  });
+});
+
 describe('PART 2 extractFields 등기부 집 주소 (#141)', () => {
   const REG_HEAD = '등기사항전부증명서 표제부 갑구 을구';
 
