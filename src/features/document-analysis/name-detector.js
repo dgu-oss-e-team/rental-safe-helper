@@ -51,9 +51,31 @@ function labelRegex(label) {
   );
 }
 
-const PERSON_RULES = rules.persons.flatMap(({ role, labels }) =>
-  labels.map((label) => ({ role, regex: labelRegex(label) })),
-);
+/**
+ * 괄호 안 이름: "임대인(김철수)과 임차인(NGUYEN VAN A)은" (계약서 첫 문장)
+ * 닫는 괄호가 이름 바로 뒤에 와야 한다. "임대인(이하 갑)"은 이름이 아니다.
+ * 역할은 붙이지 않는다(role: null). 서명란에 같은 사람이 번호와 함께 다시 나오므로,
+ * 여기에 역할을 붙이면 위험 점검 화면에 같은 임대인이 두 번 보인다.
+ * @param {string} label
+ */
+function parenRegex(label) {
+  return new RegExp(`${spaced(label)}\\s*[(（]\\s*${NAME_PATTERN}\\s*[)）]`, 'g');
+}
+
+/**
+ * 역할은 정하지 않고 이름만 찾는 라벨 (등기부 "채무자 김철수", "채권자 이가상", 계약금 "영수자 김철수")
+ * 이 이름들은 위험 점검에 쓰지 않지만 개인정보라서 가린다. (role: null)
+ */
+const OTHER_LABELS = /** @type {string[]} */ (rules.otherPersonLabels);
+
+/** @type {Array<{ role: string | null, regex: RegExp }>} */
+const PERSON_RULES = [
+  ...rules.persons.flatMap(({ role, labels }) =>
+    labels.map((label) => ({ role, regex: labelRegex(label) })),
+  ),
+  ...rules.persons.flatMap(({ labels }) => labels.map((label) => ({ role: null, regex: parenRegex(label) }))),
+  ...OTHER_LABELS.map((label) => ({ role: null, regex: labelRegex(label) })),
+];
 
 /**
  * 역할 라벨이 "항목 이름"으로 쓰인 자리. (뒤에 공백·콜론·줄 끝이 오는 경우)
@@ -135,6 +157,31 @@ export function findLabeledNames(text, inheritedRole = null) {
   for (const match of text.matchAll(STANDALONE_NAME_REGEX)) add(match, roleBefore);
 
   return [...byStart.values()].sort((a, b) => a.start - b.start);
+}
+
+/**
+ * 이미 찾은 이름이 라벨 없이 또 나오는 곳을 찾는다. (예: 위에서 "소유자 김철수"를 찾았으면 "채무자 … 김철수"도 가린다)
+ * - 한글 3-4자 이름은 앞에 한글이 붙어 있지 않으면 찾는다. 뒤에는 조사가 붙을 수 있다. ("김철수는")
+ * - 한글 2자 이름은 일상 단어와 겹치기 쉬워서 앞뒤 모두 한글이 붙어 있지 않을 때만 찾는다.
+ * - 영문 이름은 앞뒤에 영문이 붙어 있지 않을 때만 찾는다. 대소문자는 그대로 비교한다.
+ * @param {string} text
+ * @param {Iterable<string>} names 이미 찾은 이름
+ * @returns {{ type: string, value: string, start: number, end: number, role: null }[]}
+ */
+export function findKnownNames(text, names) {
+  const results = [];
+  for (const name of new Set(names)) {
+    const hangul = /^[가-힣]+$/.test(name);
+    if (hangul && name.length < 2) continue;
+    const pattern = hangul
+      ? `(?<![가-힣])${escapeRegex(name)}${name.length === 2 ? '(?![가-힣])' : ''}`
+      : `(?<![A-Za-z])${escapeRegex(name)}(?![A-Za-z])`;
+    for (const m of text.matchAll(new RegExp(pattern, 'g'))) {
+      const start = m.index ?? 0;
+      results.push({ type: PII_TYPE.PERSON_NAME, value: name, start, end: start + name.length, role: null });
+    }
+  }
+  return results.sort((a, b) => a.start - b.start);
 }
 
 /**
