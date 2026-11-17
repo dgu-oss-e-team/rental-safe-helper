@@ -4,6 +4,7 @@ import {
   findRegistryIds,
   findBankAccounts,
   findPatternPII,
+  findGluedNumbers,
 } from '../src/features/document-analysis/pii-patterns.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
@@ -87,6 +88,47 @@ describe('PART 2 전체 탐지 순서 (findPatternPII)', () => {
       PII_TYPE.BANK_ACCOUNT,
       PII_TYPE.RESIDENT_ID,
     ]);
+  });
+});
+
+describe('PART 2 붙어서 읽힌 번호 (이슈 #166)', () => {
+  const found = (text) => findPatternPII(text).map((r) => [r.type, r.value, r.uncertain]);
+
+  it('주민번호 두 개가 붙어 있어도 각각 찾는다 (휴대폰 앱으로 채운 계약서)', () => {
+    expect(found('주민등록번호 900101-1234567800202-2345678')).toEqual([
+      [PII_TYPE.RESIDENT_ID, '900101-1234567', true],
+      [PII_TYPE.RESIDENT_ID, '800202-2345678', true],
+    ]);
+  });
+
+  it('전화번호 두 개가 붙어 있어도 각각 찾는다', () => {
+    expect(found('전화번호 010-1111-2222010-3333-4444')).toEqual([
+      [PII_TYPE.PHONE_NUMBER, '010-1111-2222', true],
+      [PII_TYPE.PHONE_NUMBER, '010-3333-4444', true],
+    ]);
+  });
+
+  it('가려진 번호(*), 외국인등록번호, 주민번호+전화번호가 섞여도 찾는다', () => {
+    expect(found('900101-1******990505-5******')).toEqual([
+      [PII_TYPE.RESIDENT_ID, '900101-1******', true],
+      [PII_TYPE.FOREIGNER_ID, '990505-5******', true],
+    ]);
+    expect(found('900101-1234567010-1111-2222').map((r) => r[0])).toEqual([
+      PII_TYPE.RESIDENT_ID,
+      PII_TYPE.PHONE_NUMBER,
+    ]);
+  });
+
+  it('번호 모양으로 빈틈없이 나눠지지 않는 덩어리는 건드리지 않는다 (계좌·고유번호·날짜는 지금과 같음)', () => {
+    expect(findGluedNumbers('계좌번호 110-482-913570 은행')).toEqual([]);
+    expect(findGluedNumbers('고유번호 1101-2024-123456')).toEqual([]);
+    expect(findGluedNumbers('계약일 2026-11-17')).toEqual([]);
+    expect(findGluedNumbers('900101-1234567800202')).toEqual([]); // 뒤 번호가 모자라면 나누지 않는다
+    expect(found('계좌번호 110-482-913570 은행')).toEqual([[PII_TYPE.BANK_ACCOUNT, '110-482-913570', undefined]]);
+  });
+
+  it('번호 하나만 있으면 지금처럼 원래 규칙으로 찾는다 (uncertain 아님)', () => {
+    expect(found('연락처 010-1234-5678')).toEqual([[PII_TYPE.PHONE_NUMBER, '010-1234-5678', undefined]]);
   });
 });
 
