@@ -362,6 +362,27 @@ describe('PART 2 이름 탐지 보강 (#142)', () => {
   });
 });
 
+describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)', () => {
+  it('라벨 없이 "이름 + 주민번호"만 있는 줄에서 이름을 찾고, 위쪽 역할 라벨을 이어받는다', () => {
+    expect(findLabeledNames('이몽룡 790521-*******', 'OWNER')).toEqual([
+      { type: PII_TYPE.PERSON_NAME, value: '이몽룡', start: 0, end: 3, role: 'OWNER' },
+    ]);
+    expect(findPeople('심청 830917-*******', 'OWNER')[0]).toMatchObject({ value: '심청', role: 'OWNER', birthDate: '830917' });
+  });
+
+  it('회사 이름 끝 글자, 라벨 단어, notNames는 이름이 아니다', () => {
+    expect(findLabeledNames('소유자 주식회사가상건설 110111-0000001').map((r) => r.value)).toEqual([]);
+    expect(findLabeledNames('임대인 750315-1******').map((r) => r.value)).toEqual([]);
+    expect(findLabeledNames('번호 750315-1******').map((r) => r.value)).toEqual([]);
+  });
+
+  it('라벨 뒤 이름과 겹치면 라벨 쪽 역할을 남긴다', () => {
+    expect(findLabeledNames('소유자 박문수 820914-*******', 'TENANT').map((r) => [r.value, r.role])).toEqual([
+      ['박문수', 'OWNER'],
+    ]);
+  });
+});
+
 describe('PART 2 조사가 붙은 일상 단어는 이름이 아니다 (#158)', () => {
   const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
 

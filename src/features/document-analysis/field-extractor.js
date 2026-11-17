@@ -367,6 +367,22 @@ const PRESERVE_PURPOSE = /^\s*소\s*유\s*권\s*보\s*존/;
  * "공유자전원지분전부이전"은 전부 넘어간 것이라 일부가 아니다.
  */
 const PARTIAL_TRANSFER = /^\s*(?:소\s*유\s*권\s*일\s*부|(?![가-힣]{0,3}전\s*원\s*지\s*분\s*전\s*부)[가-힣]{0,10}지\s*분)/;
+/** 다음 줄로 넘어간 등기목적의 끝 "이전" ("공유자전원지분전부" / "이전 제80246호 매매 …") */
+const WRAPPED_TRANSFER_END = /^\s*이\s*전(?![가-힣])/;
+
+/**
+ * 등기목적 칸이 좁아 "이전"이 다음 줄로 넘어간 소유권이전인지. (#165)
+ * 예: "2 공유자전원지분전부 2025년9월15일 …" / "이전 제80246호 매매 …"
+ * 줄의 첫 낱말에 "이전"을 붙였을 때 소유권이전 모양이 되고, 다음 줄(순위번호 없음)이 "이전"으로 시작할 때만 그렇다.
+ * @param {string} rest 순위번호 뒤의 글자
+ * @param {string | undefined} next 다음 줄
+ */
+function isWrappedTransfer(rest, next) {
+  if (next === undefined || RANK_REGEX.test(next) || !WRAPPED_TRANSFER_END.test(next)) return false;
+  const first = /^\s*(\S+)/.exec(rest);
+  return first !== null && TRANSFER_PURPOSE.test(`${first[1]}이전`);
+}
+
 /** 소유권이전 줄에 접수일이 없을 때, 이어지는 줄을 몇 줄까지 볼지 */
 const MAX_DATE_LOOKAHEAD = 3;
 
@@ -444,7 +460,9 @@ function readGapRows(lines) {
       waiting = (kind === 'TRANSFER' || kind === 'PARTIAL') && row.date === null ? { row, seen: 0 } : null;
     };
 
-    if (TRANSFER_PURPOSE.test(rest)) return startRow(PARTIAL_TRANSFER.test(rest) ? 'PARTIAL' : 'TRANSFER');
+    if (TRANSFER_PURPOSE.test(rest) || (rank !== null && isWrappedTransfer(rest, lines[i + 1]))) {
+      return startRow(PARTIAL_TRANSFER.test(rest) ? 'PARTIAL' : 'TRANSFER');
+    }
     if (PRESERVE_PURPOSE.test(rest)) return startRow('PRESERVE');
     if (/말\s*소/.test(rest)) {
       current = null;
