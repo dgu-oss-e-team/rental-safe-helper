@@ -10,6 +10,7 @@
 
 import { ok, fail, ERROR_CODE, MASKING_ACTION, MASKING_PURPOSE, PII_TYPE } from '../../shared/document-model.js';
 import { resolveRemovals, addEditsToItems, hasInvalidAddPosition } from './user-edits.js';
+import { normalizeName } from './person-matcher.js';
 import policy from '../../config/masking/masking-policy.json';
 // 시·도 이름 목록 (정식 이름 + 줄임말). PART 2가 관리하는 설정 파일을 같이 읽는다.
 import personLabels from '../../config/templates/person-labels.json';
@@ -93,6 +94,29 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
   for (const group of personGroups) {
     for (const id of group.findingIds) aliasByFinding.set(id, group.alias);
   }
+  // 역할 없는 이름(등기부 "채무자 김철수", 계약금 "영수자 김철수" 등, role: null)은 인물 묶음에 들어 있지 않다.
+  // 글자가 똑같은 이름의 묶음이 딱 하나면 그 가명을 쓰고, 둘 이상(동명이인)이거나 없으면 가린다.
+  // 비슷한 이름(Fuse.js)은 연결하지 않는다. 자동으로 같은 사람이라고 정하지 않는 원칙과 같다.
+  const findingById = new Map(findings.map((f) => [f.id, f]));
+  /** @type {Map<string, Set<string>>} 정리한 이름 → 그 이름을 가진 묶음의 가명들 */
+  const aliasesByName = new Map();
+  for (const group of personGroups) {
+    for (const id of group.findingIds) {
+      const value = findingById.get(id)?.value;
+      if (!value) continue;
+      const key = normalizeName(value);
+      const set = aliasesByName.get(key) ?? new Set();
+      set.add(group.alias);
+      aliasesByName.set(key, set);
+    }
+  }
+  /** @param {PiiFinding} f */
+  const aliasFor = (f) => {
+    const direct = aliasByFinding.get(f.id);
+    if (direct) return direct;
+    const same = aliasesByName.get(normalizeName(f.value));
+    return same && same.size === 1 ? [...same][0] : undefined;
+  };
 
   // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)
   /** @type {Map<string, { firstId: string, text: string }>} */
@@ -115,8 +139,8 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
 
     if (action === MASKING_ACTION.REPLACE) {
       if (f.type === PII_TYPE.PERSON_NAME) {
-        const alias = aliasByFinding.get(f.id);
-        // 인물 판정이 없으면 가명을 붙일 수 없으므로 가린다
+        const alias = aliasFor(f);
+        // 인물 판정이 없고 같은 이름의 묶음도 하나로 정해지지 않으면 가명을 붙일 수 없으므로 가린다
         if (alias) replacement = alias;
         else action = MASKING_ACTION.REDACT;
       } else if (f.type === PII_TYPE.ADDRESS) {
