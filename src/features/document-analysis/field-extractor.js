@@ -251,6 +251,12 @@ export function findRegistryRights(lines) {
   const seen = new Set();
   /** @type {string | null} */
   let section = null;
+  /** 지금 읽는 기록(순위번호 하나)의 순위번호와, 그 기록에서 이미 센 권리 종류 */
+  /** @type {string | null} */
+  let rowRank = null;
+  let rowKinds = new Set();
+  /** 부기등기("2-1 신탁주의사항") 줄 다음의 설명 줄인지 (다음 순위번호까지) */
+  let inSupplement = false;
 
   for (let i = 0; i < lines.length; i += 1) {
     const joined = joinWrappedCancel(lines, i);
@@ -263,9 +269,23 @@ export function findRegistryRights(lines) {
     if (heading) {
       section = heading[1];
       seen.add(section);
+      rowRank = null;
+      rowKinds = new Set();
+      inSupplement = false;
       continue;
     }
     if (section === null) continue;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch) {
+      inSupplement = Boolean(rankMatch[2]);
+      if (!rankMatch[2]) {
+        rowRank = rankMatch[1];
+        rowKinds = new Set();
+      }
+    } else if (inSupplement) {
+      continue; // 부기등기의 설명 줄 ("이 부동산에 관하여 … 신탁원부를 통하여 …")는 권리가 아니다
+    }
 
     if (/말\s*소/.test(line)) {
       const target = CANCEL_TARGET.exec(line);
@@ -274,7 +294,6 @@ export function findRegistryRights(lines) {
     }
     if (CONTINUATION_LINE.test(line)) continue;
 
-    const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch && rankMatch[2]) continue; // 부기등기
     const rank = rankMatch ? rankMatch[1] : null;
     if (rank === null && isWrappedCause(line)) continue; // 다음 줄로 넘어간 등기원인 칸
@@ -290,6 +309,9 @@ export function findRegistryRights(lines) {
       continue;
     }
     if (rank !== null && places.some((p) => p.section === section && p.rank === rank)) continue;
+    // 신탁은 한 기록 안에 여러 줄로 나온다: "2 소유권이전 … 수탁자 ○○자산신탁(주)" / "신탁" / "신탁 신탁원부 제…호".
+    // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
+    if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
 
     rights.push({
       kind: found.kind,
@@ -298,7 +320,9 @@ export function findRegistryRights(lines) {
       cancelled: false,
       receivedAt: null,
     });
-    places.push({ section, rank });
+    // 순위번호 없는 신탁 줄은 지금 기록의 순위번호를 쓴다. ("3번신탁등기말소"가 이 신탁을 가리킬 수 있게)
+    places.push({ section, rank: rank ?? (found.kind === 'TRUST' ? rowRank : null) });
+    rowKinds.add(found.kind);
   }
 
   if (!seen.has('갑') || !seen.has('을')) return null;
