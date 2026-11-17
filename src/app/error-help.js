@@ -71,7 +71,7 @@ const BY_STEP = {
   // 남은 결과에는 답이 반영되지 않았다는 점을 밝히고, "no warning"·"no risk"·"safe"는 쓰지 않는다.
   recheckRisks: {
     title: 'We could not update the results with your answer.',
-    help: 'Your answer was not applied. The results on this page are from before your answer. Please choose your answer again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
+    help: 'This answer was not applied. The results on this page are from before this answer. Please choose your answer again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
   },
   applyPersonAnswers: {
     title: 'That answer could not be used.',

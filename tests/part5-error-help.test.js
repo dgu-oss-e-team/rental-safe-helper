@@ -51,8 +51,8 @@ describe('PART 5 errorHelp(): 오류 코드 → 사용자 안내', () => {
     const h = errorHelp({ step: 'recheckRisks', code: ERROR_CODE.INVALID_INPUT });
     expect(h.title).toBe('We could not update the results with your answer.');
     expect(h.title).not.toContain('no results');
-    expect(h.help).toContain('Your answer was not applied');
-    expect(h.help).toContain('from before your answer');
+    expect(h.help).toContain('This answer was not applied');
+    expect(h.help).toContain('from before this answer');
     expect(h.help).toContain('check the register and the contract yourself');
     expect(`${h.title} ${h.help}`).not.toMatch(/\b(safe|no risk|no warning)\b/i);
     expect(h.help).not.toMatch(/another file|different file|upload/i);
