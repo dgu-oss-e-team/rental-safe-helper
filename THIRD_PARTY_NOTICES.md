@@ -29,11 +29,17 @@ Tesseract.js downloads these files from the jsDelivr CDN the first time a photo 
 | Tesseract.js core (`tesseract.js-core` 7.0.0, WebAssembly build of Tesseract OCR) | Apache-2.0 | [naptha/tesseract.js-core](https://github.com/naptha/tesseract.js-core), [tesseract-ocr/tesseract](https://github.com/tesseract-ocr/tesseract) |
 | Korean and English language data (`@tesseract.js-data/kor`, `@tesseract.js-data/eng`) | MIT (npm packages); the trained data comes from tesseract-ocr/tessdata, Apache-2.0 | [naptha/tessdata](https://github.com/naptha/tessdata), [tesseract-ocr/tessdata](https://github.com/tesseract-ocr/tessdata) |
 
-## Font in the sample documents
+## Fonts in the sample documents
+
+These fonts are embedded (as subsets) in the fake sample PDFs. The PDFs are made by `scripts/make-sample-pdfs.mjs`, which loads the fonts from Google Fonts. They stand in for the fonts used on real Korean property registers and lease contracts (Batang, Gulim, Dotum), which cannot be redistributed.
 
 | Font | License | Where |
 |---|---|---|
-| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | Embedded (subset) in the fake sample PDFs `public/samples/*.pdf` and the test-only PDFs `tests/fixtures/*.pdf`, made by `scripts/make-sample-pdfs.mjs` from Google Fonts |
+| [Nanum Myeongjo](https://fonts.google.com/specimen/Nanum+Myeongjo) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (text), `public/samples/sample-lease.pdf` (clauses) |
+| [Courier Prime](https://fonts.google.com/specimen/Courier+Prime) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (numbers and Latin letters, fixed width like BatangChe) |
+| [Nanum Gothic](https://fonts.google.com/specimen/Nanum+Gothic) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (body text) |
+| [Nanum Gothic Coding](https://fonts.google.com/specimen/Nanum+Gothic+Coding) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (amounts and numbers) |
+| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (titles), and the test-only PDFs `tests/fixtures/*.pdf` |
 
 ## Rules referenced in our code
 

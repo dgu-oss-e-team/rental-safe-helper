@@ -1,39 +1,88 @@
 <!doctype html>
-<!-- 가상 임대차계약서 (테스트·시연용). 이름·번호·주소·계좌는 모두 가짜다. 시나리오는 sample-registry.html 맨 위 설명 참고. -->
+<!--
+  가상 임대차계약서 (테스트·시연용, #153). 이름·번호·주소·계좌·전화는 모두 가짜다. 실제 서류에서 가져온 값은 없다.
+  공개된 주택임대차 표준계약서(법무부, 2023.10.6. 개정) 양식의 구조를 따랐다: 임차주택의 표시 표, 계약내용 표, 조항, 특약, 서명란.
+  조항 글은 양식을 그대로 옮기지 않고 짧게 고쳐 썼다.
+  글꼴(실제 계약서처럼 섞음, 모두 OFL): 본문 나눔고딕, 조항 나눔명조, 금액·번호 나눔고딕코딩, 제목 Noto Sans KR Black.
+  나눔고딕코딩 글자 사이의 띄어쓰기는 PDF에서 제어 문자(U+0001)로 읽혀서(#153에서 발견, PART 1에 전달), 띄어쓰기가 있는 날짜에는 쓰지 않는다.
+  가짜 번호는 숫자를 다양하게 쓰고, 서로 한두 자리만 다른 번호는 피했다 (⑤ Double-check 오탐 방지, #146).
+  시나리오는 sample-registry.html 맨 위 설명 참고. 예금주 김철수는 생년월일이 없어 "같은 사람인가요?"로 묻는다.
+-->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <title>sample-lease</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&family=Nanum+Gothic+Coding&family=Nanum+Myeongjo&family=Noto+Sans+KR:wght@900&display=block" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 18mm 16mm; }
-  body { font-family: 'Noto Sans KR', sans-serif; font-size: 10.5pt; color: #000; }
-  h1 { text-align: center; font-size: 17pt; margin: 0 0 6mm; }
-  h2 { font-size: 12pt; margin: 6mm 0 2mm; }
-  p { margin: 1.5mm 0; }
-  .note { margin-top: 8mm; font-size: 9pt; color: #444; }
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: 'Nanum Gothic', sans-serif; font-size: 9pt; line-height: 1.4; color: #000; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  h1 { text-align: center; font-family: 'Noto Sans KR', sans-serif; font-weight: 900; font-size: 16pt; margin: 0 0 3mm; }
+  h2 { font-family: 'Noto Sans KR', sans-serif; font-weight: 900; font-size: 10pt; margin: 3mm 0 1mm; }
+  p { margin: 1mm 0; }
+  .clause { font-family: 'Nanum Myeongjo', serif; }
+  .num { font-family: 'Nanum Gothic Coding', monospace; white-space: nowrap; }
+  /* 서명란: 번호·이름이 칸 안에서 줄바꿈되지 않게 (실제 양식도 한 줄) */
+  .sign th { width: 12%; }
+  .nm { white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
+  th { background: #eee; font-weight: 700; width: 15%; }
+  ol { margin: 0; padding-left: 5mm; }
+  .pageno { text-align: center; font-size: 8pt; margin-top: 3mm; }
+  .note { margin-top: 2mm; font-size: 8pt; color: #444; }
 </style>
 </head>
 <body>
-  <h1>주택임대차표준계약서</h1>
-  <p>임대인과 임차인은 아래와 같이 임대차 계약을 체결한다.</p>
+  <section class="page">
+    <h1>주택임대차표준계약서</h1>
+    <p>임대인과 임차인은 아래와 같이 임대차 계약을 체결한다. [ ]보증금 있는 월세 [ ]전세 [ ]월세</p>
 
-  <h2>[임차주택의 표시]</h2>
-  <p>소재지 서울특별시 중구 필동로 00, 101호</p>
+    <h2>[임차주택의 표시]</h2>
+    <table>
+      <tr><th>소재지</th><td colspan="3">서울특별시 중구 필동로 00, 101호</td></tr>
+      <tr><th>건물</th><td>구조·용도 철근콘크리트 공동주택</td><th>면적</th><td class="num">33.00㎡</td></tr>
+      <tr><th>임차할부분</th><td>101호 전부</td><th>면적</th><td class="num">33.00㎡</td></tr>
+    </table>
 
-  <h2>[계약내용]</h2>
-  <p>보증금 금50,000,000원 월세 금500,000원</p>
-  <p>입금 계좌 가상은행 000-000000-00000 예금주 김철수</p>
+    <h2>[계약내용]</h2>
+    <p class="clause">제1조 (보증금과 차임) 위 부동산의 임대차에 관하여 임대인과 임차인은 합의에 의하여 보증금 및 차임을 아래와 같이 지불하기로 한다.</p>
+    <table>
+      <tr><th>보증금</th><td colspan="3">금 오천만원정 (<span class="num">₩50,000,000</span>)</td></tr>
+      <tr><th>계약금</th><td colspan="3">금 오백만원정 (<span class="num">₩5,000,000</span>)은 계약시에 지불하고 영수함</td></tr>
+      <tr><th>잔금</th><td>금 사천오백만원정 (<span class="num">₩45,000,000</span>)</td><th>지불일</th><td>2026년 11월 30일</td></tr>
+      <tr><th>차임(월세)</th><td colspan="3">금 오십만원정 (<span class="num">₩500,000</span>)은 매월 25일에 지불한다</td></tr>
+      <tr><th>입금계좌</th><td colspan="3">가상은행 <span class="num">321-654987-10293</span> 예금주 김철수</td></tr>
+    </table>
 
-  <h2>[특약사항]</h2>
-  <p>특약사항: 월세는 현금으로 지급한다.</p>
+    <p class="clause">제2조 (임대차기간) 임대인은 임차주택을 2026년 11월 30일까지 임차인에게 인도하고, 임대차기간은 인도일부터 2028년 11월 29일까지로 한다.</p>
+    <p class="clause">제3조 (입주 전 수리) 임대인과 임차인은 입주 전 수리 및 비용부담에 관하여 따로 정하지 않는다.</p>
+    <p class="clause">제4조 (임차주택의 사용·관리·수선) 임차인은 임대인의 동의 없이 구조를 바꾸거나 다른 사람에게 빌려줄 수 없으며, 주거 이외의 용도로 쓸 수 없다.</p>
+    <p class="clause">제5조 (계약의 해제) 임차인이 잔금을 지급하기 전까지 임대인은 계약금의 배액을 돌려주고, 임차인은 계약금을 포기하고 계약을 해제할 수 있다.</p>
+    <p class="clause">제6조 (계약의 종료) 임대차계약이 끝나면 임차인은 임차주택을 원래 상태로 돌려주고, 임대인은 보증금을 임차인에게 돌려준다.</p>
+    <p class="pageno">1/2</p>
+  </section>
 
-  <h2>[서명]</h2>
-  <p>계약일 2026년 11월 1일</p>
-  <p>임대인 김철수 750315-1******</p>
-  <p>연락처 010-0000-0000</p>
-  <p>임차인 NGUYEN VAN A 990505-5******</p>
+  <section class="page">
+    <h2>[특약사항]</h2>
+    <ol>
+      <li>월세는 현금으로 지급한다.</li>
+      <li>임대인은 잔금 지급일까지 이 주택에 새로운 담보를 설정하지 않는다.</li>
+      <li>관리비는 매월 월세와 함께 지급한다.</li>
+    </ol>
 
-  <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 계약서가 아닙니다.</p>
+    <p>본 계약을 증명하기 위하여 계약 당사자가 이의 없음을 확인하고 각각 서명·날인 후 각각 1통씩 보관한다.</p>
+    <p>계약일 2026년 11월 1일</p>
+
+    <table class="sign">
+      <tr><th rowspan="2">임대인</th><th>주소</th><td colspan="5">서울특별시 중구 필동로 00, 101호</td></tr>
+      <tr><th>주민등록번호</th><td class="num">750315-1******</td><th>전화</th><td class="num">010-0000-1357</td><th>성명</th><td><span class="nm">김철수</span> (서명 또는 날인)</td></tr>
+      <tr><th rowspan="2">임차인</th><th>주소</th><td colspan="5">서울특별시 중구 퇴계로 99, 202호</td></tr>
+      <tr><th>외국인등록번호</th><td class="num">990505-5******</td><th>전화</th><td class="num">010-0000-2468</td><th>성명</th><td><span class="nm">NGUYEN VAN A</span> (서명 또는 날인)</td></tr>
+    </table>
+    <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 계약서가 아닙니다.</p>
+    <p class="pageno">2/2</p>
+  </section>
 </body>
 </html>

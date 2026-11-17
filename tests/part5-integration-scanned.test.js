@@ -25,27 +25,30 @@ const FAKE_PERSONAL_INFO = [
   '김철수',
   'NGUYEN VAN A',
   '박영수',
-  '700101-1',
-  '800101-1',
-  '750315-1',
-  '990505-5',
-  '010-0000-0000',
-  '000-000000-00000',
-  '0000-0000-000000',
+  '700101',
+  '800101',
+  '750315',
+  '990505',
+  '010-0000-1357',
+  '010-0000-2468',
+  '321-654987-10293',
+  '0000-2019-013579',
   '필동로',
+  '퇴계로',
 ];
 
 /**
- * OCR 실수: [서류 순서, blockId, 원래 글자, 잘못 읽은 글자]
+ * OCR 실수: [서류 순서, 원래 글자, 잘못 읽은 글자]
  * 생년월일·계좌·연락처처럼 위험 점검과 마스킹에 꼭 필요한 숫자 줄을 고른다.
+ * 줄은 글자로 찾는다 (샘플을 다시 만들면 blockId가 바뀌므로, #153)
  */
 const MISREADS = [
-  [0, 'p0_b9', '800101-1', '8OO1O1-1'], // 등기부 소유자 주민번호
-  [1, 'p0_b11', '750315-1', '75O315-1'], // 계약서 임대인 주민번호
-  [1, 'p0_b6', '000-000000-00000', '000-0OO000-00000'], // 계좌번호
-  [1, 'p0_b12', '010-0000-0000', '01O-0000-0000'], // 연락처
+  [0, '800101-*******', '8OO1O1-*******'], // 등기부 소유자 주민번호 (뒷자리는 등기부에서 가려져 나옴)
+  [1, '750315-1', '75O315-1'], // 계약서 임대인 주민번호
+  [1, '321-654987-10293', '321-654987-1O293'], // 계좌번호
+  [1, '010-0000-2468', '01O-0000-2468'], // 임차인 연락처 (임대인 연락처는 주민번호와 같은 줄이라 줄 수가 겹침)
 ];
-const MISREAD_TEXT = MISREADS.map((m) => m[3]);
+const MISREAD_TEXT = MISREADS.map((m) => m[2]);
 const OCR_CONFIDENCE = 0.93;
 const MISREAD_CONFIDENCE = 0.62;
 
@@ -65,9 +68,9 @@ function asScanned(documents) {
     d.sourceType = SOURCE_TYPE.IMAGE_PDF;
     for (const b of blocksOf([d])) b.confidence = OCR_CONFIDENCE;
   }
-  for (const [docIndex, blockId, from, to] of MISREADS) {
-    const block = blocksOf([docs[docIndex]]).find((b) => b.blockId === blockId);
-    if (!block?.text.includes(from)) throw new Error(`sample changed: ${blockId}`);
+  for (const [docIndex, from, to] of MISREADS) {
+    const block = blocksOf([docs[docIndex]]).find((b) => b.text.includes(from));
+    if (!block) throw new Error(`sample changed: no line with ${from}`);
     block.text = block.text.replace(from, to);
     block.confidence = MISREAD_CONFIDENCE;
   }
@@ -77,8 +80,8 @@ function asScanned(documents) {
 /** 사용자가 확인 화면에서 흐린 줄을 고친 것처럼 만든다 (PART 1 ocr-editor 규칙: 고친 줄은 confidence 1) */
 function fixedByUser(scanned) {
   const docs = structuredClone(scanned);
-  for (const [docIndex, blockId, from, to] of MISREADS) {
-    const block = blocksOf([docs[docIndex]]).find((b) => b.blockId === blockId);
+  for (const [docIndex, from, to] of MISREADS) {
+    const block = blocksOf([docs[docIndex]]).find((b) => b.text.includes(to));
     block.text = block.text.replace(to, from);
     block.confidence = 1;
   }
