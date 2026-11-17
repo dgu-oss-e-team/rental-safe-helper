@@ -533,3 +533,27 @@ a.ai-link {
     justify-content: center;
   }
 }
+
+/* ① 사진 촬영 안내 (PART 1) */
+.photo-tips {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.photo-tips strong {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.photo-tips ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

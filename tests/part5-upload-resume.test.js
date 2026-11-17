@@ -50,4 +50,11 @@ describe('PART 5 ① 화면: 이전 결과로 돌아가기 (#124)', () => {
     const node = uploadScreen(stateWith({ analysis: {}, files: { registry: null, lease: file } }), fakeAct());
     expect(node.querySelector('.resume-card')?.textContent).not.toContain('홍길동');
   });
+  it('사진 촬영 안내(.photo-tips)가 파일 선택 칸 위에 표시된다 (PART 1)', () => {
+    const node = uploadScreen(initialState(), fakeAct());
+    const tips = node.querySelector('.photo-tips');
+    expect(tips).not.toBeNull();
+    expect(tips?.querySelectorAll('li').length).toBe(4);
+    expect(tips?.textContent).toContain('Tips for taking a clear photo');
+  });
 });

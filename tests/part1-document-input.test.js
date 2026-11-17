@@ -5,6 +5,12 @@ import * as pdfReader from '../src/features/document-input/pdf-reader.js';
 import * as ocrModule from '../src/features/document-input/ocr.js';
 import { readDocument, isSupportedFile } from '../src/features/document-input/index.js';
 
+const mockRecognize = vi.fn();
+vi.mock('tesseract.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, createWorker: vi.fn(async () => ({ recognize: mockRecognize })) };
+});
+
 describe('PART 1 readDocument()', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -212,5 +218,48 @@ describe('PART 1 readDocument()', () => {
       expect(r.data.sourceType).toBe(SOURCE_TYPE.TEXT_PDF);
       expect(r.data.pages[0].blocks[0].text).toContain('Lease Contract 2026');
     }
+  });
+  it('손상된 PDF 파일은 PDF_READ_FAILED 에러를 반환한다', async () => {
+    const bytes = new TextEncoder().encode('CORRUPTED-NON-PDF-BINARY-CONTENT-12345');
+    const r = await readDocument(new File([bytes], 'damaged.pdf', { type: 'application/pdf' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe(ERROR_CODE.PDF_READ_FAILED);
+  });
+
+  it('사진(JPG/PNG) OCR 결과는 0~1 범위로 정규화된 bbox 좌표를 반환한다', async () => {
+    const orig = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = vi.fn().mockResolvedValue({ width: 1000, height: 1414, close: vi.fn() });
+    mockRecognize.mockResolvedValueOnce({
+      data: {
+        text: '임대차계약서\n보증금 100,000,000원',
+        confidence: 93,
+        blocks: [
+          {
+            paragraphs: [
+              {
+                lines: [
+                  { text: '임대차계약서', confidence: 95, bbox: { x0: 120, y0: 141, x1: 620, y1: 198 } },
+                  { text: '보증금 100,000,000원', confidence: 91, bbox: { x0: 100, y0: 283, x1: 750, y1: 325 } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    try {
+      const r = await readDocument(new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', { type: 'image/jpeg' }));
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.data.sourceType).toBe(SOURCE_TYPE.IMAGE);
+        for (const b of r.data.pages[0].blocks) {
+          expect(b.bbox.x).toBeGreaterThanOrEqual(0); expect(b.bbox.x).toBeLessThanOrEqual(1);
+          expect(b.bbox.y).toBeGreaterThanOrEqual(0); expect(b.bbox.y).toBeLessThanOrEqual(1);
+          expect(b.bbox.width).toBeGreaterThan(0); expect(b.bbox.width).toBeLessThanOrEqual(1);
+          expect(b.bbox.height).toBeGreaterThan(0); expect(b.bbox.height).toBeLessThanOrEqual(1);
+        }
+        expect(r.data.pages[0].blocks[0].bbox).toEqual({ x: 0.12, y: 0.0997, width: 0.5, height: 0.0403 });
+      }
+    } finally { globalThis.createImageBitmap = orig; }
   });
 });
