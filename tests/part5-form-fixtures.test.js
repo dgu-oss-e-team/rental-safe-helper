@@ -116,13 +116,13 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
     for (const name of ['이몽룡', '심청']) expect(shared).not.toContain(name);
   });
 
-  it.fails('두 줄 주소의 둘째 줄("61,107동602호(가상동,가상아파트)")이 AI로 가지 않는다', () => {
+  it('두 줄 주소의 둘째 줄("61,107동602호(가상동,가상아파트)")이 AI로 가지 않는다', () => {
     const shared = sharedText(coowner);
     expect(shared).not.toBe('');
     expect(shared).not.toContain('107동602호');
   });
 
-  it.fails('계약서 "대표이사" 다음 이름(홍길동)을 PERSON_NAME으로 찾는다', () => {
+  it('계약서 "대표이사" 다음 이름(홍길동)을 PERSON_NAME으로 찾는다', () => {
     expect(findingsOf(trust, 'PERSON_NAME')).toContain('홍길동');
   });
 });
