@@ -465,6 +465,32 @@ describe('PART 2 extractFields 주소 정식 이름', () => {
   });
 });
 
+describe('PART 2 특약 속 이름은 가리기만 하고 역할은 붙이지 않는다 (#158)', () => {
+  const doc = leaseDoc([
+    '주택임대차계약서 보증금 특약',
+    '[특약사항]',
+    '1. 임대인 자본금에 대한 수입으로 관리비를 충당한다.',
+    '2. 임대인 김철수는 잔금일까지 근저당을 말소한다.',
+    '본 계약을 증명하기 위하여 서명한다.',
+    '임대인 성명 김철수 750315-1******',
+  ]);
+
+  it('특약 속 "임대인 ○○"도 가리지만 (목록에 없는 단어 포함)', () => {
+    const names = detectPII(doc).data.filter((f) => f.type === 'PERSON_NAME').map((f) => [f.blockId, f.value]);
+    expect(names).toEqual([
+      ['T_2', '자본금에'], // 목록에 없는 단어라 이름으로 보고 가린다
+      ['T_3', '김철수는'], // 라벨 뒤 이름은 조사까지 한 덩어리로 가린다 (이전부터 같음)
+      ['T_5', '김철수'],
+    ]);
+  });
+
+  it('임대인 명단은 서명란에서만 만든다 (특약 속 가짜 임대인이 끼지 않는다)', () => {
+    expect(extractFields([doc], []).data.contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([
+      ['김철수', '750315'],
+    ]);
+  });
+});
+
 describe('PART 2 이미 찾은 이름을 문서 안에서 다시 찾기 (#142)', () => {
   const REG_HEAD = '등기사항전부증명서 표제부 갑구 을구';
 

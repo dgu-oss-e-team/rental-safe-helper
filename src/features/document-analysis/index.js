@@ -29,6 +29,7 @@ import {
   findDeposit,
   findMonthlyRent,
   findSpecialTerms,
+  findSpecialTermLines,
   findRegistryRights,
   findLastTransferDate,
   findContractDate,
@@ -112,6 +113,13 @@ function scanDocument(document) {
   let groupSeq = 0;
   /** @param {any[]} list @param {{ start: number, end: number }} r */
   const overlapsAny = (list, r) => list.some((prev) => r.start < prev.end && prev.start < r.end);
+  /**
+   * 특약 줄 번호 (linesOf 기준). 특약은 서명란이 아니라 문장이라서 "임대인 ○○" 뒤가 이름이 아닐 때가 많다.
+   * 특약 속 이름은 가리기만 하고 역할은 붙이지 않는다(role: null). 위험 점검용 사람 명단은 서명란 등에서 만든다. (#158)
+   */
+  const termLines = new Set(findSpecialTermLines(linesOf(document)));
+  /** linesOf 기준으로 지금 블록의 첫 줄 번호 */
+  let firstLine = 0;
 
   for (const page of document.pages) {
     for (const block of page.blocks) {
@@ -120,8 +128,12 @@ function scanDocument(document) {
       /** @type {any[]} */
       const found = [...findPatternPII(text)];
       for (const r of [...findPeople(text, role), ...findAddresses(text)]) {
-        if (!overlapsAny(found, r)) found.push(r);
+        if (overlapsAny(found, r)) continue;
+        const line = firstLine + (text.slice(0, r.start).match(/\n/g)?.length ?? 0);
+        if (r.type === PII_TYPE.PERSON_NAME && termLines.has(line)) Object.assign(r, { role: null, birthDate: null });
+        found.push(r);
       }
+      firstLine += text.split('\n').length;
       role = lastRoleIn(text, role);
 
       // 줄 단위로 훑으며 윗줄 주소와 이어지는 조각을 찾는다.

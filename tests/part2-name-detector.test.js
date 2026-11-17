@@ -362,6 +362,26 @@ describe('PART 2 이름 탐지 보강 (#142)', () => {
   });
 });
 
+describe('PART 2 조사가 붙은 일상 단어는 이름이 아니다 (#158)', () => {
+  const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
+
+  it('조사를 뗀 나머지가 이름이 아닌 단어(notNames)면 이름에서 뺀다', () => {
+    expect(namesOf('임대인 자산에 대한 수입으로 관리비를 충당한다')).toEqual([]);
+    expect(namesOf('임차인 부담으로 수리한다')).toEqual([]);
+    expect(namesOf('임대인 사정으로 해지하는 경우')).toEqual([]);
+    expect(namesOf('임대인 동의를 받아야 한다')).toEqual([]);
+  });
+
+  it('조사 글자로 끝나는 진짜 이름은 그대로 찾는다 ("김정의", "김지은")', () => {
+    expect(namesOf('임대인 김정의')).toEqual(['김정의']);
+    expect(namesOf('임차인 김지은 (인)')).toEqual(['김지은']);
+  });
+
+  it('목록에 없는 단어는 지금처럼 이름으로 보고 가린다 (놓치는 것보다 넓게 가리기)', () => {
+    expect(namesOf('임대인 자본금에 대한')).toEqual(['자본금에']);
+  });
+});
+
 describe('PART 2 주소 뒤에 붙은 표 옆 칸 끊기 (#151)', () => {
   const valuesOf = (text) => findAddresses(text).map((a) => a.value);
 
