@@ -97,11 +97,11 @@ describe('#165 지금 잘 되는 것', () => {
 // ---- 아직 안 고친 문제 (실제 서류 점검, 11/17) ----
 
 describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
-  it.fails('붙어 읽힌 주민번호 두 개를 각각 RESIDENT_ID로 찾는다', () => {
+  it('붙어 읽힌 주민번호 두 개를 각각 RESIDENT_ID로 찾는다', () => {
     expect(findingsOf(trust, 'RESIDENT_ID')).toEqual(expect.arrayContaining(['960712-2583914', '881023-1647205']));
   });
 
-  it.fails('붙어 읽힌 전화번호 두 개를 각각 PHONE_NUMBER로 찾는다', () => {
+  it('붙어 읽힌 전화번호 두 개를 각각 PHONE_NUMBER로 찾는다', () => {
     expect(findingsOf(trust, 'PHONE_NUMBER')).toEqual(expect.arrayContaining(['010-0000-4826', '010-0000-9173']));
   });
 
