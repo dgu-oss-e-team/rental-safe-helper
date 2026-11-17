@@ -54,6 +54,12 @@ const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:[ \\t]+[A
 const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
 
 /**
+ * 민간임대주택 표준임대차계약서의 이름 칸: "성명(법인명)" (#165 실제 양식 서류)
+ * 예: "임대사업자 성명(법인명) 김철수 (서명 또는 인)", "임차인 성명(법인명) 박지훈"
+ */
+const CORP_NAME_NOTE = '(?:\\s*[(（]\\s*법\\s*인\\s*명\\s*[)）])?';
+
+/**
  * 라벨 하나에 대한 정규식을 만든다.
  * 라벨 → (성명) → (지분 표기) → (:) → 공백이나 콜론 1개 이상 → 이름
  * 라벨과 이름 사이에 구분(공백이나 :)이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
@@ -61,7 +67,7 @@ const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
  */
 function labelRegex(label) {
   return new RegExp(
-    `${spaced(label)}(?:\\s*(?:${NAME_FIELD}))?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+    `${spaced(label)}(?:\\s*(?:${NAME_FIELD})${CORP_NAME_NOTE})?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
     'g',
   );
 }
@@ -105,7 +111,7 @@ const ROLE_ANCHORS = rules.persons.flatMap(({ role, labels }) =>
  * 표준계약서 서명란은 "임대인"이 표 왼쪽에 한 번 나오고, 이름은 다른 줄의 "성명" 칸에 있다.
  */
 const STANDALONE_NAME_REGEX = new RegExp(
-  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
   'g',
 );
 
