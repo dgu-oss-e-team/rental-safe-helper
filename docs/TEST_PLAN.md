@@ -9,6 +9,19 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 
 테스트 파일은 `tests/` 폴더에 파트별로 둔다.
 
+### 화면(DOM) 테스트 (#131)
+
+버튼·안내 칸처럼 화면이 필요한 테스트는 파일 맨 첫 줄에 아래 한 줄을 쓴다. 그 파일만 가짜 브라우저 화면(happy-dom)에서 돌아가고, 다른 테스트는 지금처럼 Node에서 돌아간다.
+
+```js
+// @vitest-environment happy-dom
+```
+
+- happy-dom은 개발용(devDependencies)이라 배포되는 사이트에는 들어가지 않는다. 처음 받은 뒤에는 `npm install`을 한 번 한다.
+- 화면 함수(예: `uploadScreen(state, act)`)가 돌려준 요소를 `querySelector`로 확인하고, `.click()`으로 누른 뒤 가짜 `act`(`vi.fn()`)가 불렸는지 본다. 예시: `tests/part5-upload-resume.test.js`
+- 시간이 걸리는 동작(예: 100ms 뒤 글 넣기)은 `vi.useFakeTimers()` → `vi.advanceTimersByTime(100)`으로 확인한다.
+- 가상 데이터만 쓴다. 실제 서류·개인정보는 넣지 않는다.
+
 ## 파트별 필수 테스트
 
 | 파트 | 파일 | 필수 테스트 | 현재 |
