@@ -64,7 +64,8 @@ function resultBadge(row) {
  * 여러 줄을 가린 직후 보여 줄 안내. 가리면 화면을 새로 그리므로 (여러 번 그릴 수도 있음),
  * 마지막으로 더한 add의 id와 목적을 함께 기억해 두고, 그 add가 맨 끝에 있을 때만 보여 준다.
  * 다른 체크를 바꾸거나 Undo하거나 목적이 바뀌면 지운다.
- * @type {{ lastId: string, purpose: string, text: string } | null}
+ * announced: 화면 읽기 프로그램에 한 번 알렸는지. 알린 뒤 다시 그릴 때는 글을 처음부터 넣어서 두 번 읽지 않게 한다.
+ * @type {{ lastId: string, purpose: string, text: string, announced?: boolean } | null}
  */
 let lastHideNote = null;
 
@@ -199,11 +200,16 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
   if (lastHideNote && lastHideNote.purpose !== purpose) lastHideNote = null;
   const lastAdd = edits?.add?.[edits.add.length - 1];
   const note = lastHideNote && lastAdd?.id === lastHideNote.lastId ? lastHideNote.text : '';
-  // role="status"는 글이 "바뀔 때" 읽어 준다. 빈 칸으로 먼저 그리고, 조금 뒤에 글을 넣는다.
-  const hint = el('span', { class: 'mr-note', role: 'status' }, []);
-  if (note) {
+  // role="status"는 글이 "바뀔 때" 읽어 준다. 처음 알릴 때는 빈 칸으로 그리고, 조금 뒤에 글을 넣는다.
+  // 이미 알린 안내면(가린 뒤 화면이 한 번 더 그려지는 경우) 글을 처음부터 넣어서 다시 읽지 않게 한다.
+  const noteEntry = note ? lastHideNote : null;
+  const hint = el('span', { class: 'mr-note', role: 'status' }, [noteEntry?.announced ? note : '']);
+  if (noteEntry && !noteEntry.announced) {
     setTimeout(() => {
-      if (hint.textContent === '') hint.textContent = note;
+      // 그사이 다시 그려져서 이 칸이 화면에 없으면, 새로 그린 칸이 알린다
+      if (!hint.isConnected || hint.textContent !== '') return;
+      hint.textContent = note;
+      noteEntry.announced = true;
     }, ANNOUNCE_DELAY);
   }
   /** @type {ReturnType<typeof readSelection>} 버튼을 누르는 순간 고른 글자 (누르면 선택이 풀리는 기기가 있어서 미리 읽어 둠) */
