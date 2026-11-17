@@ -249,11 +249,26 @@ export function reachesLineEnd(value, rest) {
   return ADDRESS_LINE_REST.test(rest) && ADDRESS_LIKE_END.test(value.trim());
 }
 
+/** 이름 바로 앞의 "성명" 칸 라벨 (표준계약서 서명란: "주민등록번호 … 전화 … 성명 김철수") */
+const NAME_FIELD_BEFORE = new RegExp(`(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?\\s*$`);
+
+/**
+ * 주민·외국인등록번호의 앞 6자리 (6자리가 아니면 null)
+ * @param {{ value: string }} id
+ */
+const birthDateOf = (id) => {
+  const digits = id.value.replace(/\D/g, '').slice(0, 6);
+  return digits.length === 6 ? digits : null;
+};
+
 /**
  * 사람 정보(이름 + 역할 + 생년월일)를 찾는다. extractFields()가 쓸 재료다.
  * 생년월일은 같은 줄에서 이름 뒤에 처음 나오는 주민·외국인등록번호의 앞 6자리다.
  * 찾는 범위는 줄 끝 또는 다음 사람의 이름 중 먼저 오는 곳까지다.
  * (다른 사람의 번호를 가져오면 계좌주 확인이 "확인 불가" 대신 "같은 사람"으로 잘못 나올 수 있다.)
+ * 이름 뒤에 번호가 없고 이름이 "성명" 칸에 있으면, 같은 줄 이름 앞의 번호를 쓴다.
+ * (표준계약서 서명란은 "주민등록번호 750315-1… 전화 … 성명 김철수" 순서다)
+ * 이때도 앞사람 이름보다 뒤에 있고, 다른 사람이 이미 쓴 번호가 아니어야 한다.
  * 번호가 없으면 birthDate는 null이다. (못 읽음 = null 규칙)
  * @param {string} text
  * @param {string | null} [inheritedRole] 앞 블록에서 이어받은 역할 ("성명" 칸 이름에 붙인다)
@@ -261,12 +276,21 @@ export function reachesLineEnd(value, rest) {
 export function findPeople(text, inheritedRole = null) {
   const ids = findIdNumbers(text);
   const people = findLabeledNames(text, inheritedRole);
-  return people.map((person, idx) => {
+  const after = people.map((person, idx) => {
     const lineEnd = text.indexOf('\n', person.end);
     const next = people[idx + 1];
     const limit = Math.min(lineEnd === -1 ? text.length : lineEnd, next ? next.start : text.length);
-    const id = ids.find((i) => i.start >= person.end && i.start < limit);
-    const birthDate = id ? id.value.replace(/\D/g, '').slice(0, 6) || null : null;
-    return { ...person, birthDate: birthDate && birthDate.length === 6 ? birthDate : null };
+    return ids.find((i) => i.start >= person.end && i.start < limit);
+  });
+  const used = new Set(after.filter(Boolean));
+  return people.map((person, idx) => {
+    let id = after[idx];
+    if (!id && NAME_FIELD_BEFORE.test(text.slice(0, person.start))) {
+      const lineStart = text.lastIndexOf('\n', person.start - 1) + 1;
+      const from = Math.max(lineStart, idx > 0 ? people[idx - 1].end : 0);
+      id = ids.filter((i) => i.start >= from && i.end <= person.start && !used.has(i)).pop();
+      if (id) used.add(id);
+    }
+    return { ...person, birthDate: id ? birthDateOf(id) : null };
   });
 }

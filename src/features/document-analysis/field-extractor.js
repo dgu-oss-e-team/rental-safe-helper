@@ -171,6 +171,45 @@ const CANCEL_TARGET = /(\d{1,3})\s*번[^\n]*?말\s*소/;
 const CONTINUATION_LINE =
   /^\s*(?:근\s*저\s*당\s*권\s*자|채\s*권\s*자|채\s*무\s*자|수\s*탁\s*자|위\s*탁\s*자|권\s*리\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|신\s*탁\s*원\s*부)/;
 const MAX_CLAIM_LABEL = /채\s*권\s*최\s*고\s*액/;
+/**
+ * 등기원인 칸의 글자: "서울중앙지방법원의 가압류결정(2021카단…)", "압류(세무과-1234)".
+ * 좁은 칸에서 다음 줄로 넘어가 순위번호 없는 줄이 되면, 등기목적("가압류")처럼 보여도 새 권리가 아니다.
+ */
+const CAUSE_TEXT = /(?:가\s*)?(?:압\s*류|가\s*처\s*분|경\s*매\s*개\s*시)\s*(?:결\s*정|\()/;
+
+/**
+ * 순위번호 없는 줄이 다음 줄로 넘어간 등기원인 칸인지.
+ * 줄에서 처음 나오는 권리 글자가 등기원인 글자("가압류결정(")일 때만 그렇다.
+ * "가압류 2021년4월8일 … 가압류결정(…)"처럼 등기목적이 먼저 오면 순위번호만 못 읽은 진짜 권리다.
+ * @param {string} line
+ */
+function isWrappedCause(line) {
+  const cause = CAUSE_TEXT.exec(line);
+  if (!cause) return false;
+  const firstRight = Math.min(...RIGHT_KINDS.map(({ regex }) => regex.exec(line)?.index ?? Infinity));
+  return cause.index <= firstRight;
+}
+/** 다른 순위번호를 가리키는 줄의 시작: "1번근저당권설정등기말소"의 "1번" */
+const REFERENCE_START = /^\s*\d{1,3}\s*번/;
+/** 다음 줄로 넘어간 말소 글자: "기말소", "등기말소", "말소" */
+const WRAPPED_CANCEL_START = /^\s*[가-힣]{0,4}말\s*소/;
+
+/**
+ * 말소 줄이 좁은 칸 때문에 두 줄로 잘린 경우("2 1번근저당권설정등" / "기말소 제51204호 해지") 두 줄을 붙인다.
+ * 다른 순위번호를 가리키는 줄인데 말소가 없고, 바로 다음 줄(순위번호 없음)이 말소 글자로 시작할 때만 붙인다.
+ * @param {string[]} lines
+ * @param {number} i
+ * @returns {string | null} 붙인 줄. 붙일 게 아니면 null
+ */
+function joinWrappedCancel(lines, i) {
+  const line = lines[i];
+  const rankMatch = RANK_REGEX.exec(line);
+  const rest = rankMatch ? line.slice(rankMatch[0].length) : line;
+  if (!REFERENCE_START.test(rest) || /말\s*소/.test(rest)) return null;
+  const next = lines[i + 1];
+  if (next === undefined || RANK_REGEX.test(next) || !WRAPPED_CANCEL_START.test(next)) return null;
+  return `${line}${next.trim()}`;
+}
 
 /**
  * 등기부 권리(근저당·압류·가압류·신탁·전세권·임차권)를 찾는다. 갑구·을구 안의 줄만 본다.
@@ -197,7 +236,10 @@ export function findRegistryRights(lines) {
   /** @type {string | null} */
   let section = null;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const joined = joinWrappedCancel(lines, i);
+    const line = joined ?? lines[i];
+    if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
     if (empty) seen.add(empty[1]);
@@ -219,6 +261,7 @@ export function findRegistryRights(lines) {
     const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch && rankMatch[2]) continue; // 부기등기
     const rank = rankMatch ? rankMatch[1] : null;
+    if (rank === null && isWrappedCause(line)) continue; // 다음 줄로 넘어간 등기원인 칸
 
     const found = RIGHT_KINDS.find(({ regex }) => regex.test(line));
     const maxClaim = MAX_CLAIM_LABEL.exec(line);
@@ -344,8 +387,14 @@ function readGapRows(lines) {
   /** @type {string | null} */
   let section = null;
 
-  lines.forEach((line, i) => {
-    if (section === 'STOP') return;
+  /** 앞 줄에 붙여서 이미 읽은 줄 번호 (잘린 말소 줄의 뒷부분) */
+  let joinedLine = -1;
+
+  lines.forEach((original, i) => {
+    if (section === 'STOP' || i === joinedLine) return;
+    const joined = joinWrappedCancel(lines, i);
+    if (joined !== null) joinedLine = i + 1;
+    const line = joined ?? original;
     if (SUMMARY_HEADING.test(line)) {
       section = 'STOP';
       return;

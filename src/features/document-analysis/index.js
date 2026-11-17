@@ -240,6 +240,11 @@ function collectPeople(hits, rejectedIds) {
 
 /** 집 주소 앞에 붙는 라벨. 임대인·임차인 본인 주소보다 이 라벨이 붙은 주소를 먼저 고른다. */
 const PROPERTY_ADDRESS_LABEL = /소\s*재\s*지|도\s*로\s*명\s*주\s*소|지\s*번\s*주\s*소/;
+/**
+ * 등기부 맨 위(페이지마다)의 부동산 표시: "[집합건물] 서울특별시 중구 … 제702호".
+ * 표 안의 주소는 좁은 칸끼리 섞여 읽힐 수 있어서("가상로 1층 410.52㎡"), 이 줄을 가장 먼저 고른다.
+ */
+const REGISTRY_HEADER_LABEL = /\[\s*(?:집\s*합\s*건\s*물|건\s*물|토\s*지)\s*\]\s*$/;
 
 /**
  * 문서의 모든 블록 글자를 줄 단위로 나눈다. (field-extractor.js의 함수들이 줄 목록을 받는다)
@@ -252,8 +257,9 @@ function linesOf(document) {
 
 /**
  * 계약·등기 대상 집의 주소를 고른다.
- * 1순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
- * 2순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
+ * 1순위: 등기부 맨 위 "[집합건물]", "[건물]", "[토지]" 바로 뒤의 주소
+ * 2순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
+ * 3순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
  * 두 줄에 걸친 주소면 같은 groupId 조각을 순서대로 이어 붙인다. (PART 3이 동·호수까지 비교하므로)
  * 시·도 이름은 정식 이름으로 바꾼다. ("서울 중구" → "서울특별시 중구", PART 3이 글자 그대로 비교하므로)
  * 바꿀 수 없는 주소는 원문 그대로 둔다. 탐지 결과(findings)의 주소 값은 마스킹용이라 원문 그대로 둔다.
@@ -262,10 +268,9 @@ function linesOf(document) {
  */
 function pickPropertyAddress(hits) {
   const addresses = hits.filter((h) => h.type === PII_TYPE.ADDRESS);
-  const labelled = addresses.find((h) =>
-    PROPERTY_ADDRESS_LABEL.test((h.block.text ?? '').slice(0, h.start)),
-  );
-  const picked = labelled ?? addresses[0];
+  /** @param {RegExp} label */
+  const after = (label) => addresses.find((h) => label.test((h.block.text ?? '').slice(0, h.start)));
+  const picked = after(REGISTRY_HEADER_LABEL) ?? after(PROPERTY_ADDRESS_LABEL) ?? addresses[0];
   if (!picked) return null;
   if (!picked.groupId) return toFormalAddress(picked.value);
   return toFormalAddress(
