@@ -46,18 +46,26 @@ export function applyPersonAnswers(personGroups, personAnswers) {
     if (target === id) return fail(ERROR_CODE.INVALID_INPUT, 'A person cannot be the same as themselves.');
   }
 
+  /** 원래 순서 (서로 가리킬 때 앞에 있는 사람을 남긴다) */
+  const order = new Map(personGroups.map((g, i) => [g.personId, i]));
   /**
    * 답을 따라가 최종으로 남을 사람을 찾는다. (P4→P2→P1이면 P1)
+   * 서로 같다고 답한 경우(P1→P3, P3→P1처럼 돌아오는 경우)는 둘 다 같은 사람이라는 뜻이라 합친다.
+   * 이때는 돌아오는 고리 안에서 원래 순서가 가장 앞인 사람을 남긴다. (누가 먼저 답했는지와 상관없이 같은 결과)
    * @param {string} id
-   * @returns {string | null}  서로 가리키면 null
+   * @returns {string}
    */
   const finalOf = (id) => {
-    const seen = new Set([id]);
+    const path = [id];
     let cur = id;
     while (typeof answers[cur] === 'string') {
       cur = /** @type {string} */ (answers[cur]);
-      if (seen.has(cur)) return null;
-      seen.add(cur);
+      const at = path.indexOf(cur);
+      if (at !== -1) {
+        // 고리: path[at..]가 서로 같다고 답한 사람들
+        return path.slice(at).reduce((a, b) => ((order.get(a) ?? 0) <= (order.get(b) ?? 0) ? a : b));
+      }
+      path.push(cur);
     }
     return cur;
   };
@@ -66,7 +74,6 @@ export function applyPersonAnswers(personGroups, personAnswers) {
   const members = new Map();
   for (const g of personGroups) {
     const root = finalOf(g.personId);
-    if (root === null) return fail(ERROR_CODE.INVALID_INPUT, 'Answers point at each other.');
     if (!members.has(root)) members.set(root, []);
     members.get(root)?.push(g);
   }
