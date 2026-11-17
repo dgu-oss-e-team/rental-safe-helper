@@ -31,6 +31,13 @@
   th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
   th { font-weight: 700; text-align: center; }
   .c-no { width: 9%; } .c-purpose { width: 14%; } .c-recv { width: 15%; } .c-cause { width: 16%; }
+  /*
+   * 1동의 건물의 표시: 소재지 칸만 2줄(지번 / 도로명주소)이고 나머지 칸은 한 줄에 들어가게 한다.
+   * PART 1은 같은 높이의 글자를 칸과 상관없이 한 줄로 묶어서, 여러 칸이 서로 다른 줄 수로 줄바꿈되면
+   * 둘째 줄이 "도로명주소 + 옆 칸 글자"로 섞인다 (#154 리뷰, 실제 등기부의 알려진 한계)
+   */
+  .t1 .c-no { width: 7%; } .t1 .c-recv { width: 15%; }
+  .t1 .w-addr { width: 36%; } .t1 .w-bldg { width: 20%; } .t1 .w-cause { width: 22%; }
   .end { text-align: center; margin: 3mm 0; letter-spacing: 2mm; }
   .foot { display: flex; justify-content: space-between; font-size: 8.5pt; margin-top: 2mm; }
   .note { margin-top: 3mm; font-size: 8pt; color: #444; }
@@ -43,9 +50,9 @@
     <p>[집합건물] 서울특별시 중구 필동로 00, 제1층 제101호</p>
 
     <h2>【 표 제 부 】 ( 1동의 건물의 표시 )</h2>
-    <table>
-      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th>소재지번, 건물명칭 및 번호</th><th>건물내역</th><th class="c-cause">등기원인 및 기타사항</th></tr>
-      <tr><td>1</td><td>2019년1월10일</td><td>서울특별시 중구 필동 123<br>[도로명주소] 서울특별시 중구 필동로 00</td><td>철근콘크리트구조 철근콘크리트지붕 5층 공동주택</td><td>도면편철장 제1책 제57호</td></tr>
+    <table class="t1">
+      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th class="w-addr">소재지번, 건물명칭 및 번호</th><th class="w-bldg">건물내역</th><th class="w-cause">등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2019년1월10일</td><td>서울특별시 중구 필동 123<br>[도로명주소] 서울특별시 중구 필동로 00</td><td>철근콘크리트 공동주택</td><td>도면편철장 제57호</td></tr>
     </table>
 
     <h2>【 표 제 부 】 ( 전유부분의 건물의 표시 )</h2>
