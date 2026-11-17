@@ -73,9 +73,10 @@ const BY_STEP = {
     title: 'We could not update the results with your answer.',
     help: 'This answer was not applied. The results on this page are from before this answer. Please choose your answer again. If it happens again, check the register and the contract yourself before you sign, or ask someone you trust for help.',
   },
+  // "같은 사람인가요?" 답이 맞지 않을 때 (#171). 무엇이 그대로인지 + 바로 할 수 있는 일 (모르면 "Not sure yet")
   applyPersonAnswers: {
-    title: 'That answer could not be used.',
-    help: 'Your previous answers are kept. Please choose a different option.',
+    title: 'We could not use this answer about who is who.',
+    help: 'Nothing changed: your earlier answers and the results on this page are the same as before. Please choose the answer again. If you are not sure, choose "Not sure yet" and compare the names on the register and the contract yourself.',
   },
   // 수정이 검사에 걸리면 PART 5가 이미 이전 상태로 되돌린다. 처음 가릴 때 걸리는 경우도 있어서 "되돌리라"고 하지 않는다.
   validateMaskedText: {

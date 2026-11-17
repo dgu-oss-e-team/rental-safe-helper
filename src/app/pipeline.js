@@ -22,6 +22,7 @@ import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
   matchPeople,
   applyPersonAnswers,
+  buildPersonQuestions,
   createMaskingPlan,
   applyMaskingPlan,
   validateMaskedText,
@@ -29,6 +30,7 @@ import {
 import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 import { findVisiblePii, unverifiable } from './double-check.js';
+import { settlePersonAnswers } from './person-questions.js';
 
 /**
  * @typedef {Object} Analysis  analyzeDocuments()의 결과
@@ -151,6 +153,7 @@ export function analyzeReadDocuments({ files, documents: readDocs }) {
  * @typedef {Object} Checked  recheckPeople()의 결과 ("같은 사람인가요?" 답을 반영한 판정)
  * @property {any[]} personGroups  답으로 합친 그룹
  * @property {import('../shared/document-model.js').RiskResult[]} riskResults  합친 그룹으로 다시 점검한 결과
+ * @property {Record<string, string | null>} personAnswers  화면과 맞춘 답 (숨긴 카드의 답·엇갈린 답을 뺌, #171). 이것을 저장한다
  */
 
 /**
@@ -160,7 +163,10 @@ export function analyzeReadDocuments({ files, documents: readDocs }) {
  * @param {Record<string, string | null>} personAnswers  { P4: 'P2' } 같은 사람 / { P4: null } 다른 사람 / 키 없음 = 안 답함
  */
 export function recheckPeople(analysis, personAnswers) {
-  const merged = applyPersonAnswers(analysis.personGroups, personAnswers);
+  // 같은 두 사람 질문은 한 번만 보이므로(#171), 숨긴 카드의 답·엇갈린 답은 지우고 앞 카드 답으로 정해진 답을 더한다
+  const questions = buildPersonQuestions(analysis.fields, analysis.personGroups);
+  const settled = settlePersonAnswers(questions, personAnswers);
+  const merged = applyPersonAnswers(analysis.personGroups, settled.effective);
   if (!merged.ok) return stoppedAt('applyPersonAnswers', merged);
 
   const risks = assessRisks(analysis.fields, merged.data);
@@ -168,7 +174,7 @@ export function recheckPeople(analysis, personAnswers) {
   if (!risks.ok) return stoppedAt('recheckRisks', risks);
 
   /** @type {Checked} */
-  const checked = { personGroups: merged.data, riskResults: risks.data };
+  const checked = { personGroups: merged.data, riskResults: risks.data, personAnswers: settled.answers };
   return ok(checked);
 }
 

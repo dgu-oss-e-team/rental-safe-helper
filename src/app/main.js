@@ -306,14 +306,15 @@ const act = {
     if (!analysis) return;
     const p = await pipeline();
     if (!p) return;
-    const next = { ...answers };
     // 답으로 사람을 합치고 위험 점검을 다시 한다. ② 결과가 그 자리에서 바뀐다.
-    const r = p.recheckPeople(analysis, next);
+    const r = p.recheckPeople(analysis, { ...answers });
     if (!r.ok) {
-      // 잘못된 답(없는 사람·자기 자신·서로 가리킴·확인된 사람)이면 이전 답과 결과를 그대로 둔다
+      // 잘못된 답(없는 사람·자기 자신·확인된 사람)이면 이전 답과 결과를 그대로 둔다
       appState.setState({ error: toError(r) });
       return;
     }
+    // 숨긴 카드의 답·엇갈린 답을 뺀 답을 저장한다 (#171: 같은 두 사람 질문은 한 번만 보임)
+    const next = r.data.personAnswers;
     // 같은 사람이면 가명도 합쳐지므로 이전에 만든 마스킹·미리보기·PDF는 버리고 다시 확인하게 한다
     clearTimeout(previewTimer);
     appState.setState({
