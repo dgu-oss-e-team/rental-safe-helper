@@ -26,6 +26,7 @@ const NOT_NAMES = new Set(rules.notNames);
 
 /** 낱말 끝의 조사 (긴 것부터, person-labels.json의 nameParticles. PART 4도 같은 목록을 읽는다) */
 const TRAILING_PARTICLE = new RegExp(`(?:${rules.nameParticles.map(escapeRegex).join('|')})$`);
+
 /**
  * 조사를 뗀 나머지가 이름이 아닌 단어(notNames)인지. (#158)
  * 예: 특약 "임대인 자산에 대한 수입으로" → "자산에" = "자산" + "에" → 이름 아님
