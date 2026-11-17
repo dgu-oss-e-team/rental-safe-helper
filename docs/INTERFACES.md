@@ -240,7 +240,8 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   - 답을 따라간다: P4·P2가 둘 다 `AMBIGUOUS`이고 `{ P4: 'P2', P2: 'P1' }`이면 셋 다 P1로 합친다.
   - 다른 사람(`{ P4: null }`): 그 그룹을 `CONFIRMED`로만 바꾼다.
   - 답의 키는 **원래 `AMBIGUOUS`인 사람만** 된다. `CONFIRMED`인 사람(예: 생년월일이 다른 소유자·임대인)을 합치면 근거 없이 STOP이 사라질 수 있어서다.
-  - 없는 `personId`, 자기 자신, 서로 가리키는 답(`{ P2: 'P4', P4: 'P2' }`), `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
+  - 서로 같다고 답하면(`{ P2: 'P4', P4: 'P2' }`) 둘을 합치고, 원래 순서가 앞인 사람(`P2`)의 `personId`·가명을 남긴다.
+  - 없는 `personId`, 자기 자신, `CONFIRMED`인 사람의 답은 `INVALID_INPUT`으로 **실패** → PART 5는 이전 상태를 유지한다.
 - PART 5는 합친 그룹으로 PART 3 `assessRisks(fields, 합친 그룹)`과 PART 4 마스킹(`prepareForAi`)을 다시 계산한다.
   - 이때 `assessRisks()`가 실패하면 `step: 'recheckRisks'`로 멈추고 이전 답·결과를 그대로 둔다. 처음 분석(`'assessRisks'`)과 달리 결과가 화면에 남아 있어서 안내가 다르다. (#126)
 - 질문 화면: PART 4 `renderPersonQuestions({ analysis, personGroups, personAnswers, onChange })` → `HTMLElement | null` (slots.js `personQuestions`)

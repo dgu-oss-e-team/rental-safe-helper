@@ -51,8 +51,24 @@ describe('PART 4 applyPersonAnswers', () => {
     }
   });
 
-  it('없는 사람, 자기 자신, 서로 가리키는 답, 잘못된 모양은 실패한다', () => {
-    for (const bad of [{ P9: null }, { P4: 'P9' }, { P4: 'P4' }, { P2: 'P4', P4: 'P2' }, { P4: 3 }, []]) {
+  it('서로 같다고 답하면(P2→P4, P4→P2) 둘을 합치고, 원래 순서가 앞인 P2를 남긴다', () => {
+    const unsure = groups.map((g) => (g.personId === 'P2' ? { ...g, status: 'AMBIGUOUS' } : g));
+    for (const answers of [{ P2: 'P4', P4: 'P2' }, { P4: 'P2', P2: 'P4' }]) {
+      const r = applyPersonAnswers(unsure, answers);
+      expect(r.ok).toBe(true);
+      expect(r.data.map((g) => g.personId)).toEqual(['P1', 'P2', 'P3']);
+      expect(byId(r.data, 'P2')).toEqual({
+        personId: 'P2',
+        alias: byId(groups, 'P2').alias,
+        roles: ['LANDLORD', 'ACCOUNT_HOLDER'],
+        findingIds: [...byId(groups, 'P2').findingIds, ...byId(groups, 'P4').findingIds],
+        status: 'CONFIRMED',
+      });
+    }
+  });
+
+  it('없는 사람, 자기 자신, 잘못된 모양은 실패한다', () => {
+    for (const bad of [{ P9: null }, { P4: 'P9' }, { P4: 'P4' }, { P4: 3 }, []]) {
       const r = applyPersonAnswers(groups, bad);
       expect(r.ok).toBe(false);
       expect(r.error.code).toBe(ERROR_CODE.INVALID_INPUT);
