@@ -160,7 +160,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
 });
 
 describe('#165 남은 문제: PART 4 인물 판별', () => {
-  it.fails('계약서에 두 번 나오는 임차인 성춘향은 같은 가명 하나로 묶는다', () => {
+  it('계약서에 두 번 나오는 임차인 성춘향은 같은 가명 하나로 묶는다', () => {
     const tenants = trust.personGroups.filter((g) => g.roles.includes('TENANT'));
     expect(tenants).toHaveLength(1);
   });
