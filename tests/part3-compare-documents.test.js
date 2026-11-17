@@ -210,6 +210,56 @@ describe('PART 3 소재지 비교 (ADDRESS_MISMATCH)', () => {
   });
 });
 
+  describe('호수 앞의 층 정리 (#141, #143)', () => {
+    const REGISTRY = '서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호'; // dense 등기부 맨 위 주소
+
+    it('등기부 "제7층 제702호" ↔ 계약서 "3동 702호"는 같은 주소 (NO_FLAG)', () => {
+      const f = fields();
+      f.registry.address = REGISTRY;
+      f.contract.address = '서울특별시 중구 가상로 12, 가상아파트 3동 702호';
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('반대로 계약서에 층이 있고 등기부에 없어도 같다', () => {
+      const f = fields();
+      f.registry.address = '서울특별시 중구 가상로 12, 가상아파트 3동 702호';
+      f.contract.address = REGISTRY;
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('층이 호수 앞자리와 맞지 않으면 층을 빼지 않는다 (7층 ↔ 802호)', () => {
+      const f = fields();
+      f.registry.address = '서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제802호';
+      f.contract.address = '서울특별시 중구 가상로 12, 가상아파트 3동 802호';
+      expect(normalizeAddress(f.registry.address)).toContain('7층');
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+    });
+
+    it('층을 빼도 호수·동이 다르면 STOP', () => {
+      const f = fields();
+      f.registry.address = REGISTRY;
+      f.contract.address = '서울특별시 중구 가상로 12, 가상아파트 3동 703호';
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+      f.contract.address = '서울특별시 중구 가상로 12, 가상아파트 4동 702호';
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+    });
+
+    it('호수가 없으면 층을 빼지 않는다', () => {
+      expect(normalizeAddress('서울특별시 중구 가상로 12 제7층')).toBe('서울특별시중구가상로127층');
+    });
+
+    it('지하 층, "비01호"는 층 제거 대상이 아니다', () => {
+      expect(normalizeAddress('서울특별시 중구 가상로 12 지하1층 제101호')).toBe('서울특별시중구가상로12지하1층101호');
+      expect(normalizeAddress('서울특별시 중구 가상로 12 지하 1층 101호')).toBe('서울특별시중구가상로12지하1층101호');
+      expect(normalizeAddress('서울특별시 중구 가상로 12 비01호')).toBe('서울특별시중구가상로12비01호');
+    });
+
+    it('도로 번호 뒤의 층도 바르게 뺀다 ("가상로 12 1층 101호", "12층 1202호")', () => {
+      expect(normalizeAddress('서울특별시 중구 가상로 12 1층 101호')).toBe('서울특별시중구가상로12101호');
+      expect(normalizeAddress('서울특별시 중구 가상로 12 12층 1202호')).toBe('서울특별시중구가상로121202호');
+    });
+  });
+
 describe('PART 3 assessRisks() 연결', () => {
   it('Mock 입력으로 비교 규칙 3개가 STOP / UNVERIFIABLE / NO_FLAG로 나온다', () => {
     const r = assessRisks(fields(), groups());

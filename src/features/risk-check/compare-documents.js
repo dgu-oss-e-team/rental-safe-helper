@@ -121,16 +121,29 @@ export function compareAccountHolderAndLandlord(fields, personGroups) {
 }
 
 /**
+ * 호수 앞의 "N층"을 뺀다. 층이 호수의 앞자리와 일치할 때만 뺀다.
+ *  - "3동 7층 702호" → "3동 702호"  (7층 ↔ 702호, 1203호 ↔ 12층)
+ *  - 층과 호수가 안 맞는 "7층 802호"는 그대로 둔다. (잘못 뺀 채 같은 주소로 보는 일을 막는다)
+ *  - 호수가 없는 "7층"만 있는 주소, "지하1층"은 그대로 둔다.
+ * 등기부는 "제7층 제702호", 계약서는 "702호"로 적는 경우가 많아서 필요하다. (#141, #143)
+ * @param {string} address  괄호와 "제"를 이미 정리한 주소 (공백은 아직 있어도 된다)
+ */
+function removeFloorBeforeUnit(address) {
+  return address.replace(/(?<![0-9]|지하\s*)(\d{1,2})\s*층\s*(\d{3,4})\s*호/g, (whole, floor, unit) =>
+    Number(unit.slice(0, -2)) === Number(floor) ? `${unit}호` : whole,
+  );
+}
+
+/**
  * 주소를 비교하기 쉽게 정리한다.
  * - 괄호 안 내용((새싹동 123-4) 등), 공백, 쉼표 제거
  * - "제2층 제201호" → "2층201호" 처럼 숫자 앞의 "제" 제거
+ * - 호수가 있고 층이 호수 앞자리와 맞으면 "N층" 제거 ("3동 7층 702호" → "3동702호")
  * @param {string} address
  */
 export function normalizeAddress(address) {
-  return address
-    .replace(/\([^)]*\)/g, '')
-    .replace(/[\s,]/g, '')
-    .replace(/제(?=\d)/g, '');
+  const cleaned = address.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, '');
+  return removeFloorBeforeUnit(cleaned).replace(/[\s,]/g, '');
 }
 
 /**
