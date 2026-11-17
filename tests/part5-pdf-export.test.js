@@ -4,7 +4,15 @@ import { buildImageOnlyPdf } from '../src/features/pdf-export/export-pdf.js';
 import { validateMaskedPdf } from '../src/features/pdf-export/validate-pdf.js';
 import { exportMaskedPDF, previewMaskedPages, pagesWithText } from '../src/features/pdf-export/index.js';
 import { mockLeaseDocument } from '../src/shared/mock-data.js';
-import { toPixelRect, planRedactions, fitFontSize, drawRedactions } from '../src/features/pdf-export/apply-redactions.js';
+import {
+  toPixelRect,
+  planRedactions,
+  fitFontSize,
+  drawRedactions,
+  PAD_X_RATIO,
+  PAD_Y_RATIO,
+  PAD_MIN,
+} from '../src/features/pdf-export/apply-redactions.js';
 // 1×1 흰색 PNG (테스트용 페이지 이미지)
 const TINY_PNG = Uint8Array.from(
   atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='),
@@ -34,6 +42,107 @@ describe('PART 5 좌표 변환 (toPixelRect)', () => {
   it('페이지 밖으로 나가지 않는다', () => {
     const r = toPixelRect({ x: 0, y: 0, width: 1, height: 1 }, 1000, 2000);
     expect(r).toEqual({ x: 0, y: 0, width: 1000, height: 2000 });
+    // 가장자리에 붙은 작은 상자도 잘린다
+    const edge = toPixelRect({ x: 0.99, y: 0.995, width: 0.01, height: 0.005 }, 1000, 2000);
+    expect(edge.x + edge.width).toBeLessThanOrEqual(1000);
+    expect(edge.y + edge.height).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe('PART 5 상자 여유는 줄 높이에 맞춘다 (#139)', () => {
+  /** 상자 위·왼쪽 여유 (px) */
+  const padOf = (bbox, w, h) => {
+    const r = toPixelRect(bbox, w, h);
+    return { top: bbox.y * h - r.y, left: bbox.x * w - r.x };
+  };
+  const A4 = [2480, 3508];
+
+  it('글자가 클수록 여유도 커진다 (위아래 줄 높이의 20%, 좌우 25%)', () => {
+    expect([PAD_Y_RATIO, PAD_X_RATIO]).toEqual([0.2, 0.25]);
+    const small = padOf({ x: 0.3, y: 0.3, width: 0.2, height: 0.01 }, ...A4); // 줄 높이 약 35px
+    const big = padOf({ x: 0.3, y: 0.3, width: 0.2, height: 0.02 }, ...A4); // 약 70px
+    expect(big.top).toBeGreaterThan(small.top);
+    expect(big.left).toBeGreaterThan(small.left);
+    expect(small.top).toBeCloseTo(35.08 * PAD_Y_RATIO, 0);
+    expect(small.left).toBeCloseTo(35.08 * PAD_X_RATIO, 0);
+  });
+
+  it('작은 휴대폰 사진에서도 여유가 이전(페이지의 0.2%, 2~3px)보다 넉넉하다', () => {
+    // 1000×1414 사진, 줄 높이 30px → 위아래 6px, 좌우 7.5px
+    const pad = padOf({ x: 0.1, y: 0.4, width: 0.5, height: 30 / 1414 }, 1000, 1414);
+    expect(pad.top).toBeGreaterThanOrEqual(6);
+    expect(pad.left).toBeGreaterThanOrEqual(7);
+  });
+
+  it('아주 작은 글자도 이전 여유(페이지의 0.2%)보다 작아지지 않는다', () => {
+    const pad = padOf({ x: 0.3, y: 0.3, width: 0.1, height: 0.001 }, ...A4);
+    expect(pad.top).toBeGreaterThanOrEqual(0.002 * 3508 - 1);
+    expect(pad.left).toBeGreaterThanOrEqual(0.002 * 2480 - 1);
+  });
+
+  it('여러 줄 묶음처럼 큰 상자는 여유가 페이지 긴 변의 1%를 넘지 않는다', () => {
+    const pad = padOf({ x: 0.2, y: 0.2, width: 0.5, height: 0.3 }, ...A4);
+    expect(pad.top).toBeLessThanOrEqual(0.01 * 3508 + 1);
+    expect(pad.left).toBeLessThanOrEqual(0.01 * 3508 + 1);
+  });
+
+  it('줄 사이 간격이 줄 높이의 절반이면 위아래 줄 상자가 겹치지 않는다 (옆 줄 글자를 덮지 않음)', () => {
+    const upper = toPixelRect({ x: 0.1, y: 0.3, width: 0.5, height: 0.02 }, ...A4);
+    const lower = toPixelRect({ x: 0.1, y: 0.33, width: 0.5, height: 0.02 }, ...A4); // 간격 0.01 = 줄 높이의 50%
+    expect(upper.y + upper.height).toBeLessThanOrEqual(lower.y);
+  });
+});
+
+describe('PART 5 상자 여유: 옆에 가리지 않는 글자가 있으면 간격의 절반까지만 (#139)', () => {
+  const A4 = [2480, 3508];
+  const line = { x: 0.1, y: 0.3, width: 0.4, height: 0.02 }; // 줄 높이 약 70px → 기본 위아래 여유 14px
+  const px = (b) => ({ l: b.x * 2480, t: b.y * 3508, r: (b.x + b.width) * 2480, b: (b.y + b.height) * 3508 });
+
+  it('바로 아래 줄이 가까우면(간격 10px) 아래 여유는 5px까지만, 위는 그대로', () => {
+    const below = { x: 0.1, y: 0.32 + 20 / 3508, width: 0.4, height: 0.02 };
+    const r = toPixelRect(line, ...A4, [below]);
+    expect(r.y + r.height).toBeLessThanOrEqual(px(below).t);
+    expect(r.y + r.height - px(line).b).toBeLessThanOrEqual(11);
+    expect(px(line).t - r.y).toBeGreaterThanOrEqual(13);
+  });
+
+  it('바로 오른쪽 칸 글자가 가까우면(간격 14px) 오른쪽 여유는 7px까지만', () => {
+    const right = { x: 0.5 + 14 / 2480, y: 0.3, width: 0.1, height: 0.02 };
+    const r = toPixelRect(line, ...A4, [right]);
+    expect(r.x + r.width).toBeLessThanOrEqual(px(right).l);
+    expect(r.x + r.width - px(line).r).toBeLessThanOrEqual(8);
+  });
+
+  it('옆 글자가 거의 붙어 있어도 가장 작은 여유(페이지의 0.2%)는 지킨다 (덜 가려서 새지 않게, #140 리뷰)', () => {
+    const minY = PAD_MIN * 3508; // 약 7px
+    const minX = PAD_MIN * 2480; // 약 5px
+    const touching = [
+      { x: 0.1, y: 0.32, width: 0.4, height: 0.02 }, // 바로 아래 줄, 간격 0
+      { x: 0.1, y: 0.28 - 2 / 3508, width: 0.4, height: 0.02 }, // 바로 위 줄, 간격 2px
+      { x: 0.5, y: 0.3, width: 0.1, height: 0.02 }, // 바로 오른쪽 칸, 간격 0
+    ];
+    const r = toPixelRect(line, ...A4, touching);
+    expect(r.y + r.height - px(line).b).toBeGreaterThanOrEqual(minY);
+    expect(px(line).t - r.y).toBeGreaterThanOrEqual(minY);
+    expect(r.x + r.width - px(line).r).toBeGreaterThanOrEqual(minX);
+  });
+
+  it('멀리 있는 글자나 다른 열의 글자는 여유에 영향이 없다', () => {
+    const far = { x: 0.1, y: 0.6, width: 0.4, height: 0.02 };
+    const otherColumn = { x: 0.8, y: 0.33, width: 0.1, height: 0.02 }; // 아래쪽이지만 옆 열
+    expect(toPixelRect(line, ...A4, [far, otherColumn])).toEqual(toPixelRect(line, ...A4));
+  });
+
+  it('planRedactions: 가릴 줄은 이웃으로 보지 않고, 가리지 않는 줄만 피한다', () => {
+    const masked = { x: 0.1, y: 0.3, width: 0.4, height: 0.02 };
+    const free = { x: 0.1, y: 0.32 + 20 / 3508, width: 0.4, height: 0.02 };
+    const plan = { purpose: 'FRAUD_CHECK', items: [item({ bbox: masked })] };
+    const pg = { documentId: 'DOC_A', pageIndex: 0, width: 2480, height: 3508 };
+    const [box] = planRedactions(plan, { ...pg, textBoxes: [masked, free] });
+    expect(box.rect.y + box.rect.height).toBeLessThanOrEqual(px(free).t);
+    // 가릴 줄 자신만 있으면 기본 여유 그대로
+    const [alone] = planRedactions(plan, { ...pg, textBoxes: [masked] });
+    expect(alone.rect).toEqual(toPixelRect(masked, ...A4));
   });
 });
 

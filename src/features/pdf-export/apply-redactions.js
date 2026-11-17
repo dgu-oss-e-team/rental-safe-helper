@@ -23,8 +23,30 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
  * @property {string} [text]  label일 때 그릴 글자 (가명 등)
  */
 
-/** 상자를 글자보다 조금 넓게 그려서 글자 가장자리가 새지 않게 한다 (페이지 크기 대비 비율) */
-const PADDING = 0.002;
+/*
+ * 상자 여유 (#139): 상자를 글자보다 넓게 그려서 글자 가장자리가 새지 않게 한다.
+ * OCR 좌표는 몇 픽셀씩 어긋날 수 있고, 휴대폰 사진은 페이지가 작아서 페이지 비율만으로는 여유가 2~3px밖에 안 된다.
+ * 그래서 줄 높이에 비례해서 잡는다. 덜 가리는 것보다 조금 더 가리는 쪽이 안전하다.
+ * - 위아래: 줄 높이의 20% (샘플에서 줄 사이 간격은 가장 좁을 때 줄 높이의 50%라서 옆 줄 글자에 닿지 않는다)
+ * - 좌우: 줄 높이의 25% (글자 1/4 정도). 50%로 하면 표(등기부 갑구)에서 상자가 칸 선을 더 많이 넘어,
+ *   ⑤ Double-check의 OCR이 선 조각을 흐린 숫자로 읽고 "확인 불가"로 멈췄다. (가려진 글자가 보인 것은 아님, #139에서 확인)
+ * - 가장 작아도 페이지의 0.2% (이전 값), 가장 커도 페이지 긴 변의 1% (여러 줄 묶음처럼 큰 상자가 과하게 커지지 않게)
+ * - 옆에 가리지 않는 글자가 있으면 그 글자까지 간격의 절반까지만 넓힌다. 실제 등기부·계약서처럼 줄 간격이 좁거나
+ *   표 칸이 붙어 있어도 옆 줄·옆 칸 글자를 덮지 않는다. (공개 양식을 따른 빽빽한 가짜 서류 tests/fixtures/dense-*.pdf로 확인)
+ * - 단, 옆 글자 때문에 줄이더라도 가장 작은 여유(페이지의 0.2%, 이 기능 전과 같은 값)는 항상 지킨다.
+ *   OCR 좌표가 몇 px 어긋나면 개인정보 글자 끝이 보일 수 있어서, 옆 줄 끝을 1~2px 덮는 쪽이 새는 쪽보다 안전하다.
+ */
+export const PAD_Y_RATIO = 0.2;
+export const PAD_X_RATIO = 0.25;
+export const PAD_MIN = 0.002;
+const PAD_MAX = 0.01;
+
+/**
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ */
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 /** 같은 자리에 가명이 여러 개일 때 이어 붙이는 구분자 */
 export const LABEL_SEPARATOR = ' / ';
@@ -48,30 +70,70 @@ export function fitFontSize(widthPer1px, rect) {
 }
 
 /**
- * 0~1 정규화 좌표를 픽셀 좌표로 바꾼다. 여유(PADDING)를 더하고 페이지 밖으로 나가지 않게 자른다.
+ * 0~1 정규화 좌표를 픽셀 좌표로 바꾼다. 줄 높이에 맞춘 여유를 더하고 페이지 밖으로 나가지 않게 자른다.
+ * neighbors(가리지 않는 글자 위치)가 가까이 있으면 그쪽 여유는 간격의 절반까지만 준다.
  * @param {BBox} bbox
  * @param {number} pageWidth  픽셀
  * @param {number} pageHeight  픽셀
+ * @param {BBox[]} [neighbors]  같은 페이지에서 가리지 않는 글자 위치 (0~1)
  */
-export function toPixelRect(bbox, pageWidth, pageHeight) {
-  const x0 = Math.max(0, bbox.x - PADDING);
-  const y0 = Math.max(0, bbox.y - PADDING);
-  const x1 = Math.min(1, bbox.x + bbox.width + PADDING);
-  const y1 = Math.min(1, bbox.y + bbox.height + PADDING);
-  const x = Math.floor(x0 * pageWidth);
-  const y = Math.floor(y0 * pageHeight);
-  return {
-    x,
-    y,
-    width: Math.ceil(x1 * pageWidth) - x,
-    height: Math.ceil(y1 * pageHeight) - y,
-  };
+export function toPixelRect(bbox, pageWidth, pageHeight, neighbors = []) {
+  const lineHeight = bbox.height * pageHeight;
+  const maxPad = PAD_MAX * Math.max(pageWidth, pageHeight);
+  const padX = clamp(lineHeight * PAD_X_RATIO, PAD_MIN * pageWidth, maxPad);
+  const padY = clamp(lineHeight * PAD_Y_RATIO, PAD_MIN * pageHeight, maxPad);
+  const left = bbox.x * pageWidth;
+  const top = bbox.y * pageHeight;
+  const right = (bbox.x + bbox.width) * pageWidth;
+  const bottom = (bbox.y + bbox.height) * pageHeight;
+  const pad = { top: padY, bottom: padY, left: padX, right: padX };
+
+  for (const n of neighbors) {
+    const nl = n.x * pageWidth;
+    const nt = n.y * pageHeight;
+    const nr = (n.x + n.width) * pageWidth;
+    const nb = (n.y + n.height) * pageHeight;
+    // 가릴 글자와 이미 겹치는 글자는 피할 수 없다 (같은 줄 안)
+    if (nr > left && nl < right && nb > top && nt < bottom) continue;
+    const sideBySide = nb > top - padY && nt < bottom + padY; // 같은 높이 (옆 칸)
+    const stacked = nr > left - padX && nl < right + padX; // 같은 열 (위·아래 줄)
+    if (stacked && nb <= top) pad.top = Math.min(pad.top, (top - nb) / 2);
+    if (stacked && nt >= bottom) pad.bottom = Math.min(pad.bottom, (nt - bottom) / 2);
+    if (sideBySide && nr <= left) pad.left = Math.min(pad.left, (left - nr) / 2);
+    if (sideBySide && nl >= right) pad.right = Math.min(pad.right, (nl - right) / 2);
+  }
+  // 옆 글자 때문에 줄였어도 가장 작은 여유는 지킨다 (덜 가려서 새는 것보다 옆 줄 끝을 조금 덮는 쪽이 안전)
+  const minX = PAD_MIN * pageWidth;
+  const minY = PAD_MIN * pageHeight;
+  pad.top = Math.max(pad.top, minY);
+  pad.bottom = Math.max(pad.bottom, minY);
+  pad.left = Math.max(pad.left, minX);
+  pad.right = Math.max(pad.right, minX);
+
+  const x = Math.max(0, Math.floor(left - pad.left));
+  const y = Math.max(0, Math.floor(top - pad.top));
+  const x1 = Math.min(pageWidth, Math.ceil(right + pad.right));
+  const y1 = Math.min(pageHeight, Math.ceil(bottom + pad.bottom));
+  return { x, y, width: x1 - x, height: y1 - y };
+}
+
+/**
+ * 두 상자가 겹치는 넓이 ÷ b의 넓이 (0~1)
+ * @param {BBox} a
+ * @param {BBox} b
+ */
+function coverOf(a, b) {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  const area = b.width * b.height;
+  return w > 0 && h > 0 && area > 0 ? (w * h) / area : 0;
 }
 
 /**
  * 한 페이지에 그릴 목록을 만든다.
  * @param {MaskingPlan} plan
- * @param {{ documentId: string, pageIndex: number, width: number, height: number }} page  width/height는 픽셀
+ * @param {{ documentId: string, pageIndex: number, width: number, height: number, textBoxes?: BBox[] }} page
+ *   width/height는 픽셀. textBoxes는 이 페이지의 모든 글자 줄 위치(0~1)로, 가리지 않는 줄을 덮지 않게 쓴다 (#139)
  * @returns {DrawItem[]}
  */
 export function planRedactions(plan, page) {
@@ -82,6 +144,10 @@ export function planRedactions(plan, page) {
       i.action !== MASKING_ACTION.KEEP &&
       isValidBBox(i.bbox),
   );
+  // 가리지 않는 줄: 가릴 상자와 절반 이상 겹치지 않는 줄
+  const neighbors = (page.textBoxes ?? []).filter(
+    (b) => isValidBBox(b) && !items.some((i) => coverOf(i.bbox, b) > 0.5),
+  );
 
   /** @type {DrawItem[]} */
   const boxes = [];
@@ -89,7 +155,7 @@ export function planRedactions(plan, page) {
   /** @type {Map<string, { rect: DrawItem['rect'], texts: string[] }>} */
   const labelsByRect = new Map();
   for (const item of items) {
-    const rect = toPixelRect(item.bbox, page.width, page.height);
+    const rect = toPixelRect(item.bbox, page.width, page.height, neighbors);
     if (item.action === MASKING_ACTION.REPLACE && item.replacement) {
       const key = `${rect.x},${rect.y},${rect.width},${rect.height}`;
       const label = labelsByRect.get(key) ?? { rect, texts: [] };

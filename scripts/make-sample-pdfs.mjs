@@ -1,8 +1,10 @@
 // PART 5. 가상 등기부·계약서 HTML을 글자가 들어 있는 PDF(text_pdf)로 만든다. (테스트·시연용, 가짜 데이터만)
 //
-// 사용법: node scripts/make-sample-pdfs.mjs "<Chrome 또는 Edge 실행 파일 경로>"
+// 사용법: node scripts/make-sample-pdfs.mjs "<Chrome 또는 Edge 실행 파일 경로>" [--dense]
 //   예) node scripts/make-sample-pdfs.mjs "C:/Program Files/Google/Chrome/Application/chrome.exe"
-// 결과: public/samples/sample-registry.pdf, public/samples/sample-lease.pdf
+// 결과: public/samples/sample-registry.pdf, public/samples/sample-lease.pdf (시연용)
+// --dense: tests/fixtures/dense-registry.pdf, tests/fixtures/dense-lease.pdf (테스트용, #139)
+//   공개 양식 구조를 따른 빽빽한 가짜 서류. 마스킹 상자가 옆 글자를 덮지 않는지 확인한다. 사이트에는 들어가지 않는다.
 // 한글 글꼴(Noto Sans KR, OFL)을 Google Fonts에서 받으므로 인터넷 연결이 필요하다.
 
 import { spawn } from 'node:child_process';
@@ -18,8 +20,9 @@ if (!browserPath) {
 }
 
 const root = resolve(import.meta.dirname, '..');
-const outDir = join(root, 'public', 'samples');
-const names = ['sample-registry', 'sample-lease'];
+const dense = process.argv.includes('--dense');
+const outDir = dense ? join(root, 'tests', 'fixtures') : join(root, 'public', 'samples');
+const names = dense ? ['dense-registry', 'dense-lease'] : ['sample-registry', 'sample-lease'];
 const port = 9335;
 const profile = mkdtempSync(join(tmpdir(), 'sample-pdf-'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,7 +69,7 @@ try {
     await send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true });
     const pdf = await send('Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
     writeFileSync(join(outDir, `${name}.pdf`), Buffer.from(pdf.result.data, 'base64'));
-    console.log(`만듦: public/samples/${name}.pdf`);
+    console.log(`만듦: ${join(outDir, `${name}.pdf`)}`);
   }
   ws.close();
 } finally {

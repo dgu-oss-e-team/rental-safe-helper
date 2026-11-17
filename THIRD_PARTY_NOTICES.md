@@ -33,7 +33,7 @@ Tesseract.js downloads these files from the jsDelivr CDN the first time a photo 
 
 | Font | License | Where |
 |---|---|---|
-| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | Embedded (subset) in the fake sample PDFs `public/samples/*.pdf`, made by `scripts/make-sample-pdfs.mjs` from Google Fonts |
+| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | Embedded (subset) in the fake sample PDFs `public/samples/*.pdf` and the test-only PDFs `tests/fixtures/*.pdf`, made by `scripts/make-sample-pdfs.mjs` from Google Fonts |
 
 ## Rules referenced in our code
 
