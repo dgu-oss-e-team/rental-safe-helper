@@ -73,12 +73,17 @@ describe('#165 지금 잘 되는 것', () => {
     expect(statusOf(trust, 'MORTGAGE_EXISTS')).toBe(RISK_STATUS.NO_FLAG);
   });
 
-  // #163: 탐지 못 한 번호 모양이 남으면 보내기 전 검사가 멈춘다 → 붙은 번호가 AI로 가지 않는다
-  it('붙어 읽힌 주민번호·전화번호는 탐지되지 않아도 보내기 전 검사에서 멈춘다 (#163)', () => {
+  // 붙은 번호는 탐지해서 가리거나(#166), 탐지 못 하면 보내기 전 검사가 멈춘다(#163). 어느 쪽이든 AI로 가지 않는다.
+  it('붙어 읽힌 주민번호·전화번호는 어떤 목적에서도 AI로 가지 않는다 (가리거나 멈춤)', () => {
+    const parts = ['960712', '2583914', '881023', '1647205', '010-0000-4826', '010-0000-9173'];
     for (const purpose of Object.values(MASKING_PURPOSE)) {
       const r = prepareForAi(trust, purpose);
-      expect(r.ok).toBe(false);
-      expect(r.step).toBe('validateMaskedText');
+      if (!r.ok) {
+        expect(r.step).toBe('validateMaskedText');
+        continue;
+      }
+      const shared = [r.data.prompt, ...Object.values(r.data.maskedText)].join('\n');
+      for (const p of parts) expect(shared, `"${p}" is still visible (${purpose})`).not.toContain(p);
     }
   });
 
