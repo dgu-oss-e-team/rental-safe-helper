@@ -112,7 +112,12 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
   });
   const allowedSpans = findSpans(all, allowedTexts);
   // 하이픈·공백을 뺀 숫자열로도 비교한다 (줄 단위로 비교해 다른 줄의 숫자가 이어 붙지 않게 함)
-  const digitLines = all.split('\n').map((line) => line.replace(/[^0-9]/g, ''));
+  // 이때 일부러 남긴 자리(allowedSpans)의 글자는 빼고 본다. 글자 비교와 같은 기준이다.
+  // 예: 쪽마다 머리글에 같은 주소가 있을 때 하나를 보여 주면(KEEP), 그 주소의 숫자 때문에 다른 쪽 머리글이 새는 것으로 보지 않게 한다.
+  // 뺀 자리는 줄바꿈으로 바꿔서 양옆 숫자가 이어 붙지 않게 한다.
+  const outside = all.split(''); // 글자 하나씩 (allowedSpans의 위치와 같은 기준)
+  for (const [a, b] of allowedSpans) outside.fill('\n', a, b);
+  const digitLines = outside.join('').split('\n').map((line) => line.replace(/[^0-9]/g, ''));
   const actionById = new Map(plan.items.map((i) => [i.findingId, i.action]));
   let checked = 0;
   for (const f of findings) {
