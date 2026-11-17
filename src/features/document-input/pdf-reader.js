@@ -133,23 +133,26 @@ export async function readPdfText(buffer) {
       const rawItems = [];
 
       for (const item of textContent.items) {
-        if ('str' in item && item.str.trim().length > 0) {
-          // Use pdfjsLib.Util.transform to apply viewport rotation & transform matrix
-          const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-          const itemWidth = item.width || 0;
-          const itemHeight = item.height || Math.abs(tx[3]) || 12;
+        if ('str' in item) {
+          const sanitizedStr = item.str.replace(/[\u0000-\u001f]/g, ' ');
+          if (sanitizedStr.trim().length > 0) {
+            // Use pdfjsLib.Util.transform to apply viewport rotation & transform matrix
+            const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+            const itemWidth = item.width || 0;
+            const itemHeight = item.height || Math.abs(tx[3]) || 12;
 
-          // tx[4] is X, tx[5] is Y (viewport top-left origin)
-          const x = tx[4];
-          const y = tx[5] - itemHeight;
+            // tx[4] is X, tx[5] is Y (viewport top-left origin)
+            const x = tx[4];
+            const y = tx[5] - itemHeight;
 
-          rawItems.push({
-            text: item.str,
-            x,
-            y,
-            w: itemWidth,
-            h: itemHeight,
-          });
+            rawItems.push({
+              text: sanitizedStr,
+              x,
+              y,
+              w: itemWidth,
+              h: itemHeight,
+            });
+          }
         }
       }
 
