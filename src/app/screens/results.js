@@ -5,6 +5,8 @@ import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
 import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { currentAnalysis } from '../app-state.js';
+import { buildPersonQuestions } from '../../features/masking/index.js';
+import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
 
 /**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
@@ -14,11 +16,14 @@ export function resultsScreen(state, act) {
   // 위험 결과는 "같은 사람인가요?" 답을 반영한 것, 질문은 원래 판정 기준 (INTERFACES.md 6번)
   const analysis = /** @type {import('../pipeline.js').Analysis} */ (currentAnalysis(state));
   const original = /** @type {import('../pipeline.js').Analysis} */ (state.analysis);
+  // 같은 두 사람 질문은 한 번만 보인다 (#171). 앞 카드 답에 따라 뒤 카드가 숨거나 다시 보인다.
+  const allQuestions = buildPersonQuestions(original.fields, original.personGroups);
   const questions = slots.personQuestions({
     analysis: original,
     personGroups: analysis.personGroups,
     personAnswers: state.personAnswers,
     onChange: (answers) => act.setPersonAnswers(answers),
+    questions: visiblePersonQuestions(allQuestions, state.personAnswers),
   });
   const unknown = analysis.documents.filter((d) => d.documentType === DOCUMENT_TYPE.UNKNOWN).length;
 
@@ -33,10 +38,9 @@ export function resultsScreen(state, act) {
         questions,
       ])
     : null;
-  // 물어보는 사람 = 원래 판정에서 AMBIGUOUS인 사람 (PART 4 질문 화면과 같은 기준, INTERFACES.md 6번)
-  // 화면 구조(fieldset 개수)에 기대지 않고 공통 데이터로 센다
-  const asked = questions ? original.personGroups.filter((g) => g.status === 'AMBIGUOUS').length : 0;
-  const answered = Object.keys(state.personAnswers ?? {}).length;
+  // 물어보는 사람 = 화면에 보이는 질문 카드 (같은 두 사람은 한 번만, #171)
+  // 화면 구조(fieldset 개수)에 기대지 않고 질문 목록으로 센다
+  const { asked, answered } = questions ? countPersonQuestions(allQuestions, state.personAnswers) : { asked: 0, answered: 0 };
   const goToQuestions = () => {
     if (!questionCard) return;
     questionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });

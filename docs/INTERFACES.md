@@ -247,6 +247,10 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 - 질문 화면: PART 4 `renderPersonQuestions({ analysis, personGroups, personAnswers, onChange })` → `HTMLElement | null` (slots.js `personQuestions`)
   - 질문은 원래 판정(`analysis.personGroups`) 기준이라 답한 뒤에도 남는다. 후보는 이름이 같거나 비슷하거나(오타 허용) 생년월일이 같은 다른 사람.
   - `onChange(answers 전체)`, 물어볼 사람이 없으면 `null`.
+  - 같은 두 사람 질문은 한 번만 보인다 (#171, PART 5 `src/app/person-questions.js`). PART 5가 `buildPersonQuestions()` 결과에서 보일 질문을 골라 `questions`로 넘긴다 (안 넘기면 PART 4가 전부 만든다).
+    - 두 사람의 질문은 앞 사람 카드에서만 묻는다. 앞 사람이 다른 후보와 같다고 답했으면 뒤 카드에 다시 보인다.
+    - 후보가 다 빠진 뒤 카드는 숨기고, 앞 사람이 모두 "다른 사람"이면 뒤 사람도 "다른 사람"으로 보고 점검한다 (저장하지 않음).
+    - 숨긴 카드의 답, 화면에 없는 후보를 가리키는 답(엇갈린 답)은 `recheckPeople()`이 지우고 `personAnswers`로 돌려준다. PART 5는 이것을 저장한다.
 - 새 서류를 분석하면 비우고, 목적을 바꿀 때는 유지한다.
 
 ## 7. 위험 점검 결과 (PART 3)

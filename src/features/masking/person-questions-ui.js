@@ -35,11 +35,13 @@ const namesText = (names) => (names.length > 0 ? names.join(' / ') : 'name not r
  *   personGroups: any[],
  *   personAnswers: Record<string, string | null> | null | undefined,
  *   onChange: (answers: Record<string, string | null>) => void,
+ *   questions?: import('./person-answers.js').PersonQuestion[],
  * }} input
+ *   questions: 보여 줄 질문 (PART 5가 같은 두 사람 질문을 한 번만 남긴 목록, #171). 없으면 원래 판정으로 만든다.
  * @returns {HTMLElement | null}
  */
-export function renderPersonQuestions({ analysis, personAnswers, onChange }) {
-  const questions = buildPersonQuestions(analysis.fields, analysis.personGroups);
+export function renderPersonQuestions({ analysis, personAnswers, onChange, questions: given }) {
+  const questions = given ?? buildPersonQuestions(analysis.fields, analysis.personGroups);
   if (questions.length === 0) return null;
   const answers = personAnswers ?? {};
 

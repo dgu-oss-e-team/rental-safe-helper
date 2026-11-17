@@ -29,8 +29,9 @@ export const slots = {
   /** PART 3: (riskResults: RiskResult[]) => HTMLElement */
   riskResults: renderRiskResults,
   /**
-   * PART 4: ({ analysis, personGroups, personAnswers, onChange }) => HTMLElement | null
+   * PART 4: ({ analysis, personGroups, personAnswers, onChange, questions? }) => HTMLElement | null
    * analysis.personGroups는 원래 판정, personGroups는 답으로 합친 그룹. 물어볼 사람이 없으면 null. (INTERFACES.md 6번)
+   * questions: 같은 두 사람 질문은 한 번만 남긴 목록 (PART 5 person-questions.js, #171)
    */
   personQuestions: renderPersonQuestions,
   /** PART 4: ({ analysis, prepared, edits, onChange }) => HTMLElement  (analysis는 답을 반영한 것) */
