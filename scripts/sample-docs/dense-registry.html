@@ -1,0 +1,75 @@
+<!doctype html>
+<!--
+  빽빽한 가상 등기부등본 (테스트용, #139). 이름·번호·주소·은행은 모두 가짜다. 실제 서류에서 가져온 값은 없다.
+  공개된 등기사항전부증명서 양식(인터넷등기소 견본)의 구조를 따랐다: 작은 글씨, 좁은 줄 간격, 칸이 많은 표, 한 칸에 여러 줄.
+  마스킹 상자가 옆 줄·옆 칸 글자를 덮지 않는지 확인하는 데 쓴다. 시연용 샘플(sample-registry.html)과는 따로 둔다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>dense-registry</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=block" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 12mm 10mm; }
+  body { font-family: 'Noto Sans KR', sans-serif; font-size: 8.5pt; line-height: 1.25; color: #000; }
+  h1 { text-align: center; font-size: 13pt; margin: 0 0 2mm; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 1.5mm; font-size: 8pt; }
+  h2 { font-size: 9.5pt; margin: 2.5mm 0 1mm; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
+  th { background: #eee; font-weight: 700; }
+  .c-no { width: 9%; } .c-purpose { width: 13%; } .c-recv { width: 15%; } .c-cause { width: 17%; }
+  .end { text-align: center; margin: 2mm 0; letter-spacing: 2mm; }
+  .foot { display: flex; justify-content: space-between; font-size: 8pt; margin-top: 2mm; }
+  .note { margin-top: 2mm; font-size: 7.5pt; color: #444; }
+</style>
+</head>
+<body>
+  <h1>등기사항전부증명서(말소사항 포함) - 집합건물</h1>
+  <div class="meta"><span>고유번호 0000-0000-000001</span><span>[집합건물] 서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호</span></div>
+
+  <h2>【 표 제 부 】 (1동의 건물의 표시)</h2>
+  <table>
+    <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th>소재지번, 건물명칭 및 번호</th><th>건물내역</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+    <tr><td>1</td><td>2015년3월2일</td><td>서울특별시 중구 가상동 123<br>가상아파트 제3동<br>[도로명주소] 서울특별시 중구 가상로 12</td><td>철근콘크리트구조 (철근)콘크리트지붕 15층 아파트<br>1층 410.52㎡<br>2층 410.52㎡</td><td>도면편철장 제2책 제31호</td></tr>
+  </table>
+
+  <h2>( 대지권의 목적인 토지의 표시 )</h2>
+  <table>
+    <tr><th class="c-no">표시번호</th><th>소재지번</th><th class="c-recv">지목</th><th class="c-recv">면적</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+    <tr><td>1</td><td>1. 서울특별시 중구 가상동 123</td><td>대</td><td>5321.4㎡</td><td>2015년3월2일 등기</td></tr>
+  </table>
+
+  <h2>【 표 제 부 】 (전유부분의 건물의 표시)</h2>
+  <table>
+    <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th>건물번호</th><th>건물내역</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+    <tr><td>1</td><td>2015년3월2일</td><td>제7층 제702호</td><td>철근콘크리트구조 59.94㎡</td><td>도면편철장 제2책 제31호</td></tr>
+  </table>
+  <table>
+    <tr><th class="c-no">표시번호</th><th>대지권종류</th><th>대지권비율</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+    <tr><td>1</td><td>1 소유권대지권</td><td>5321.4분의 38.112</td><td>2015년2월10일 대지권<br>2015년3월2일 등기</td></tr>
+  </table>
+
+  <h2>【 갑 구 】 (소유권에 관한 사항)</h2>
+  <table>
+    <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+    <tr><td>1</td><td>소유권보존</td><td>2015년3월2일<br>제10021호</td><td></td><td>소유자 주식회사가상건설 110111-0000001<br>서울특별시 중구 가상로 1</td></tr>
+    <tr><td>2</td><td>소유권이전</td><td>2015년6월15일<br>제31002호</td><td>2015년5월20일<br>매매</td><td>소유자 박영수 700101-1******<br>서울특별시 중구 가상로 12, 3동 702호<br>거래가액 금320,000,000원</td></tr>
+    <tr><td>3</td><td>가압류</td><td>2021년4월8일<br>제20031호</td><td>2021년4월7일<br>서울중앙지방법원의<br>가압류결정(2021카단0000)</td><td>청구금액 금15,000,000원<br>채권자 이가상 760202-2******<br>서울특별시 종로구 가상길 3</td></tr>
+    <tr><td>4</td><td>3번가압류등기말소</td><td>2021년9월1일<br>제40112호</td><td>2021년8월30일<br>해제</td><td></td></tr>
+    <tr><td>5</td><td>소유권이전</td><td>2026년8월3일<br>제51203호</td><td>2026년7월20일<br>매매</td><td>소유자 김철수 800101-1******<br>서울특별시 중구 가상로 12, 3동 702호<br>거래가액 금410,000,000원</td></tr>
+  </table>
+
+  <h2>【 을 구 】 (소유권 이외의 권리에 관한 사항)</h2>
+  <table>
+    <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+    <tr><td>1</td><td>근저당권설정</td><td>2015년6월15일<br>제31003호</td><td>2015년6월15일<br>설정계약</td><td>채권최고액 금180,000,000원<br>채무자 박영수<br>서울특별시 중구 가상로 12, 3동 702호<br>근저당권자 주식회사가상은행 110111-0000002<br>서울특별시 중구 가상로 100 (가상지점)</td></tr>
+    <tr><td>2</td><td>1번근저당권설정등기말소</td><td>2026년8월3일<br>제51204호</td><td>2026년8월3일<br>해지</td><td></td></tr>
+    <tr><td>3</td><td>근저당권설정</td><td>2026년8월3일<br>제51205호</td><td>2026년8월3일<br>설정계약</td><td>채권최고액 금240,000,000원<br>채무자 김철수<br>서울특별시 중구 가상로 12, 3동 702호<br>근저당권자 주식회사가상은행 110111-0000002<br>서울특별시 중구 가상로 100 (가상지점)</td></tr>
+  </table>
+
+  <p class="end">-- 이 하 여 백 --</p>
+  <div class="foot"><span>관할등기소 서울중앙지방법원 가상등기소</span><span>발행일 2026/11/01</span></div>
+  <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 등기부등본이 아닙니다.</p>
+</body>
+</html>

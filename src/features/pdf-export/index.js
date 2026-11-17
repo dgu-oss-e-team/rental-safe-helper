@@ -105,6 +105,8 @@ async function renderMaskedPages(document, plan, file) {
       pageIndex: page.pageIndex,
       width: page.canvas.width,
       height: page.canvas.height,
+      // 가리지 않는 옆 줄·옆 칸을 덮지 않게 이 페이지의 글자 줄 위치도 넘긴다 (#139)
+      textBoxes: document.pages.find((p) => p.pageIndex === page.pageIndex)?.blocks?.map((b) => b.bbox) ?? [],
     });
     drawRedactions(ctx, drawItems);
   }
