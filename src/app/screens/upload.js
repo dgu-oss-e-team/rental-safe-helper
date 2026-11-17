@@ -18,7 +18,7 @@ function resumeCard(state, act) {
     'Your earlier results are still here',
     [
       el('p', {}, ['If you check new documents or try the sample, these results will be replaced.']),
-      actions([button('Back to your results', () => act.goTo(step), { id: 'back-to-results' })]),
+      actions([button('Back to your results', () => act.goTo(step), { id: 'back-to-results', variant: 'secondary' })]),
     ],
     'resume-card',
   );
