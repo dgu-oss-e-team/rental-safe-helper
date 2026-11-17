@@ -181,4 +181,42 @@ describe('PART 4 화면 ④ 보내기 전 확인 (renderMaskingReview)', () => {
     expect(other.querySelector('[role="status"]')?.textContent).toBe('');
     expect(other.querySelectorAll('.mr-added li')).toHaveLength(1);
   });
+
+  it('0.1초가 지나기 전에 다시 그려지면, 화면에서 빠진 예전 칸은 건너뛰고 새 칸이 한 번만 알린다', () => {
+    vi.useFakeTimers();
+    let edits = { remove: [], add: [] };
+    const onChange = vi.fn((next) => {
+      edits = next;
+    });
+    const { node } = render(edits, MASKING_PURPOSE.FRAUD_CHECK, onChange);
+
+    // "월세"를 골라 가린다 (두 줄)
+    const line = [...node.querySelectorAll('.mr-line')].find((l) => l.textContent?.includes('월세'));
+    const text = /** @type {Text} */ (line?.firstChild);
+    const at = text.data.indexOf('월세');
+    const range = document.createRange();
+    range.setStart(text, at);
+    range.setEnd(text, at + 2);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    /** @type {HTMLButtonElement} */ ([...node.querySelectorAll('button')].find((b) => b.textContent === 'Hide selected text')).click();
+
+    // 0.1초 안에 두 번 그려진다: 첫 칸은 곧 화면에서 빠진다
+    const first = render(edits, MASKING_PURPOSE.FRAUD_CHECK, onChange).node;
+    const firstHint = first.querySelector('[role="status"]');
+    const second = render(edits, MASKING_PURPOSE.FRAUD_CHECK, onChange).node;
+    const secondHint = second.querySelector('[role="status"]');
+    expect(firstHint?.isConnected).toBe(false);
+    expect(secondHint?.textContent).toBe('');
+
+    vi.advanceTimersByTime(100);
+    expect(firstHint?.textContent).toBe(''); // 화면에 없는 칸은 건너뜀
+    expect(secondHint?.textContent).toBe('Hid "월세" in 2 places. In the PDF, each of those lines is covered.');
+
+    // 알린 뒤 또 그려지면 글이 처음부터 들어 있다 (다시 읽지 않음)
+    const third = render(edits, MASKING_PURPOSE.FRAUD_CHECK, onChange).node;
+    expect(third.querySelector('[role="status"]')?.textContent).toBe(
+      'Hid "월세" in 2 places. In the PDF, each of those lines is covered.',
+    );
+  });
 });
