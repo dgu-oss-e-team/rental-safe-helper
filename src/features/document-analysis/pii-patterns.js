@@ -152,6 +152,74 @@ export function findBankAccounts(text, keywordText = text) {
 }
 
 /*
+ * 붙어서 읽힌 번호 (이슈 #166)
+ * 휴대폰 앱으로 채운 계약서에서 두 칸의 값이 붙어 읽히는 경우가 있다.
+ * 예: "900101-1234567800202-2345678" (주민번호 2개), "010-1111-2222010-3333-4444" (전화번호 2개)
+ * 위 정규식은 앞뒤에 숫자가 붙어 있으면 잡지 않으므로(긴 계좌번호 오탐 방지) 둘 다 놓친다.
+ * 그래서 숫자·*·하이픈이 이어진 덩어리를 앞에서부터 "주민번호(6-7)" 또는 "전화번호(3-4-4)" 모양으로
+ * 빈틈없이 나눌 수 있을 때만 각각 번호로 본다. 나눠지지 않는 덩어리(계좌번호 등)는 건드리지 않는다.
+ * 하이픈이 있는 모양만 본다. (하이픈 없는 긴 숫자는 계좌번호와 구분할 수 없어서)
+ */
+/** 숫자·*·하이픈 덩어리. 번호 두 개가 붙어야 하므로 하이픈이 2개 이상이어야 한다. */
+const GLUED_RUN_REGEX = /(?<![\d*-])[\d*](?:[\d*-]*[\d*])?(?![\d*-])/g;
+/** 덩어리 안의 한 조각 (y: 정해진 위치에서만 찾는다) */
+const GLUED_ID_REGEX = /\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])-([1-8*])[\d*]{6}/y;
+const GLUED_PHONE_REGEX = /(?:01[016-9]|02|03[1-3]|04[1-4]|05[1-5]|06[1-4]|070|050\d)-\d{3,4}-\d{4}/y;
+
+/**
+ * 덩어리 하나를 번호 조각으로 빈틈없이 나눈다. 나눌 수 없으면 null.
+ * @param {string} run
+ * @returns {{type: string, start: number, end: number}[] | null}
+ */
+function splitGluedRun(run) {
+  const pieces = [];
+  let pos = 0;
+  while (pos < run.length) {
+    GLUED_ID_REGEX.lastIndex = pos;
+    GLUED_PHONE_REGEX.lastIndex = pos;
+    const id = GLUED_ID_REGEX.exec(run);
+    const phone = id ? null : GLUED_PHONE_REGEX.exec(run);
+    if (id) {
+      const type = '5678'.includes(id[1]) ? PII_TYPE.FOREIGNER_ID : PII_TYPE.RESIDENT_ID;
+      pieces.push({ type, start: pos, end: pos + id[0].length });
+      pos += id[0].length;
+    } else if (phone) {
+      pieces.push({ type: PII_TYPE.PHONE_NUMBER, start: pos, end: pos + phone[0].length });
+      pos += phone[0].length;
+    } else {
+      return null;
+    }
+  }
+  return pieces;
+}
+
+/**
+ * 붙어서 읽힌 주민·외국인등록번호와 전화번호를 찾는다. 찾은 번호는 uncertain(확인 필요)이다.
+ * 번호가 2개 이상 붙은 덩어리만 본다. (번호 하나짜리는 위 정규식이 찾는다)
+ * @param {string} text
+ */
+export function findGluedNumbers(text) {
+  const results = [];
+  for (const match of text.matchAll(GLUED_RUN_REGEX)) {
+    const run = match[0];
+    if ((run.match(/-/g) ?? []).length < 2) continue;
+    const pieces = splitGluedRun(run);
+    if (!pieces || pieces.length < 2) continue;
+    const base = match.index ?? 0;
+    for (const p of pieces) {
+      results.push({
+        type: p.type,
+        value: run.slice(p.start, p.end),
+        start: base + p.start,
+        end: base + p.end,
+        uncertain: true,
+      });
+    }
+  }
+  return results;
+}
+
+/*
  * OCR이 숫자를 비슷한 글자로 잘못 읽은 번호 (이슈 #100)
  * 스캔 서류에서 OCR이 0을 O로, 1을 l로 읽으면("8OO1O1-1******") 위 정규식이 번호를 못 찾는다.
  * 사용자가 확인 단계에서 고치지 않고 넘어가면 번호가 AI 프롬프트에 그대로 남는다.
@@ -216,6 +284,7 @@ function withOcrLookalikes(find) {
  */
 export function findPatternPII(text) {
   const finders = [
+    findGluedNumbers, // 0. 붙어서 읽힌 주민번호·전화번호 (아래 정규식은 이 덩어리를 못 찾는다)
     withOcrLookalikes(findIdNumbers), // 1. 주민·외국인등록번호
     withOcrLookalikes(findRegistryIds), // 2. 등기 고유번호
     findPassportNumbers, // 3. 여권번호 (영문 앞글자라 보정 안 함)
