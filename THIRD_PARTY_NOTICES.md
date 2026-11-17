@@ -35,11 +35,11 @@ These fonts are embedded (as subsets) in the fake sample PDFs. The PDFs are made
 
 | Font | License | Where |
 |---|---|---|
-| [Nanum Myeongjo](https://fonts.google.com/specimen/Nanum+Myeongjo) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (text), `public/samples/sample-lease.pdf` (clauses) |
-| [Courier Prime](https://fonts.google.com/specimen/Courier+Prime) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (numbers and Latin letters, fixed width like BatangChe) |
-| [Nanum Gothic](https://fonts.google.com/specimen/Nanum+Gothic) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (body text) |
-| [Nanum Gothic Coding](https://fonts.google.com/specimen/Nanum+Gothic+Coding) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (amounts and numbers) |
-| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (titles), and the test-only PDFs `tests/fixtures/*.pdf` |
+| [Nanum Myeongjo](https://fonts.google.com/specimen/Nanum+Myeongjo) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (text), `public/samples/sample-lease.pdf` (clauses), test-only `tests/fixtures/form-*.pdf` |
+| [Courier Prime](https://fonts.google.com/specimen/Courier+Prime) | SIL Open Font License 1.1 | `public/samples/sample-registry.pdf` (numbers and Latin letters, fixed width like BatangChe), test-only `tests/fixtures/form-*-registry.pdf` |
+| [Nanum Gothic](https://fonts.google.com/specimen/Nanum+Gothic) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (body text), test-only `tests/fixtures/form-private-lease.pdf` |
+| [Nanum Gothic Coding](https://fonts.google.com/specimen/Nanum+Gothic+Coding) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (amounts and numbers), test-only `tests/fixtures/form-private-lease.pdf` |
+| [Noto Sans KR](https://fonts.google.com/noto/specimen/Noto+Sans+KR) | SIL Open Font License 1.1 | `public/samples/sample-lease.pdf` (titles), the test-only `tests/fixtures/dense-*.pdf`, and titles in `tests/fixtures/form-private-lease.pdf` |
 
 ## Rules referenced in our code
 
