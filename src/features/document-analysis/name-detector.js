@@ -40,6 +40,13 @@ function isWordWithParticle(name) {
 }
 
 /**
+ * 영문 한 낱말 1-2글자는 이름으로 보지 않는다. (#165 실제 서류: 서명 그림 조각 "BD", "MD"가 라벨 뒤에 읽힘)
+ * 외국인 이름은 "NGUYEN VAN A"처럼 여러 낱말이라 첫 낱말이 3글자 이상이다.
+ * 이 글자들은 #145 다시 찾기로 문서 전체에서 가려져서, 보내기 전 검사(PART 4)를 멈추게 하기도 했다.
+ */
+const TOO_SHORT_LATIN = /^[A-Za-z]{1,2}$/;
+
+/**
  * 이름 모양
  * - 한글 2-4자 (뒤에 한글이 더 붙어 있으면 이름이 아니다. 예: "임대인은")
  * - 영문 대문자로 시작하는 단어 1-4개 (예: NGUYEN VAN A)
@@ -169,7 +176,7 @@ export function findLabeledNames(text, inheritedRole = null) {
    */
   const add = (match, roleAt) => {
     const name = match[1].trim();
-    if (NOT_NAMES.has(name) || isWordWithParticle(name)) return;
+    if (NOT_NAMES.has(name) || isWordWithParticle(name) || TOO_SHORT_LATIN.test(name)) return;
     const start = (match.index ?? 0) + match[0].lastIndexOf(match[1]);
     // 같은 이름을 두 규칙이 모두 찾으면("임대인 성명: 이영희") 역할 라벨 쪽을 남긴다.
     if (byStart.has(start)) return;
