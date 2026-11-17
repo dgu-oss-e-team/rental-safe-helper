@@ -117,6 +117,12 @@ p {
   gap: 10px;
 }
 
+/* ① 이전 결과로 돌아가기 안내 (#124) */
+.resume-card {
+  border-color: var(--accent);
+  background: #eef3fb;
+}
+
 .error-card {
   border-color: var(--stop);
   background: var(--stop-bg);

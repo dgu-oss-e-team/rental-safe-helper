@@ -6,6 +6,7 @@ import {
   reachableStep,
   historyAction,
   shouldGoHome,
+  resumeStep,
 } from '../src/app/step-history.js';
 
 const none = { ocrReview: null, analysis: null, prepared: null, pdfs: null };
@@ -96,5 +97,26 @@ describe('PART 5 서비스 제목 = 홈 링크 (#118)', () => {
 
   it('①로 가도 결과는 남아 있어서 앞으로 가기로 돌아갈 수 있다', () => {
     expect(reachableStep(finished, 'done')).toBe('done');
+  });
+});
+
+describe('PART 5 ① "Back to your results" (#124)', () => {
+  it('이전 결과가 없으면(처음, Start over 뒤) 버튼을 보여 주지 않는다', () => {
+    expect(resumeStep(none)).toBeNull();
+    // 사진 글자 확인만 하고 분석 전이면 결과가 아니다
+    expect(resumeStep({ ...none, ocrReview: {} })).toBeNull();
+  });
+
+  it('결과가 있는 가장 먼 단계로 간다: 분석만 했으면 ②, 확인 화면까지면 ④, PDF까지면 ⑤', () => {
+    expect(resumeStep(analyzed)).toBe('results');
+    expect(resumeStep(prepared)).toBe('review');
+    expect(resumeStep(finished)).toBe('done');
+  });
+
+  it('간 단계는 뒤로·앞으로 가기 규칙으로도 갈 수 있는 단계다', () => {
+    for (const state of [analyzed, prepared, finished]) {
+      const step = /** @type {any} */ (resumeStep(state));
+      expect(reachableStep(state, step)).toBe(step);
+    }
   });
 });
