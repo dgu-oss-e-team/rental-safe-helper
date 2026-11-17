@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+  가상 등기부등본 - 법인 소유·신탁 (테스트용, #165). 이름·번호·주소·회사는 모두 가짜다. 실제 서류에서 가져온 값은 없다.
+  공개된 등기사항전부증명서 견본(대법원)과 인터넷등기소 열람본의 모양을 따랐다. 글꼴은 sample-registry.html과 같다 (모두 OFL).
+
+  실제 양식 서류 점검에서 나온 문제를 재현하려고 일부러 넣은 모양:
+  - 맨 위 머리글은 지번 주소, 표제부에 [도로명주소] (계약서는 도로명 주소만 씀 → 소재지 비교)
+  - 소유자가 법인(부동산투자회사)이고 번호가 법인등록번호 110111-…
+  - 1-1 민간임대주택 부기등기 (긴 안내 문장)
+  - 2 소유권이전(신탁) + "신탁 신탁원부 제…호" + 2-1 신탁주의사항 부기 (여러 줄, "신탁"이 여러 번 나옴)
+  form-private-lease.html과 같은 집·같은 법인(가상주택리츠)이다. 수탁자는 가상자산신탁.
+  가짜 번호는 숫자를 다양하게 쓰고, 서로 한두 자리만 다른 번호는 피했다 (#146).
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>form-trust-registry</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime&family=Nanum+Myeongjo:wght@400;700&display=block" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: 'Courier Prime', 'Nanum Myeongjo', serif; font-size: 9pt; line-height: 1.35; color: #000; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  .head { display: flex; justify-content: space-between; font-size: 8.5pt; border-bottom: 1px solid #000; padding-bottom: 1mm; margin-bottom: 2mm; }
+  .view { text-align: center; letter-spacing: 3mm; font-size: 8.5pt; margin: 0 0 1mm; }
+  h1 { text-align: center; font-size: 14pt; font-weight: 700; margin: 1mm 0 3mm; letter-spacing: 0.5mm; }
+  h2 { font-size: 10pt; font-weight: 700; margin: 3mm 0 1mm; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
+  th { font-weight: 700; text-align: center; }
+  .c-no { width: 9%; } .c-purpose { width: 14%; } .c-recv { width: 15%; } .c-cause { width: 15%; }
+  .t1 .c-no { width: 7%; } .t1 .w-addr { width: 38%; } .t1 .w-bldg { width: 18%; } .t1 .w-cause { width: 22%; }
+  .end { text-align: center; margin: 3mm 0; letter-spacing: 2mm; }
+  .foot { display: flex; justify-content: space-between; font-size: 8.5pt; margin-top: 2mm; }
+  .note { margin-top: 3mm; font-size: 8pt; color: #444; }
+</style>
+</head>
+<body>
+  <section class="page">
+    <p class="view">열 람 용</p>
+    <div class="head"><span>고유번호 0000-2023-357924</span><span>1/2</span></div>
+    <h1>등기사항전부증명서(말소사항 포함) - 집합건물</h1>
+    <p>[집합건물] 서울특별시 성동구 가상동 246-8 가상타운 제3층 제301호</p>
+
+    <h2>【 표 제 부 】 ( 1동의 건물의 표시 )</h2>
+    <table class="t1">
+      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th class="w-addr">소재지번, 건물명칭 및 번호</th><th class="w-bldg">건물내역</th><th class="w-cause">등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2023년12월4일</td><td>서울특별시 성동구 가상동 246-8 가상타운<br>[도로명주소] 서울특별시 성동구 가상로 00</td><td>철근콘크리트구조 아파트</td><td>도면편철장 제1책 제29호</td></tr>
+    </table>
+
+    <h2>【 표 제 부 】 ( 전유부분의 건물의 표시 )</h2>
+    <table>
+      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th>건물번호</th><th>건물내역</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2023년12월4일</td><td>제3층 제301호</td><td>철근콘크리트구조 29.75㎡</td><td>도면편철장 제1책 제29호</td></tr>
+    </table>
+
+    <h2>【 갑 구 】 ( 소유권에 관한 사항 )</h2>
+    <table>
+      <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+      <tr><td>1</td><td>소유권보존</td><td>2023년12월4일<br>제91357호</td><td></td><td>소유자 가상주택리츠주식회사 110111-3579246<br>서울특별시 강남구 가상대로 00, 12층(가상동)</td></tr>
+      <tr><td>1-1</td><td>민간임대주택등기</td><td>2024년2월19일<br>제13802호</td><td></td><td>이 주택은 민간임대주택에 관한 특별법 제43조 제1항에 따라 임대사업자가 임대의무기간 동안 계속 임대해야 하고, 같은 법 제44조의 임대료 증액 기준을 준수해야 하는 민간임대주택임<br>임대의무기간 개시일 2024년3월1일<br>임대의무기간 10년</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <p class="view">열 람 용</p>
+    <div class="head"><span>고유번호 0000-2023-357924</span><span>2/2</span></div>
+    <p>[집합건물] 서울특별시 성동구 가상동 246-8 가상타운 제3층 제301호</p>
+
+    <h2>【 갑 구 】 ( 소유권에 관한 사항 )</h2>
+    <table>
+      <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+      <tr><td>2</td><td>소유권이전</td><td>2024년3월8일<br>제24689호</td><td>2024년3월8일<br>신탁</td><td>수탁자 가상자산신탁주식회사 110111-6802467<br>서울특별시 영등포구 가상로 77(가상동)</td></tr>
+      <tr><td></td><td>신탁</td><td></td><td></td><td>신탁원부 제2024-1357호</td></tr>
+      <tr><td>2-1</td><td>신탁주의사항</td><td></td><td></td><td>이 부동산에 관하여 임대차 등의 법률행위를 하는 경우에는 등기기록에 기록된 신탁원부의 내용을 확인할 필요가 있음<br>수탁자의 동의 없이 위탁자와 맺은 임대차계약은 수탁자에게 효력이 없을 수 있음</td></tr>
+    </table>
+
+    <h2>【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )</h2>
+    <p>기록사항 없음</p>
+
+    <p class="end">-- 이 하 여 백 --</p>
+    <div class="foot"><span>관할등기소 서울동부지방법원 성동등기소</span><span>열람일시 2026년11월12일 14시35분</span></div>
+    <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 등기부등본이 아닙니다.</p>
+  </section>
+</body>
+</html>

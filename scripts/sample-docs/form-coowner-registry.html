@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+  가상 등기부등본 - 개인 공유 (테스트용, #165). 이름·번호·주소는 모두 가짜다. 실제 서류에서 가져온 값은 없다.
+  공개된 등기사항전부증명서 견본(대법원)과 인터넷등기소 열람본의 모양을 따랐다. 글꼴은 sample-registry.html과 같다 (모두 OFL).
+
+  실제 양식 서류 점검에서 나온 문제를 재현하려고 일부러 넣은 모양:
+  - 갑구 1: "공유자" 라벨 다음 줄에 "지분 2분의 1", 그다음 줄에 이름 + 주민번호(뒷자리 *)
+  - 두 줄 주소: 첫 줄이 "가상대로 1"에서 끊기고 둘째 줄이 "61,107동602호(가상동,가상아파트)"로 시작
+  - 1-1 부기 "이몽룡의 주소 …" (등기명의인표시변경)
+  - 갑구 2: 등기목적이 두 줄로 나뉨 ("공유자전원지분전부" / "이전")
+  - 을구 "기록사항 없음", 쪽마다 "열 람 용" 줄
+  시나리오: 이몽룡·심청이 반씩 공유 → 2025년에 두 사람 지분 전부를 박문수에게 이전 (지금 소유자 박문수)
+  가짜 번호는 숫자를 다양하게 쓰고, 서로 한두 자리만 다른 번호는 피했다 (#146).
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>form-coowner-registry</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime&family=Nanum+Myeongjo:wght@400;700&display=block" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: 'Courier Prime', 'Nanum Myeongjo', serif; font-size: 9pt; line-height: 1.35; color: #000; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  .head { display: flex; justify-content: space-between; font-size: 8.5pt; border-bottom: 1px solid #000; padding-bottom: 1mm; margin-bottom: 2mm; }
+  .view { text-align: center; letter-spacing: 3mm; font-size: 8.5pt; margin: 0 0 1mm; }
+  h1 { text-align: center; font-size: 14pt; font-weight: 700; margin: 1mm 0 3mm; letter-spacing: 0.5mm; }
+  h2 { font-size: 10pt; font-weight: 700; margin: 3mm 0 1mm; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
+  th { font-weight: 700; text-align: center; }
+  .c-no { width: 9%; } .c-purpose { width: 16%; } .c-recv { width: 15%; } .c-cause { width: 15%; }
+  /* 1동의 건물의 표시: 소재지 칸만 2줄, 나머지는 한 줄 (#154: PART 1이 같은 높이 글자를 한 줄로 묶음) */
+  .t1 .c-no { width: 7%; } .t1 .w-addr { width: 38%; } .t1 .w-bldg { width: 18%; } .t1 .w-cause { width: 22%; }
+  .end { text-align: center; margin: 3mm 0; letter-spacing: 2mm; }
+  .foot { display: flex; justify-content: space-between; font-size: 8.5pt; margin-top: 2mm; }
+  .note { margin-top: 3mm; font-size: 8pt; color: #444; }
+</style>
+</head>
+<body>
+  <section class="page">
+    <p class="view">열 람 용</p>
+    <div class="head"><span>고유번호 0000-2015-246813</span><span>1/2</span></div>
+    <h1>등기사항전부증명서(말소사항 포함) - 집합건물</h1>
+    <p>[집합건물] 서울특별시 송파구 가상동 135 가상아파트 제107동 제6층 제602호</p>
+
+    <h2>【 표 제 부 】 ( 1동의 건물의 표시 )</h2>
+    <table class="t1">
+      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th class="w-addr">소재지번, 건물명칭 및 번호</th><th class="w-bldg">건물내역</th><th class="w-cause">등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2015년4월6일</td><td>서울특별시 송파구 가상동 135 가상아파트 제107동<br>[도로명주소] 서울특별시 송파구 가상대로 161</td><td>철근콘크리트구조 아파트</td><td>도면편철장 제3책 제82호</td></tr>
+    </table>
+
+    <h2>【 표 제 부 】 ( 전유부분의 건물의 표시 )</h2>
+    <table>
+      <tr><th class="c-no">표시번호</th><th class="c-recv">접수</th><th>건물번호</th><th>건물내역</th><th class="c-cause">등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2015년4월6일</td><td>제6층 제602호</td><td>철근콘크리트구조 59.94㎡</td><td>도면편철장 제3책 제82호</td></tr>
+    </table>
+
+    <h2>【 갑 구 】 ( 소유권에 관한 사항 )</h2>
+    <table>
+      <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+      <tr><td>1</td><td>소유권보존</td><td>2015년4월6일<br>제24681호</td><td></td><td>공유자<br>지분 2분의 1<br>이몽룡 790521-*******<br>서울특별시 마포구 가상로 47, 2동 304호(가상동,가상빌라)<br>지분 2분의 1<br>심청 830917-*******<br>서울특별시 마포구 가상로 47, 2동 304호(가상동,가상빌라)</td></tr>
+      <tr><td>1-1</td><td>1번등기명의인표시변경</td><td>2019년6월3일<br>제57913호</td><td>2019년5월20일<br>전거</td><td>이몽룡의 주소 서울특별시 송파구 가상대로 1<br>61,107동602호(가상동,가상아파트)</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <p class="view">열 람 용</p>
+    <div class="head"><span>고유번호 0000-2015-246813</span><span>2/2</span></div>
+    <p>[집합건물] 서울특별시 송파구 가상동 135 가상아파트 제107동 제6층 제602호</p>
+
+    <h2>【 갑 구 】 ( 소유권에 관한 사항 )</h2>
+    <table>
+      <tr><th class="c-no">순위번호</th><th class="c-purpose">등기목적</th><th class="c-recv">접수</th><th class="c-cause">등기원인</th><th>권리자 및 기타사항</th></tr>
+      <tr><td>2</td><td>공유자전원지분전부<br>이전</td><td>2025년9월15일<br>제80246호</td><td>2025년8월28일<br>매매</td><td>소유자 박문수 820914-*******<br>서울특별시 송파구 가상대로 1<br>61,107동602호(가상동,가상아파트)<br>거래가액 금690,000,000원</td></tr>
+    </table>
+
+    <h2>【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )</h2>
+    <p>기록사항 없음</p>
+
+    <p class="end">-- 이 하 여 백 --</p>
+    <div class="foot"><span>관할등기소 서울동부지방법원 송파등기소</span><span>열람일시 2026년11월12일 14시30분</span></div>
+    <p class="note">이 문서는 테스트용 가상 문서입니다. 실제 등기부등본이 아닙니다.</p>
+  </section>
+</body>
+</html>
