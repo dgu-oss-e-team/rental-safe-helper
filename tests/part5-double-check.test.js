@@ -41,7 +41,7 @@ const plan = (keep = []) => ({
 describe('PART 5 findVisiblePii(): 다시 읽은 글자에서 개인정보 찾기', () => {
   it('제대로 가려졌으면(가명·시·구만) NOT_FOUND', () => {
     const r = findVisiblePii(ocrDoc('임대인 [Landlord_B]', '소재지 서울특별시 중구', '연락처'), findings, plan());
-    expect(r).toEqual({ status: CHECK_STATUS.NOT_FOUND, hits: [], reason: null });
+    expect(r).toEqual({ status: CHECK_STATUS.NOT_FOUND, hits: [], reason: null, unclear: { count: 0, pages: [] } });
   });
 
   it('이름이 그대로 보이면 MAYBE_VISIBLE, 종류와 페이지만 알려 준다 (값은 없음)', () => {
@@ -66,6 +66,62 @@ describe('PART 5 findVisiblePii(): 다시 읽은 글자에서 개인정보 찾�
     expect(r.status).toBe(CHECK_STATUS.NOT_FOUND);
   });
 
+  describe('흐린 줄이 있을 때 (부분 확인, #146)', () => {
+    /** 줄마다 [글자, 신뢰도] */
+    const ocrWith = (...rows) => {
+      const doc = ocrDoc(...rows.map(([text]) => text));
+      doc.pages[0].blocks.forEach((b, i) => (b.confidence = rows[i][1]));
+      return doc;
+    };
+
+    it('읽은 부분에 개인정보가 없고 흐린 줄이 있으면 PARTLY_CHECKED, 흐린 줄 수와 페이지를 알려 준다', () => {
+      const r = findVisiblePii(
+        ocrWith(['임대인 [Landlord_B]', 0.95], ['보증금 금50,000,000원', 0.7], ['계약일 2026년 11월 1일', 0.95], ['특약사항', 0.9]),
+        findings,
+        plan(),
+      );
+      expect(r).toEqual({ status: CHECK_STATUS.PARTLY_CHECKED, hits: [], reason: null, unclear: { count: 1, pages: [0] } });
+    });
+
+    it('흐린 줄 기준은 PART 1과 같다: 숫자 줄은 줄마다 0.8 미만, 글자만 있는 줄은 페이지 평균으로 본다', () => {
+      // 숫자 없는 줄 하나가 0.5여도(표 선 조각 등) 흐린 줄로 세지 않는다
+      const ok = findVisiblePii(ocrWith(['ㅣ ㅣ', 0.5], ['2026년', 0.85], ['특약사항', 0.9]), findings, plan());
+      expect(ok.status).toBe(CHECK_STATUS.NOT_FOUND);
+      const digit = findVisiblePii(ocrWith(['특약사항', 0.9], ['2026년', 0.79], ['계약일', 0.9]), findings, plan());
+      expect(digit.status).toBe(CHECK_STATUS.PARTLY_CHECKED);
+      // 페이지 평균이 0.6 미만이면 확인 불가
+      const low = findVisiblePii(ocrWith(['특약사항', 0.4], ['계약일', 0.5], ['서명', 0.6]), findings, plan());
+      expect(low).toMatchObject({ status: CHECK_STATUS.UNVERIFIABLE, reason: 'LOW_CONFIDENCE' });
+    });
+
+    it('흐린 줄의 숫자가 개인정보 번호와 거의 같으면(1개만 다름) "보일 수 있음"으로 본다', () => {
+      // 750315-1******을 OCR이 750815-1로 잘못 읽은 경우
+      const r = findVisiblePii(ocrWith(['주민등록번호 750815-1', 0.5], ['특약사항', 0.9], ['계약일', 0.9]), findings, plan());
+      expect(r.status).toBe(CHECK_STATUS.MAYBE_VISIBLE);
+      expect(r.hits).toEqual([{ type: 'RESIDENT_ID', pageIndex: 0 }]);
+    });
+
+    it('또렷한 줄은 거의 같은 숫자로 판단하지 않는다 (가리지 않은 다른 번호를 개인정보로 오해하지 않게)', () => {
+      const r = findVisiblePii(ocrWith(['주민등록번호 750815-1', 0.95]), findings, plan());
+      expect(r.status).toBe(CHECK_STATUS.NOT_FOUND);
+    });
+
+    it('같은 숫자가 반복되는 번호(010-0000-0000)는 "거의 같은 숫자"로 비교하지 않는다 (아무 0 줄과도 맞아서 뜻이 없음)', () => {
+      const r = findVisiblePii(ocrWith(['보증금 금50,000,000원 000', 0.5], ['특약사항', 0.9], ['계약일', 0.9]), findings, plan());
+      expect(r.status).toBe(CHECK_STATUS.PARTLY_CHECKED);
+    });
+
+    it('흐린 숫자 줄이 절반보다 많으면 "부분 확인"이 아니라 확인 불가', () => {
+      const r = findVisiblePii(ocrWith(['보증금 50,000,000', 0.7], ['계약일 2026', 0.7], ['특약사항', 0.9]), findings, plan());
+      expect(r).toMatchObject({ status: CHECK_STATUS.UNVERIFIABLE, reason: 'LOW_CONFIDENCE', unclear: { count: 2 } });
+    });
+
+    it('신뢰도가 없는 줄(글자 PDF)은 흐린 줄로 세지 않는다', () => {
+      const r = findVisiblePii(ocrWith(['임대인 [Landlord_B]', null], ['2026년', null]), findings, plan());
+      expect(r.status).toBe(CHECK_STATUS.NOT_FOUND);
+    });
+  });
+
   it('확인할 수 없으면 UNVERIFIABLE과 이유 코드', () => {
     expect(unverifiable('LOW_CONFIDENCE')).toEqual({ status: CHECK_STATUS.UNVERIFIABLE, hits: [], reason: 'LOW_CONFIDENCE' });
   });
@@ -79,6 +135,13 @@ describe('PART 5 doubleCheckPdfs(): 서류마다 PDF를 다시 읽어 검사', (
     vi.mocked(readDocument).mockResolvedValueOnce({ ok: true, data: ocrDoc('임대인 [Landlord_B]') });
     const [r] = await doubleCheckPdfs(analysis, plan(), [pdfOk]);
     expect(r).toMatchObject({ documentId: 'DOC_A', documentType: 'LEASE_CONTRACT', status: CHECK_STATUS.NOT_FOUND });
+  });
+
+  it('흐린 줄이 있어도 끝까지 읽도록 PART 1에 allowLowConfidence를 넘긴다 (#146)', async () => {
+    vi.mocked(readDocument).mockClear();
+    vi.mocked(readDocument).mockResolvedValueOnce({ ok: true, data: ocrDoc('임대인 [Landlord_B]') });
+    await doubleCheckPdfs(analysis, plan(), [pdfOk]);
+    expect(readDocument).toHaveBeenCalledWith(expect.any(File), { allowLowConfidence: true });
   });
 
   it('OCR이 실패하면(LOW_CONFIDENCE) "괜찮다"가 아니라 확인 불가', async () => {

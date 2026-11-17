@@ -90,6 +90,15 @@ function doubleCheckSection(state, act) {
           el('span', { class: 'hint' }, ['This covers only what we detected, so please look through the PDF once yourself.']),
         ]);
       }
+      if (r.status === CHECK_STATUS.PARTLY_CHECKED) {
+        // 읽은 부분만 확인했다고 분명히 말하고, 흐린 줄이 있는 페이지를 직접 보라고 한다 (#146)
+        const count = r.unclear?.count ?? 0;
+        const pages = (r.unclear?.pages ?? []).map((p) => p + 1).join(', ');
+        return el('li', { class: 'warning' }, [
+          `${name}: in the parts we could read, none of the personal information we detected was found. `,
+          `${count} ${count === 1 ? 'line' : 'lines'} on page ${pages} could not be read clearly, so we could not check ${count === 1 ? 'it' : 'them'}. Please look at that page of the PDF yourself.`,
+        ]);
+      }
       if (r.status === CHECK_STATUS.MAYBE_VISIBLE) {
         const where = r.hits.map((h) => `${PII_TYPE_TEXT[h.type] ?? h.type} (page ${h.pageIndex + 1})`).join(', ');
         return el('li', { class: 'warning' }, [
