@@ -112,6 +112,7 @@ export function findLeftoverNumber(line) {
   }
   return null;
 }
+
 /**
  * text 안에서 words 각각이 나오는 모든 자리를 [시작, 끝] 목록으로 돌려준다.
  * @param {string} text
