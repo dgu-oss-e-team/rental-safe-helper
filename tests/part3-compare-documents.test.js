@@ -484,4 +484,78 @@ describe('지번 등기부 ↔ 도로명 계약서 (#177)', () => {
     f.contract.address = LOT_REGISTRY;
     expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
   });
+
+  describe('계약서 호수 표기가 달라도 같은 집이면 NO_FLAG (#202 리뷰)', () => {
+    // 등기부 호수: "301호". 계약서는 건물 이름·방 정보가 호수 앞뒤에 붙어도 된다.
+    it.each([
+      ['방 한 칸 계약 (301호 중 방 1칸)', '서울특별시 성동구 가상로 00, 301호 중 방 1칸'],
+      ['301호 일부', '서울특별시 성동구 가상로 00 301호 일부'],
+      ['건물 이름이 호수 뒤 (301호 가상타운)', '서울특별시 성동구 가상로 00, 301호 가상타운'],
+    ])('%s', (_name, address) => {
+      expect(compareAddresses(withRoad({ contract: { address } })).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('계약서에 호수가 없으면 STOP이 아니라 UNVERIFIABLE', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('계약서에 다른 호수만 분명히 적혀 있으면 STOP (호수가 뒤에 있어도)', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00, 302호 중 방 1칸' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+    });
+
+    it('호수 앞뒤에 숫자가 이어지면 다른 호수다 (301호 ↔ 1301호)', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00, 1301호' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.STOP);
+    });
+
+    it('"2호선" 같은 낱말은 호수로 보지 않는다', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00, 301호 (2호선 가상역 근처)' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+      const noUnit = withRoad({ contract: { address: '서울특별시 성동구 가상로 00 2호선 가상역 근처' } });
+      expect(compareAddresses(noUnit).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('지번 번지(246-8)를 호수로 읽지 않는다', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00, 가상동 246-8, 301호' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+  });
+
+  describe('동이 있는 등기부 호수 (등기부: 103동 7층 702호)', () => {
+    const dongRegistry = {
+      registry: {
+        address: '서울특별시 성동구 가상동 12 가상아파트 제103동 제7층 제702호',
+        roadAddress: '서울특별시 성동구 가상로 12',
+      },
+    };
+    const run = (address) => compareAddresses(withRoad({ ...dongRegistry, contract: { address } })).data.status;
+
+    it('"103-702"는 103동 702호로 맞춰 비교해 NO_FLAG', () => {
+      expect(run('서울특별시 성동구 가상로 12, 103-702')).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('"103-703"은 다른 호수라 STOP', () => {
+      expect(run('서울특별시 성동구 가상로 12, 103-703')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('동이 빠진 "702호"는 다른 동의 702호일 수 있어서 UNVERIFIABLE', () => {
+      expect(run('서울특별시 성동구 가상로 12, 702호')).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('동이 다르면 호수가 같아도 STOP (103동702호 ↔ 13동702호, 3동702호)', () => {
+      expect(run('서울특별시 성동구 가상로 12, 가상아파트 13동 702호')).toBe(RISK_STATUS.STOP);
+      expect(run('서울특별시 성동구 가상로 12, 가상아파트 3동 702호')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('동·호수가 같으면 건물 이름이 앞뒤에 있어도 NO_FLAG', () => {
+      expect(run('서울특별시 성동구 가상로 12, 가상아파트 103동 702호 중 방 1칸')).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('계약서에 동만 있고 등기부에 동이 없으면 UNVERIFIABLE', () => {
+      const f = withRoad({ contract: { address: '서울특별시 성동구 가상로 00, 가상타운 3동 301호' } });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+  });
 });
