@@ -25,6 +25,7 @@ import {
   findTrailingRegion,
   reachesLineEnd,
   hasOpenParen,
+  findMixedContinuation,
 } from './name-detector.js';
 import {
   findDeposit,
@@ -108,7 +109,8 @@ function scanDocument(document) {
   let role = null;
   /**
    * 윗줄에서 열린 주소: 줄 끝까지 온 주소 조각, 또는 줄 끝의 시·도 이름(아직 결과에 넣지 않은 후보)
-   * @type {{ hit: any, regionOnly: boolean } | null}
+   * mixed: 줄 끝까지 오지 않은 주소 (표 칸이 섞임, findMixedContinuation으로 잇는다)
+   * @type {{ hit: any, regionOnly: boolean, mixed?: boolean } | null}
    */
   let open = null;
   let groupSeq = 0;
@@ -141,11 +143,13 @@ function scanDocument(document) {
       let offset = 0;
       for (const line of text.split('\n')) {
         const lineEnd = offset + line.length;
-        /** @type {{ hit: any, regionOnly: boolean } | null} */
+        /** @type {{ hit: any, regionOnly: boolean, mixed?: boolean } | null} */
         let next = null;
 
         if (open) {
-          const c = findAddressContinuation(line, open.regionOnly, hasOpenParen(open.hit.value));
+          const c = open.mixed
+            ? findMixedContinuation(line, open.hit.value, open.hit.tableCut === true)
+            : findAddressContinuation(line, open.regionOnly, hasOpenParen(open.hit.value));
           /** @type {any} */
           const piece = c && { ...c, start: c.start + offset, end: c.end + offset };
           if (piece && !overlapsAny(found, piece)) {
@@ -155,17 +159,21 @@ function scanDocument(document) {
             found.push(piece);
             if (reachesLineEnd(piece.value, text.slice(piece.end, lineEnd))) {
               next = { hit: piece, regionOnly: false };
+            } else if (open.mixed) {
+              // 칸이 섞인 주소는 아랫줄로 계속 이어질 수 있다 ("123" 다음 줄의 건물 이름)
+              if (open.hit.tableCut) piece.tableCut = true;
+              next = { hit: piece, regionOnly: false, mixed: true };
             }
           }
         }
 
         if (!next) {
           // 이 줄에서 끝나는 주소 중 줄 끝까지 온 것이 있으면 아랫줄과 이어질 수 있다.
-          const ending = found
-            .filter((h) => h.type === PII_TYPE.ADDRESS && h.end > offset && h.end <= lineEnd)
-            .filter((h) => reachesLineEnd(h.value, text.slice(h.end, lineEnd)))
-            .pop();
+          const onLine = found.filter((h) => h.type === PII_TYPE.ADDRESS && h.end > offset && h.end <= lineEnd);
+          const ending = onLine.filter((h) => reachesLineEnd(h.value, text.slice(h.end, lineEnd))).pop();
           if (ending) next = { hit: ending, regionOnly: false };
+          // 줄 끝까지 오지 않은 주소: 표 칸이 섞였을 수 있다 (#196)
+          else if (onLine.length > 0) next = { hit: onLine[onLine.length - 1], regionOnly: false, mixed: true };
         }
 
         if (!next) {
