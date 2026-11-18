@@ -130,11 +130,14 @@ function scanDocument(document) {
   let prevText = '';
   /** @type {{ order: number, index: number, role: string }[]} 문서 전체의 역할 칸 위치 (#205) */
   const anchors = [];
+  /** @type {string[]} 블록 순서(order) → 블록 글 (#205) */
+  const texts = [];
 
   for (const page of document.pages) {
     for (const block of page.blocks) {
       order += 1;
       const text = block.text ?? '';
+      texts[order] = text;
       /** @type {any[]} */
       const found = [...findPatternPII(text)];
       const people = findPeople(text, role);
@@ -215,7 +218,7 @@ function scanDocument(document) {
     }
   }
 
-  fixLateRoleLabels(hits, anchors);
+  fixLateRoleLabels(hits, anchors, texts);
 
   // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
   // 예: 갑구 "소유자 김철수"를 찾았으면 을구 "채무자 김철수", 계약서 첫 줄 "임대인(김철수)과"도.
@@ -247,6 +250,10 @@ function scanDocument(document) {
 
 /** 이름 뒤 역할 칸·주민번호를 찾는 범위 (블록 수) */
 const LATE_LABEL_WINDOW = 8;
+/** 이름 바로 앞 역할 칸으로 보는 범위 (블록 수). "임대인" / "성명 김철수" */
+const NEAR_BEFORE = 2;
+/** 번호 칸 이름: "임대사업자 등록번호", "임대사업자" / "2017-서울중구-…" / "등록번호" */
+const REGISTRATION_FIELD = /^\s*등\s*록\s*번\s*호/;
 
 /**
  * 역할 칸이 이름보다 뒤에 나오는 표에서 역할과 생년월일을 고친다. (#205)
@@ -258,11 +265,24 @@ const LATE_LABEL_WINDOW = 8;
  *   원래 순서("임대인" → "성명 김철수") 서류는 첫 이름에 역할이 있으므로 아무것도 바꾸지 않는다.
  * - 그렇다면 "성명" 칸 이름마다 뒤에 처음 나오는 역할 칸으로 역할을 정하고(다음 "성명" 칸 이름 전까지),
  *   생년월일이 없으면 뒤에 처음 나오는 주민·외국인등록번호로 읽는다.
- * - 같은 블록에서 역할 라벨 바로 뒤의 이름("임차인 성명: 박지훈")은 역할이 분명하므로 그대로 둔다.
+ * - 같은 블록에서 역할 라벨 바로 뒤의 이름("임차인 성명: 박지훈"), 바로 앞 1-2블록에 역할 칸이 있는 이름
+ *   ("임대인" / "성명 김철수")은 역할이 분명하므로 그대로 둔다.
+ * - 원래 순서 서류 위쪽에 역할 없는 "확인자 성명 최작성"이 있어도 밀리지 않게, 둘째 "성명" 칸 이름 바로 앞에
+ *   역할 칸이 있으면 이 순서의 서류로 보지 않는다. (#207 리뷰)
+ * - "임대사업자 등록번호"처럼 번호 칸 이름으로 쓰인 역할 낱말은 역할 칸이 아니다.
  * @param {any[]} hits
- * @param {{ order: number, index: number, role: string }[]} anchors
+ * @param {{ order: number, index: number, role: string }[]} allAnchors
+ * @param {string[]} texts 블록 순서(order) → 블록 글
  */
-function fixLateRoleLabels(hits, anchors) {
+function fixLateRoleLabels(hits, allAnchors, texts) {
+  /** @param {{ order: number, index: number }} a */
+  const isRegistrationField = (a) => {
+    const rest = (texts[a.order] ?? '').slice(a.index).replace(/^\S+/, '');
+    if (REGISTRATION_FIELD.test(rest)) return true;
+    if (rest.trim() !== '') return false;
+    return [1, 2].some((k) => REGISTRATION_FIELD.test(texts[a.order + k] ?? ''));
+  };
+  const anchors = allAnchors.filter((a) => !isRegistrationField(a));
   /** @param {{ order: number, start?: number, index?: number }} x */
   const pos = (x) => [x.order, x.start ?? x.index ?? 0];
   /** a가 b보다 앞인지 @param {any} a @param {any} b */
@@ -278,11 +298,15 @@ function fixLateRoleLabels(hits, anchors) {
   /** 이름 h 뒤, 다음 "성명" 칸 이름 전, 가까이에 있는 첫 항목 @param {any[]} list @param {any} h @param {any} next */
   const firstAfter = (list, h, next) =>
     list.find((x) => isBefore(h, x) && x.order - h.order <= LATE_LABEL_WINDOW && (!next || isBefore(x, next)));
+  /** 이름 h 바로 앞(앞 이름보다 뒤, 1-2블록 안)에 역할 칸이 있는지 @param {any} h @param {any} prev */
+  const nearAnchorBefore = (h, prev) =>
+    anchors.some((x) => isBefore(x, h) && (!prev || isBefore(prev, x)) && h.order - x.order <= NEAR_BEFORE);
   if (!firstAfter(anchors, names[0], names[1])) return;
+  if (names[1] && nearAnchorBefore(names[1], names[0])) return;
 
   const ids = hits.filter((h) => h.type === PII_TYPE.RESIDENT_ID || h.type === PII_TYPE.FOREIGNER_ID).sort(byPos);
   names.forEach((h, i) => {
-    if (h.anchorBefore) return;
+    if (h.anchorBefore || nearAnchorBefore(h, names[i - 1])) return;
     const next = names[i + 1];
     const anchor = firstAfter(anchors, h, next);
     if (!anchor) return;

@@ -128,4 +128,27 @@ describe('PART 2 역할 칸이 이름 뒤에 나오는 민간임대 계약서 (#
     expect(contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([['김가상', null]]);
     expect(contract.tenants.map((p) => p.name)).toEqual(['이가상']);
   });
+
+  it('원래 순서 계약서 위에 역할 없는 "확인자 성명"이 있어도 역할이 밀리지 않는다 (#207 리뷰)', () => {
+    const lines = [
+      '1. 계약 당사자',
+      '확인자 성명 최가상',
+      '임대인',
+      '성명 김가상',
+      '주민등록번호 720303-1****** 전화번호 010-0000-1111',
+      '임차인',
+      '성명 이가상',
+      '주민등록번호 040404-3123456',
+    ];
+    const { contract } = analyze(lines).fields;
+    expect(contract.landlords.map((p) => p.name)).toEqual(['김가상']);
+    expect(contract.tenants.map((p) => p.name)).toEqual(['이가상']);
+  });
+
+  it('한 블록에 "임대인 성명 김가상"처럼 붙어 있어도 위쪽 "확인자 성명" 때문에 밀리지 않는다', () => {
+    const lines = ['확인자 성명 최가상', '임대인 성명 김가상', '주소 서울특별시 중구 가상로 7', '임차인 성명 이가상'];
+    const { contract } = analyze(lines).fields;
+    expect(contract.landlords.map((p) => p.name)).toEqual(['김가상']);
+    expect(contract.tenants.map((p) => p.name)).toEqual(['이가상']);
+  });
 });
