@@ -222,7 +222,8 @@ const RIGHT_KINDS = [
   { kind: 'MORTGAGE', regex: /근\s*저\s*당/ },
   { kind: 'PROVISIONAL_SEIZURE', regex: /가\s*압\s*류/ },
   { kind: 'SEIZURE', regex: /압\s*류/ },
-  { kind: 'TRUST', regex: /신\s*탁/ },
+  // "신탁재산귀속", "신탁재산의귀속"은 신탁이 끝나 소유권이 돌아오는 등기라 신탁이 아니다. (#183 리뷰)
+  { kind: 'TRUST', regex: /신\s*탁(?!\s*재\s*산\s*(?:의\s*)?귀\s*속)/ },
   { kind: 'JEONSE', regex: /전\s*세\s*권/ },
   { kind: 'LEASEHOLD', regex: /임\s*차\s*권/ },
 ];
@@ -241,8 +242,11 @@ const SECTION_HEADING = /^\s*[【[(]?\s*([갑을])\s*구\s*[】\])]?(?=\s|$)/;
 const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
 /** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
 const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
-/** 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기). "2020년"은 순위번호가 아니다. */
-const RANK_REGEX = /^\s*(\d{1,3})(-\d+)?(?![\d,.]|\s*[년월일번호])/;
+/**
+ * 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기).
+ * 순위번호가 아닌 것: "2020년…"(날짜), "2/3"(쪽 번호), "23층(○○동)"·"101동"·"502호"(주소 둘째 줄) (#183 실제 신탁 등기부)
+ */
+const RANK_REGEX = /^\s*(\d{1,3})(-\d+)?(?![\d,./]|\s*[년월일번호층동])/;
 /** 말소 줄이 가리키는 순위번호: "3번가압류등기말소" → 3 */
 const CANCEL_TARGET = /(\d{1,3})\s*번[^\n]*?말\s*소/;
 /** 권리 한 건의 이어지는 줄(권리자 칸 등). 새 권리로 세지 않는다. */
@@ -313,6 +317,12 @@ export function findRegistryRights(lines) {
   const seen = new Set();
   /** @type {string | null} */
   let section = null;
+  /** 지금 읽는 기록(순위번호 하나)의 순위번호와, 그 기록에서 이미 센 권리 종류 */
+  /** @type {string | null} */
+  let rowRank = null;
+  let rowKinds = new Set();
+  /** 부기등기("2-1 신탁주의사항") 줄 다음의 설명 줄인지 (다음 순위번호까지) */
+  let inSupplement = false;
 
   for (let i = 0; i < lines.length; i += 1) {
     const joined = joinWrappedCancel(lines, i);
@@ -325,9 +335,23 @@ export function findRegistryRights(lines) {
     if (heading) {
       section = heading[1];
       seen.add(section);
+      rowRank = null;
+      rowKinds = new Set();
+      inSupplement = false;
       continue;
     }
     if (section === null) continue;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch) {
+      inSupplement = Boolean(rankMatch[2]);
+      if (!rankMatch[2]) {
+        rowRank = rankMatch[1];
+        rowKinds = new Set();
+      }
+    } else if (inSupplement) {
+      continue; // 부기등기의 설명 줄 ("이 부동산에 관하여 … 신탁원부를 통하여 …")는 권리가 아니다
+    }
 
     if (/말\s*소/.test(line)) {
       const target = CANCEL_TARGET.exec(line);
@@ -336,7 +360,6 @@ export function findRegistryRights(lines) {
     }
     if (CONTINUATION_LINE.test(line)) continue;
 
-    const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch && rankMatch[2]) continue; // 부기등기
     const rank = rankMatch ? rankMatch[1] : null;
     if (rank === null && isWrappedCause(line)) continue; // 다음 줄로 넘어간 등기원인 칸
@@ -352,6 +375,9 @@ export function findRegistryRights(lines) {
       continue;
     }
     if (rank !== null && places.some((p) => p.section === section && p.rank === rank)) continue;
+    // 신탁은 한 기록 안에 여러 줄로 나온다: "2 소유권이전 … 수탁자 ○○자산신탁(주)" / "신탁" / "신탁 신탁원부 제…호".
+    // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
+    if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
 
     rights.push({
       kind: found.kind,
@@ -360,7 +386,9 @@ export function findRegistryRights(lines) {
       cancelled: false,
       receivedAt: null,
     });
-    places.push({ section, rank });
+    // 순위번호 없는 신탁 줄은 지금 기록의 순위번호를 쓴다. ("3번신탁등기말소"가 이 신탁을 가리킬 수 있게)
+    places.push({ section, rank: rank ?? (found.kind === 'TRUST' ? rowRank : null) });
+    rowKinds.add(found.kind);
   }
 
   if (!seen.has('갑') || !seen.has('을')) return null;

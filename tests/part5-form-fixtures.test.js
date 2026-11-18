@@ -141,7 +141,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(statusOf(trust, 'RISKY_SPECIAL_TERM')).not.toBe(RISK_STATUS.UNVERIFIABLE);
   });
 
-  it.fails('신탁 1건(소유권이전 신탁 + 신탁원부 + 신탁주의사항)을 1건으로 센다', () => {
+  it('신탁 1건(소유권이전 신탁 + 신탁원부 + 신탁주의사항)을 1건으로 센다', () => {
     expect(trust.fields.registry.rights.filter((r) => r.kind === 'TRUST')).toHaveLength(1);
   });
 
