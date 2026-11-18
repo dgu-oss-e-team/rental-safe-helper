@@ -23,6 +23,12 @@ describe('PART 4 주민번호 모양인 등기 번호는 풀 수 없다', () => 
     expect(isNonRemovable(uniqueNo)).toBe(false);
   });
 
+  it('구분 기호가 점·빗금·공백이거나 없어도 주민번호 모양으로 본다 (PART 2 주민번호 정규식과 같은 기준)', () => {
+    for (const value of ['110111.3579246', '110111/3579246', '110111 3579246', '1101113579246', '800101 - 1******']) {
+      expect(isNonRemovable(registryId('RX', value)), value).toBe(true);
+    }
+  });
+
   it('remove에 넣어도 무시한다 (등기 고유번호만 풀린다)', () => {
     const keep = resolveRemovals([corporate, masked, uniqueNo], [], { remove: ['R1', 'R2', 'R3'], add: [] });
     expect([...keep]).toEqual(['R3']);

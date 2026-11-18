@@ -34,8 +34,8 @@ export const NON_REMOVABLE_TYPES = new Set([
   PII_TYPE.BANK_ACCOUNT,
 ]);
 
-/** 주민번호 모양 (6자리-7자리, 뒷자리는 *로 가려져 있을 수 있음) */
-const RESIDENT_ID_SHAPE = /^\d{6}\s?-\s?[\d*]{7}$/;
+/** 주민번호 모양 (6자리-7자리, 뒷자리는 *로 가려져 있을 수 있음. 구분 기호는 PART 2처럼 - . / 공백이거나 없어도) */
+const RESIDENT_ID_SHAPE = /^\d{6}\s?[-./]?\s?[\d*]{7}$/;
 
 /**
  * 사용자가 해제할 수 없는 탐지 결과인지.
