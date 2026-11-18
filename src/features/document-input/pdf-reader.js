@@ -184,13 +184,22 @@ export async function readPdfText(buffer) {
         // Sort items left-to-right within the line
         group.sort((a, b) => a.x - b.x);
 
-        // Gap-aware join: insert space only when horizontal gap exceeds 20% of text height
+        // Gap- and overlap-aware join:
+        // - Insert space when horizontal gap exceeds 20% of text height
+        // - Also insert space when items overlap or abut (gap <= 0) as separate fields,
+        //   while preserving minor glyph kerning between single characters
         const joinedText = group
           .reduce((acc, item, i) => {
             if (i === 0) return item.text;
             const prev = group[i - 1];
+            const minH = Math.min(prev.h, item.h);
             const gap = item.x - (prev.x + prev.w);
-            return acc + (gap > Math.min(prev.h, item.h) * 0.2 ? ' ' : '') + item.text;
+            const isSeparateOverlappingField =
+              item.x <= prev.x ||
+              (prev.w > 0 && item.x <= prev.x + prev.w * 0.5) ||
+              gap <= -minH * 0.25;
+            const needsSpace = gap > minH * 0.2 || isSeparateOverlappingField;
+            return acc + (needsSpace ? ' ' : '') + item.text;
           }, '')
           .replace(/\s+/g, ' ')
           .trim();
