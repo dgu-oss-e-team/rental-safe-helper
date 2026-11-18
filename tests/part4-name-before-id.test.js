@@ -26,6 +26,12 @@ describe('PART 4 번호 앞 이름 찾기 (findNamesBeforeIds)', () => {
     expect(findNamesBeforeIds('홍길동 800101-*******', [name, rrn('800101-*******')])).toEqual([]);
   });
 
+  it('이름 뒤에 괄호가 있어도 이름으로 본다 ("홍길동(800101-…)")', () => {
+    expect(findNamesBeforeIds('홍길동(800101-1******)', [rrn('800101-1******')])).toEqual(['홍길동']);
+    expect(findNamesBeforeIds('공유자 심청 (830917-2******)', [rrn('830917-2******')])).toEqual(['심청']);
+    expect(findNamesBeforeIds('주민등록번호(800101-1******)', [rrn('800101-1******')])).toEqual([]);
+  });
+
   it('번호가 아닌 탐지 결과(전화번호 등) 앞의 낱말은 보지 않는다', () => {
     const phone = finding('P1', PII_TYPE.PHONE_NUMBER, '010-1234-5678');
     expect(findNamesBeforeIds('연락처 010-1234-5678', [phone])).toEqual([]);
