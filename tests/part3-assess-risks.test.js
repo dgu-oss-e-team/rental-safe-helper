@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   assessTrust,
+  hasTrustNotice,
   assessSeizure,
   assessMortgage,
   assessOwnershipTransfer,
@@ -128,6 +129,111 @@ describe('PART 3 신탁 (TRUST_REGISTERED)', () => {
 
   it('Mock 등기부(근저당만 있음)에는 신탁이 없어서 NO_FLAG', () => {
     expect(assessTrust(fields()).data.status).toBe(NO_FLAG);
+  });
+});
+
+describe('PART 3 신탁 + 특약의 신탁 안내 (TRUST_REGISTERED, #175)', () => {
+  /** 유효한 신탁 등기 + 계약서 특약 */
+  const trustWithTerms = (specialTerms, rights = [right('TRUST')]) => {
+    const f = withRights(rights);
+    f.contract.specialTerms = specialTerms;
+    return f;
+  };
+  /** 실제 계약서처럼 한 조항이 여러 줄로 나뉘어 넘어온 신탁 안내 (가짜 문장) */
+  const NOTICE = [
+    '제18조(신탁계약 안내) 이 주택은 신탁등기가 되어 있으며,',
+    '수탁자의 동의를 받아 이 계약을 체결한다.',
+    '보증금과 월 임대료는 아래 지정 계좌로 납부한다.',
+  ];
+
+  it('특약에 신탁 안내(신탁 + 수탁자/신탁회사/동의서)가 있으면 STOP이 아니라 CHECK', () => {
+    const r = assessTrust(trustWithTerms(NOTICE));
+    expect(r.ok).toBe(true);
+    expect(r.data.status).toBe(CHECK);
+  });
+
+  it('CHECK일 때 확인할 4가지(임대 권한 / 수탁자 동의 / 지정 계좌 / 보증금 반환)를 같이 보여 준다', () => {
+    const { action } = assessTrust(trustWithTerms(NOTICE)).data;
+    expect(action).toContain('right to lease');
+    expect(action).toContain('agreed to the lease in writing');
+    expect(action).toContain('account designated by the trust company');
+    expect(action).toContain('return the deposit');
+  });
+
+  it('낮춰도 안전하다는 문구(NO_FLAG)는 쓰지 않는다', () => {
+    const r = assessTrust(trustWithTerms(NOTICE)).data;
+    expect(r.status).not.toBe(NO_FLAG);
+    expect(r.explanation).toContain('does not prove');
+  });
+
+  it('특약에 신탁 안내가 없으면 STOP 유지', () => {
+    expect(assessTrust(trustWithTerms(['월세는 현금으로 지급한다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁"만 있고 수탁자·동의·계좌가 없는 문장은 STOP 유지', () => {
+    expect(assessTrust(trustWithTerms(['이 건물은 신탁 부동산이다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁"만 있는 문장에 흔한 낱말(동의·계좌)만 같이 있으면 안내로 보지 않아 STOP 유지 (#198 리뷰)', () => {
+    expect(assessTrust(trustWithTerms(['신탁 등기가 있으면 계약을 해제한다.', '임차인은 위 내용에 동의한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁등기가 되어 있다.', '보증금은 임대인 계좌로 입금한다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁 말소 후 잔금" 같은 조건은 안내로 보지 않아 STOP 유지 (#198 리뷰)', () => {
+    expect(assessTrust(trustWithTerms(['잔금 전까지 신탁등기를 말소하고, 보증금은 임대인 계좌로 입금한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['잔금 전까지 신탁등기를 말소한다.', '수탁자의 동의서를 받아 제출한다.'])).data.status).toBe(STOP);
+  });
+
+  it('신탁회사·동의서 낱말도 신탁 안내로 본다', () => {
+    expect(assessTrust(trustWithTerms(['이 주택은 신탁등기가 되어 있다.', '신탁회사가 지정한 계좌로 납부한다.'])).data.status).toBe(CHECK);
+    expect(assessTrust(trustWithTerms(['신탁 부동산이므로 임대차 동의서를 첨부한다.'])).data.status).toBe(CHECK);
+  });
+
+  it('위험 신호 문장은 신탁 안내로 보지 않아 STOP 유지 (#198 리뷰 2)', () => {
+    // 낱말 하나("신탁회사")로 "신탁"과 안내 낱말 두 조건을 다 채우지 못한다
+    expect(assessTrust(trustWithTerms(['보증금은 신탁회사가 아닌 임대인 개인 계좌로 입금한다.'])).data.status).toBe(STOP);
+    // 부정 표현(않, 없이, 아닌)이 같이 있으면 안내가 아니다
+    expect(assessTrust(trustWithTerms(['신탁 등기가 있으나 수탁자의 동의는 받지 않았다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁 부동산이며 수탁자의 동의 없이 계약한다.'])).data.status).toBe(STOP);
+  });
+
+  it('서로 다른 조항이 한 묶음으로 합쳐져도 안내로 보지 않아 STOP 유지 (#198 리뷰 2)', () => {
+    const terms = ['신탁 사실을 고지하였다.', '반려동물 금지.', '임대보증금 보증 미가입 동의서를 제출한다.'];
+    expect(assessTrust(trustWithTerms(terms)).data.status).toBe(STOP);
+    // 새 조항 시작("2.", "제N조")에서는 묶음을 끊는다
+    expect(assessTrust(trustWithTerms(['신탁 사실을 고지하였다.', '2. 임대보증금 보증 미가입 동의서를 제출한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁 사실을 고지하였다.', '제19조 수탁자 동의서를 제출한다.'])).data.status).toBe(STOP);
+  });
+
+  it('수탁자·동의·계좌만 있고 "신탁"이 없으면 STOP 유지', () => {
+    expect(assessTrust(trustWithTerms(['임대인의 동의 없이 전대할 수 없다.', '계좌로 입금한다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁"과 다른 낱말이 멀리 떨어져 있으면 안내로 보지 않는다 (엉뚱한 문장으로 낮아지지 않음)', () => {
+    const terms = ['이 건물은 신탁 부동산이다.', '관리비는 매월 말일까지 낸다.', '반려동물은 키울 수 없다.', '계좌로 입금한다.'];
+    expect(assessTrust(trustWithTerms(terms)).data.status).toBe(STOP);
+  });
+
+  it('특약을 못 읽었으면(null) 또는 비어 있으면([]) STOP 유지', () => {
+    expect(assessTrust(trustWithTerms(null)).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms([])).data.status).toBe(STOP);
+  });
+
+  it('말소된 신탁은 특약과 상관없이 NO_FLAG, 말소 여부를 모르면 CHECK(cancel_unknown) 그대로', () => {
+    expect(assessTrust(trustWithTerms(NOTICE, [right('TRUST', true)])).data.status).toBe(NO_FLAG);
+    const unclear = assessTrust(trustWithTerms(NOTICE, [right('TRUST', null)])).data;
+    expect(unclear.status).toBe(CHECK);
+    expect(unclear.explanation).toContain('could not tell whether it has been cancelled');
+  });
+
+  it('rights를 못 읽었으면(null) 특약에 신탁 안내가 있어도 UNVERIFIABLE', () => {
+    expect(assessTrust(trustWithTerms(NOTICE, null)).data.status).toBe(UNVERIFIABLE);
+  });
+
+  it('hasTrustNotice: 띄어쓰기·줄바꿈이 달라도 찾고, 문자열이 아닌 값은 무시한다', () => {
+    expect(hasTrustNotice(['신 탁 계약 안내', '수 탁 자 동의'])).toBe(true);
+    expect(hasTrustNotice([null, 123, '신탁', '수탁자'])).toBe(true);
+    expect(hasTrustNotice('신탁 수탁자')).toBe(false);
   });
 });
 
