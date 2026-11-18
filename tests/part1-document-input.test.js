@@ -334,3 +334,30 @@ describe('PART 1 overlap spacing', () => {
     expect(res.textPages[0]).toContain('\uC784\uB300\uC778');
   });
 });
+
+describe('PART 1 local CMap, standard font, wasm, and ICC options', () => {
+  it('passes local cMapUrl, cMapPacked, standardFontDataUrl, wasmUrl, and iccUrl to pdf.js getDocument', async () => {
+    mockGetDocument.mockImplementationOnce((params) => {
+      expect(params.cMapUrl).toMatch(/cmaps\/$/);
+      expect(params.cMapPacked).toBe(true);
+      expect(params.standardFontDataUrl).toMatch(/standard_fonts\/$/);
+      expect(params.wasmUrl).toMatch(/wasm\/$/);
+      expect(params.iccUrl).toMatch(/iccs\/$/);
+
+      return {
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: async () => ({
+            getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, -1, 0, 842] }),
+            getTextContent: async () => ({ items: [] }),
+          }),
+        }),
+        destroy: async () => {},
+      };
+    });
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+    expect(res.pageCount).toBe(1);
+  });
+});
