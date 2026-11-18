@@ -43,18 +43,50 @@ function photoTipsBox() {
  * @param {string} hint
  * @param {File | null} current
  * @param {(file: File | null) => void} onChange
+ * @param {string} removeLabel  지우기 버튼의 화면 낭독기용 이름 (어느 칸인지 알 수 있게)
  */
-function filePicker(id, label, hint, current, onChange) {
+function filePicker(id, label, hint, current, onChange, removeLabel) {
+  const statusId = `${id}-status`;
+  // 브라우저 기본 파일 칸은 컴퓨터 언어로 "파일 선택 / 선택된 파일 없음"이 나와서 영어 화면과 섞인다.
+  // 기본 칸은 보이지 않게 두고(키보드·화면 낭독기로는 그대로 쓸 수 있음), 영어 버튼과 상태 글을 따로 보여 준다. (#188)
   const input = /** @type {HTMLInputElement} */ (
-    el('input', { type: 'file', id, accept: 'application/pdf,image/jpeg,image/png' })
+    el('input', {
+      type: 'file',
+      id,
+      class: 'file-input',
+      accept: 'application/pdf,image/jpeg,image/png',
+      'aria-describedby': statusId,
+    })
   );
-  input.addEventListener('change', () => onChange(input.files?.[0] ?? null));
+  // 고르기 창에서 취소하면 브라우저에 따라 빈 change가 온다. 그때 고른 파일이 지워지지 않게 한다 (지우기는 Remove로)
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (file) onChange(file);
+  });
+
+  // 지우기: 파일 이름 옆의 작은 글자 버튼 (주 버튼 "Check my documents"보다 눈에 덜 띄게)
+  let remove = null;
+  if (current) {
+    remove = button('Remove', () => {
+      onChange(null);
+      // 화면이 바로 다시 그려진다. 키보드 사용자가 길을 잃지 않게 같은 칸의 파일 선택으로 포커스를 옮긴다.
+      document.getElementById(id)?.focus();
+    }, { id: `${id}-remove` });
+    remove.className = 'link-button';
+    remove.setAttribute('aria-label', removeLabel);
+  }
+
   return el('div', { class: 'picker' }, [
     el('label', { for: id }, [label]),
     el('p', { class: 'hint' }, [hint]),
-    input,
-    // 파일 이름에는 개인정보가 있을 수 있어 화면에만 보여 준다
-    current ? el('p', { class: 'chosen' }, [`Selected: ${current.name}`]) : null,
+    el('div', { class: 'file-row' }, [
+      input,
+      // 누르면 파일 고르기 창이 열린다 (label for). 고른 뒤에는 "Change file"로 바꿀 수 있다고 보인다.
+      el('label', { for: id, class: 'file-button', 'aria-hidden': 'true' }, [current ? 'Change file' : 'Choose file']),
+      // 파일 이름에는 개인정보가 있을 수 있어 화면에만 보여 준다
+      el('span', { id: statusId, class: current ? 'file-name chosen' : 'file-name' }, [current ? current.name : 'No file chosen']),
+      remove,
+    ]),
   ]);
 }
 
@@ -78,6 +110,7 @@ export function uploadScreen(state, act) {
         'Shows who owns the home and any mortgage or seizure.',
         registry,
         (f) => act.setFiles({ registry: f }),
+        'Remove the property register file',
       ),
       filePicker(
         'lease-file',
@@ -85,6 +118,7 @@ export function uploadScreen(state, act) {
         'The contract you are about to sign.',
         lease,
         (f) => act.setFiles({ lease: f }),
+        'Remove the lease contract file',
       ),
       actions([
         button('Check my documents', () => act.analyze(), { id: 'run', disabled: !hasFile }),
