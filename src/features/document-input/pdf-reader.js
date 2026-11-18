@@ -8,6 +8,36 @@ if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
 }
 
 /**
+ * Builds pdf.js getDocument options with locally bundled CMap, standard font, Wasm, and ICC URLs.
+ * @param {ArrayBuffer} buffer
+ */
+export function buildPdfDocumentParams(buffer) {
+  const proc = /** @type {{ cwd?: () => string } | undefined} */ (/** @type {any} */ (globalThis).process);
+  if (typeof window === 'undefined' && proc && typeof proc.cwd === 'function') {
+    const cwd = proc.cwd().replace(/\\/g, '/');
+    return {
+      data: new Uint8Array(buffer),
+      cMapUrl: `${cwd}/node_modules/pdfjs-dist/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${cwd}/node_modules/pdfjs-dist/standard_fonts/`,
+      wasmUrl: `${cwd}/node_modules/pdfjs-dist/wasm/`,
+      iccUrl: `${cwd}/node_modules/pdfjs-dist/iccs/`,
+    };
+  }
+  const metaEnv = /** @type {{ env?: { BASE_URL?: string } }} */ (import.meta).env;
+  const baseUrl = metaEnv?.BASE_URL || '/';
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return {
+    data: new Uint8Array(buffer),
+    cMapUrl: `${normalizedBase}cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `${normalizedBase}standard_fonts/`,
+    wasmUrl: `${normalizedBase}wasm/`,
+    iccUrl: `${normalizedBase}iccs/`,
+  };
+}
+
+/**
  * Creates a 2D canvas in browser or OffscreenCanvas environments.
  * @param {number} width
  * @param {number} height
@@ -61,7 +91,7 @@ export async function renderPdfToImages(buffer, scale = 2.0) {
     return [];
   }
 
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+  const loadingTask = pdfjsLib.getDocument(buildPdfDocumentParams(buffer));
   try {
     const pdfDocument = await loadingTask.promise;
     /** @type {Array<{ pageIndex: number, buffer: ArrayBuffer, width: number, height: number }>} */
@@ -115,7 +145,7 @@ export async function readPdfText(buffer) {
     return { pageCount: 0, textPages: [], pages: [] };
   }
 
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+  const loadingTask = pdfjsLib.getDocument(buildPdfDocumentParams(buffer));
   try {
     const pdfDocument = await loadingTask.promise;
     const textPages = [];
