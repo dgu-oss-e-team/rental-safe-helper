@@ -319,21 +319,39 @@ function pickPropertyAddress(hits) {
   );
 }
 
-/** 등기부 표제부의 "[도로명주소] 서울특별시 성동구 가상로 00" (건물 단위, 호수 없음) */
-const REGISTRY_ROAD_ADDRESS = /\[\s*도\s*로\s*명\s*주\s*소\s*\]\s*(.*?[가-힣0-9]+(?:로|길)\s*\d+(?:-\d+)?)/;
+/** 등기부 표제부의 "[도로명주소]" 라벨 */
+const ROAD_ADDRESS_LABEL = /\[\s*도\s*로\s*명\s*주\s*소\s*\]/;
+const SIDO =
+  '(?:서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원특별자치도|강원도|충청북도|충청남도|전북특별자치도|전라북도|전라남도|경상북도|경상남도|제주특별자치도)';
+/** "서울특별시 성동구", "경기도 수원시 영통구" → [1] 시·도 [2] 시·군·구 [3] 구(있으면) */
+const ROAD_REGION = new RegExp(`(${SIDO})\\s*([가-힣]+(?:시|군|구))(?:\\s+([가-힣]+구))?`, 'g');
+/** "가상로 00", "판교역로 235", "광교로 315-2" → [1] 도로명 [2] 번호 */
+const ROAD_NAME_NUMBER = /([가-힣0-9]+(?:로|길))\s*(\d+(?:-\d+)?)(?![0-9-])/g;
+/** [도로명주소] 줄부터 몇 줄까지 볼지. 더 늘리면 아래의 소유자 주소를 집을 수 있다. */
+const ROAD_ADDRESS_LINES = 4;
 
 /**
  * 등기부 표제부의 [도로명주소]를 읽는다. (지번 주소로 적힌 등기부와 도로명 계약서를 비교하기 위해, #177)
- * 도로 번호까지만 쓴다. (표 옆 칸 글자가 뒤에 섞여 읽혀도 영향이 없게)
- * 없으면 null (못 읽음)
+ * 표제부는 표라서 소재지 칸이 여러 줄로 나뉘고 옆 칸(건물내역) 글자와 섞여 읽힐 수 있다. (#196)
+ *   "[도로명주소] 서울특별시 성동구 22층 공동주택(아파트) 및" / "가상로 00 근린생활시설"
+ * 그래서 줄 순서에 기대지 않고, 라벨 뒤 몇 줄에서 "시·도 + 시·군·구"와 "도로명 + 번호" 두 조각만 골라 이어 붙인다.
+ * 옆 칸 글자는 어느 조각에도 걸리지 않아 버려진다.
+ * 확실하지 않으면(조각을 못 찾음, 후보가 둘 이상, 도로명이 시·군·구보다 앞) null → 소재지 비교는 확인 불가가 된다.
  * @param {string[]} lines
  * @returns {string | null}
  */
 function findRegistryRoadAddress(lines) {
   for (let i = 0; i < lines.length; i++) {
-    if (!/\[\s*도\s*로\s*명\s*주\s*소\s*\]/.test(lines[i])) continue;
-    const m = REGISTRY_ROAD_ADDRESS.exec(lines.slice(i, i + 3).join(' '));
-    if (m) return toFormalAddress(m[1].trim());
+    const label = ROAD_ADDRESS_LABEL.exec(lines[i]);
+    if (!label) continue;
+    const text = [lines[i].slice(label.index + label[0].length), ...lines.slice(i + 1, i + ROAD_ADDRESS_LINES)].join(' ');
+    const regions = [...text.matchAll(ROAD_REGION)];
+    const roads = [...text.matchAll(ROAD_NAME_NUMBER)];
+    if (regions.length !== 1 || roads.length !== 1) return null;
+    const [region, road] = [regions[0], roads[0]];
+    if (/** @type {number} */ (road.index) < /** @type {number} */ (region.index)) return null;
+    const gu = region[3] ? ` ${region[3]}` : '';
+    return toFormalAddress(`${region[1]} ${region[2]}${gu} ${road[1]} ${road[2]}`);
   }
   return null;
 }
