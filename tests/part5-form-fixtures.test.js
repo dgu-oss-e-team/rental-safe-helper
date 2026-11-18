@@ -160,7 +160,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(trust.fields.registry.owners?.length).toBeGreaterThan(0);
   });
 
-  it.fails('지번 주소 등기부와 도로명 주소 계약서가 같은 집이면 소재지 비교가 확인 불가가 아니다', () => {
+  it('지번 주소 등기부와 도로명 주소 계약서가 같은 집이면 소재지 비교가 확인 불가가 아니다', () => {
     expect(statusOf(trust, 'ADDRESS_MISMATCH')).not.toBe(RISK_STATUS.UNVERIFIABLE);
   });
 

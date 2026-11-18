@@ -12,6 +12,7 @@
  *  - personGroups에서 판정이 AMBIGUOUS인 사람이 있으면 UNVERIFIABLE
  *  - 공동 소유(소유자 2명 이상)인데 일부만 임대인으로 서명했으면 CHECK (나머지 소유자의 동의 필요) 
  *  - 문구에는 실제 이름 대신 역할 가명(alias)만 쓴다
+ *  - 등기부가 지번, 계약서가 도로명이면 등기부 표제부의 [도로명주소](registry.roadAddress)로 비교 (#177)
  */
 
 import { ok, RISK_STATUS } from '../../shared/document-model.js';
@@ -173,6 +174,53 @@ function addressStyle(address) {
 }
 
 /**
+ * 지번으로 적힌 등기부 주소에서 동·층·호수 부분만 꺼낸다. (정리한 글자로 돌려준다)
+ *  - "…가상동 246-8 가상타운 제3층 제301호" → "301호" (층은 호수와 맞으면 빠진다)
+ *  - "…가상아파트 제3동 제7층 제702호" → "3동702호"
+ * 호수가 없으면 ''.
+ * @param {string} lotAddress
+ */
+function unitPart(lotAddress) {
+  const cleaned = lotAddress.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, '');
+  const m = /(?:\d+\s*동\s*)?(?:\d+\s*층\s*)?\d{1,4}\s*호\s*$/.exec(cleaned.trim());
+  return m ? normalizeAddress(m[0]) : '';
+}
+
+/**
+ * 등기부 [도로명주소]에 호수를 붙여 계약서 도로명 주소와 비교한다. (#177)
+ * 표제부 도로명주소는 건물 단위(호수 없음)이고, 계약서는 건물 이름이 앞뒤에 붙기도 해서
+ * 글자 전체가 아니라 "도로명+번호"가 같고 "동·호수"로 끝나는지를 본다.
+ * 도로 번호와 호수가 붙어 보이지 않게(00 + 301호), 공백·쉼표를 지우기 전의 글자에서 도로 번호를 먼저 자른다.
+ *  - 도로 번호 뒤에 숫자나 "-숫자"가 이어지면 다른 번호다. (12 ↔ 123, 315 ↔ 315-2)
+ *  - 동·호수 앞에 숫자가 있으면 다른 호수다. (3동702호 ↔ 13동702호)
+ * @param {string} roadAddress  registry.roadAddress
+ * @param {string} registryAddress  registry.address (호수를 가져온다)
+ * @param {string} contractAddress  계약서 주소 원문
+ * @returns {'MATCH' | 'DIFFERENT' | 'UNKNOWN'}
+ */
+function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
+  if (!FORMAL_REGION_START.test(roadAddress.trim())) return 'UNKNOWN';
+  const road = normalizeAddress(roadAddress);
+  if (addressStyle(road) !== 'ROAD') return 'UNKNOWN';
+  const unit = unitPart(registryAddress);
+
+  // 공백·쉼표를 남긴 채 정리한 계약서 주소에서 "…로 00"까지를 자른다.
+  const loose = removeFloorBeforeUnit(contractAddress.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, ''))
+    .replace(/[\s,]+/g, ' ');
+  const m = /^(.*?[가-힣0-9]+(?:로|길)\s*\d+(?:-\d+)?)(?![0-9-])/.exec(loose.trim());
+  if (!m) return 'UNKNOWN';
+  const contractRoad = normalizeAddress(m[1]);
+  const rest = normalizeAddress(loose.trim().slice(m[1].length));
+
+  // 호수를 모르면 건물 전체가 같을 때만 같다고 보고, 다르면 확인 불가로 둔다. (건물 이름 차이를 STOP으로 오해하지 않게)
+  if (!unit) return contractRoad === road && rest === '' ? 'MATCH' : 'UNKNOWN';
+  if (contractRoad !== road) return 'DIFFERENT';
+  const unitStart = rest.length - unit.length;
+  const endsWithUnit = unitStart >= 0 && rest.endsWith(unit) && !/[0-9]/.test(rest[unitStart - 1] ?? '');
+  return endsWithUnit ? 'MATCH' : 'DIFFERENT';
+}
+
+/**
  * 등기부 소재지 ↔ 계약서 소재지
  *  - 한쪽이라도 읽지 못했으면 UNVERIFIABLE
  *  - 한쪽이라도 정식 시·도 이름으로 시작하지 않으면 UNVERIFIABLE (region_unclear)
@@ -200,6 +248,12 @@ export function compareAddresses(fields) {
 
   const registryStyle = addressStyle(registry);
   const contractStyle = addressStyle(contract);
+  const roadAddress = fields?.registry?.roadAddress;
+  if (registryStyle === 'LOT' && contractStyle === 'ROAD' && roadAddress) {
+    const same = compareRoadAddress(roadAddress, registryAddress, contractAddress);
+    if (same === 'MATCH') return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
+    if (same === 'DIFFERENT') return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  }
   if (registryStyle === null || registryStyle !== contractStyle) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });
   }

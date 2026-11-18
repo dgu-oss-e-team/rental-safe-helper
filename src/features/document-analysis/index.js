@@ -319,6 +319,25 @@ function pickPropertyAddress(hits) {
   );
 }
 
+/** 등기부 표제부의 "[도로명주소] 서울특별시 성동구 가상로 00" (건물 단위, 호수 없음) */
+const REGISTRY_ROAD_ADDRESS = /\[\s*도\s*로\s*명\s*주\s*소\s*\]\s*(.*?[가-힣0-9]+(?:로|길)\s*\d+(?:-\d+)?)/;
+
+/**
+ * 등기부 표제부의 [도로명주소]를 읽는다. (지번 주소로 적힌 등기부와 도로명 계약서를 비교하기 위해, #177)
+ * 도로 번호까지만 쓴다. (표 옆 칸 글자가 뒤에 섞여 읽혀도 영향이 없게)
+ * 없으면 null (못 읽음)
+ * @param {string[]} lines
+ * @returns {string | null}
+ */
+function findRegistryRoadAddress(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (!/\[\s*도\s*로\s*명\s*주\s*소\s*\]/.test(lines[i])) continue;
+    const m = REGISTRY_ROAD_ADDRESS.exec(lines.slice(i, i + 3).join(' '));
+    if (m) return toFormalAddress(m[1].trim());
+  }
+  return null;
+}
+
 /**
  * 탐지 결과마다 linesOf() 기준 줄 번호를 구한다. (몇 번째 줄에서 찾은 이름인지)
  * @param {DocumentModel} document
@@ -406,12 +425,13 @@ export function extractFields(documents, findings) {
   const byRole = (people, role) => people.filter((p) => p.role === role);
 
   /**
-   * @type {{ documentId: string | null, address: string | null, owners: Person[] | null,
+   * @type {{ documentId: string | null, address: string | null, roadAddress: string | null, owners: Person[] | null,
    *   previousOwners: Person[] | null, rights: any[] | null, lastTransferDate: string | null }}
    */
   let registry = {
     documentId: null,
     address: null,
+    roadAddress: null,
     owners: null,
     previousOwners: null,
     rights: null,
@@ -425,6 +445,7 @@ export function extractFields(documents, findings) {
     registry = {
       documentId: registryDoc.documentId,
       address: pickPropertyAddress(hits),
+      roadAddress: findRegistryRoadAddress(lines),
       owners: owners.current,
       previousOwners: owners.previous,
       rights: findRegistryRights(lines),
