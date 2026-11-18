@@ -6,6 +6,7 @@ import {
   lastRoleIn,
   findAddressContinuation,
   findKnownNames,
+  findKnownAddresses,
 } from '../src/features/document-analysis/name-detector.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
@@ -549,5 +550,26 @@ describe('PART 2 이미 찾은 이름 다시 찾기 (findKnownNames, #142)', () 
       ['김철수', 0],
       ['김철수', 4],
     ]);
+  });
+});
+
+describe('PART 2 이미 찾은 주소 조각 다시 찾기 (findKnownAddresses)', () => {
+  const valuesOf = (text, values) => findKnownAddresses(text, values).map((r) => [r.value, r.start]);
+
+  it('줄에 혼자 나온 지번도 찾는다 (등기부 대지권 칸 둘째 줄 " 12-34")', () => {
+    expect(valuesOf(' 12-34', ['12-34'])).toEqual([['12-34', 1]]);
+    expect(findKnownAddresses(' 12-34', ['12-34'])[0]).toMatchObject({ type: PII_TYPE.ADDRESS });
+  });
+
+  it('긴 조각을 먼저 찾고, 그 안의 짧은 조각은 따로 잡지 않는다', () => {
+    expect(valuesOf('가상동3가 12-34 가상빌', ['12-34', '가상동3가 12-34'])).toEqual([['가상동3가 12-34', 0]]);
+  });
+
+  it('여러 번 나오면 모두 찾고, 한 글자 조각은 찾지 않는다', () => {
+    expect(valuesOf('12-34, 12-34', ['12-34'])).toEqual([
+      ['12-34', 0],
+      ['12-34', 7],
+    ]);
+    expect(valuesOf('대 329㎡', ['대'])).toEqual([]);
   });
 });
