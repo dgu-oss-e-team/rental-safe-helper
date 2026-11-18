@@ -19,9 +19,6 @@ import { toFormalAddress } from './address-normalizer.js';
 import {
   findPeople,
   findKnownNames,
-  findNameAfterFieldBlock,
-  followsNameField,
-  roleAnchorsIn,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -29,6 +26,9 @@ import {
   reachesLineEnd,
   hasOpenParen,
   findMixedContinuation,
+  findNameAfterFieldBlock,
+  followsNameField,
+  roleAnchorsIn,
 } from './name-detector.js';
 import {
   findDeposit,
