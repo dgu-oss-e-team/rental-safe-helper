@@ -6,7 +6,7 @@
  * 결과의 start/end는 pii-patterns.js와 같이 "몇 번째 글자부터 몇 번째 글자까지"이다.
  */
 import { PII_TYPE } from '../../shared/document-model.js';
-import { findIdNumbers } from './pii-patterns.js';
+import { findIdNumbers, isCorporateNumber } from './pii-patterns.js';
 import rules from '../../config/templates/person-labels.json';
 
 /**
@@ -201,7 +201,9 @@ export function findLabeledNames(text, inheritedRole = null) {
   };
   for (const match of text.matchAll(STANDALONE_NAME_REGEX)) add(match, roleBefore);
   for (const match of text.matchAll(NAME_BEFORE_ID_REGEX)) {
-    if (!LABEL_WORDS.has(match[1])) add(match, roleBefore);
+    // 법인등록번호 앞의 낱말은 회사 이름이라 사람 이름이 아니다 ("주식회사 가상건설 110111-…", #192)
+    const idStart = (match.index ?? 0) + match[0].length;
+    if (!LABEL_WORDS.has(match[1]) && !isCorporateNumber(text, idStart)) add(match, roleBefore);
   }
 
   return [...byStart.values()].sort((a, b) => a.start - b.start);
@@ -456,7 +458,8 @@ const birthDateOf = (id) => {
  * @param {string | null} [inheritedRole] 앞 블록에서 이어받은 역할 ("성명" 칸 이름에 붙인다)
  */
 export function findPeople(text, inheritedRole = null) {
-  const ids = findIdNumbers(text);
+  // 생년월일은 사람 번호(주민·외국인등록번호)에서만 읽는다. 법인등록번호(REGISTRY_ID)는 쓰지 않는다. (#192)
+  const ids = findIdNumbers(text).filter((i) => i.type !== PII_TYPE.REGISTRY_ID);
   const people = findLabeledNames(text, inheritedRole);
   const after = people.map((person, idx) => {
     const lineEnd = text.indexOf('\n', person.end);

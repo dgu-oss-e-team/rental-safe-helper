@@ -105,7 +105,7 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
     expect(findingsOf(trust, 'PHONE_NUMBER')).toEqual(expect.arrayContaining(['010-0000-4826', '010-0000-9173']));
   });
 
-  it.fails('법인등록번호(110111-…)를 주민·외국인등록번호로 보지 않는다', () => {
+  it('법인등록번호(110111-…)를 주민·외국인등록번호로 보지 않는다', () => {
     const personalIds = [...findingsOf(trust, 'RESIDENT_ID'), ...findingsOf(trust, 'FOREIGNER_ID')];
     for (const n of CORPORATE_NUMBERS) expect(personalIds).not.toContain(n);
   });
@@ -147,7 +147,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(trust.fields.contract.deposit).toBe(30000000);
   });
 
-  it.fails('"4. 특약" 칸을 찾아 위험 특약(전입신고 제한)을 점검한다', () => {
+  it('"4. 특약" 칸을 찾아 위험 특약(전입신고 제한)을 점검한다', () => {
     expect(trust.fields.contract.specialTerms).not.toBeNull();
     expect(statusOf(trust, 'RISKY_SPECIAL_TERM')).not.toBe(RISK_STATUS.UNVERIFIABLE);
   });
