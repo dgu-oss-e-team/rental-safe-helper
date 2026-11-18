@@ -396,6 +396,23 @@ describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)',
     for (const w of words) expect(findLabeledNames(`${w} 750315-1******`, 'LANDLORD'), w).toEqual([]);
   });
 
+  it('실제 서류에서 이름으로 잘못 잡던 단어를 거른다 (실제 서류 점검)', () => {
+    const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
+    expect(namesOf('임대사업자와 임차인 간에 합의가 이루어지지 않은 경우')).toEqual([]);
+    expect(namesOf('임대보증금 보증 미가입에 대한 임차인 동의서')).toEqual([]);
+    expect(namesOf('예금주 주식회사 가상주택리츠')).toEqual([]);
+    expect(namesOf('예금주 유한회사 가상관리')).toEqual([]);
+    expect(namesOf('임차인 실태조사 등을 하는 경우')).toEqual([]);
+    expect(namesOf('임대인(위탁자)과 임차인은')).toEqual([]);
+  });
+
+  it('영문 1-2글자(서명 그림 조각 "BD")는 이름이 아니지만, 여러 낱말 외국인 이름은 찾는다', () => {
+    const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
+    expect(namesOf('임차인 성명: BD')).toEqual([]);
+    expect(namesOf('임차인 성명: NGUYEN VAN A')).toEqual(['NGUYEN VAN A']);
+    expect(namesOf('임차인 JOHN SMITH')).toEqual(['JOHN SMITH']);
+  });
+
   it('"자"로 끝나는 진짜 이름은 그대로 찾는다 (끝 글자 규칙이 아니라 목록으로 거르므로)', () => {
     expect(findLabeledNames('김영자 750315-2******', 'OWNER').map((r) => r.value)).toEqual(['김영자']);
   });
