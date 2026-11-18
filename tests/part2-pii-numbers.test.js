@@ -110,6 +110,13 @@ describe('PART 2 법인등록번호 (#192, 팀 합의: 등기 고유번호 종�
     }
   });
 
+  it('회사 끝말 앞에 1글자뿐인 사람 이름이나 "법인" 낱말 하나는 회사가 아니다 (#197 리뷰)', () => {
+    expect(typeOf('임차인 김공사 900101-1234567')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+    expect(typeOf('위탁자 김신탁 900101-2234567')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+    expect(typeOf('공동담보 법인 900101-1234567')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+    expect(typeOf('임차인 김은행 900101-1234567')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+  });
+
   it('회사 이름이 없으면 지금처럼 주민·외국인등록번호로 본다 (애매하면 넓게 가리기)', () => {
     expect(typeOf('소유자 김철수 800101-1******')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
     expect(typeOf('110111-3579246')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
