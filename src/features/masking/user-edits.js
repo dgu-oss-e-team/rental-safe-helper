@@ -8,6 +8,7 @@
  *
  * 규칙
  *   1) 해제할 수 없는 종류(주민·외국인등록번호, 여권번호, 전화번호, 계좌번호)는 remove를 무시한다.
+ *      주민번호 모양(6-7자리)인 등기 번호(REGISTRY_ID, 법인등록번호)도 해제할 수 없다. (isNonRemovable)
  *   2) 두 줄 주소는 같은 groupId 조각 전체를 함께 해제한다.
  *   3) 이름은 같은 사람(personGroup) 전체를 함께 해제한다. (한 곳만 풀면 가명이 누구인지 드러남)
  *
@@ -33,6 +34,21 @@ export const NON_REMOVABLE_TYPES = new Set([
   PII_TYPE.BANK_ACCOUNT,
 ]);
 
+/** 주민번호 모양 (6자리-7자리, 뒷자리는 *로 가려져 있을 수 있음. 구분 기호는 PART 2처럼 - . / 공백이거나 없어도) */
+const RESIDENT_ID_SHAPE = /^\d{6}\s?[-./]?\s?[\d*]{7}$/;
+
+/**
+ * 사용자가 해제할 수 없는 탐지 결과인지.
+ * 법인등록번호(110111-…)는 REGISTRY_ID로 잡히는데(PART 2, #192), 주민번호와 모양이 같다.
+ * 회사 이름 판단이 틀려 진짜 주민번호가 REGISTRY_ID로 잡혔을 때 사용자가 풀면, 보내기 전 검사도
+ * 사용자가 일부러 보이게 한 자리로 보고 넘어가서 그대로 나간다. 그래서 이 모양은 풀 수 없게 한다.
+ * @param {PiiFinding} f
+ */
+export function isNonRemovable(f) {
+  if (NON_REMOVABLE_TYPES.has(f.type)) return true;
+  return f.type === PII_TYPE.REGISTRY_ID && RESIDENT_ID_SHAPE.test(f.value);
+}
+
 /**
  * remove 목록에 규칙 1~3을 적용해, 실제로 해제(KEEP)할 findingId 모음을 만든다.
  * @param {PiiFinding[]} findings
@@ -47,7 +63,7 @@ export function resolveRemovals(findings, personGroups, edits) {
   for (const id of edits?.remove ?? []) {
     const f = byId.get(id);
     if (!f) continue; // 없는 id는 무시
-    if (NON_REMOVABLE_TYPES.has(f.type)) continue; // 규칙 1
+    if (isNonRemovable(f)) continue; // 규칙 1
 
     if (f.type === PII_TYPE.ADDRESS && f.groupId) {
       // 규칙 2: 같은 groupId 조각 전체
