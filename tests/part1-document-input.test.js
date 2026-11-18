@@ -301,3 +301,36 @@ describe('PART 1 readDocument()', () => {
     }
   });
 });
+
+describe('PART 1 overlap spacing', () => {
+  it('inserts a space when text items on the same line overlap or start at/before previous item end, while preserving minor glyph kerning', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, -1, 0, 842] }),
+          getTextContent: async () => ({
+            items: [
+              { str: '010-1111-2222', width: 80, height: 12, transform: [12, 0, 0, 12, 100, 700] },
+              { str: '010-3333-4444', width: 80, height: 12, transform: [12, 0, 0, 12, 100, 700] },
+              { str: '900101-1234567', width: 90, height: 12, transform: [12, 0, 0, 12, 100, 660] },
+              { str: '800202-2345678', width: 90, height: 12, transform: [12, 0, 0, 12, 140, 660] },
+              { str: '\uC784', width: 12, height: 12, transform: [12, 0, 0, 12, 100, 620] },
+              { str: '\uB300', width: 12, height: 12, transform: [12, 0, 0, 12, 111.5, 620] },
+              { str: '\uC778', width: 12, height: 12, transform: [12, 0, 0, 12, 123, 620] },
+            ],
+          }),
+        }),
+      }),
+      destroy: async () => {},
+    }));
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+
+    expect(res.pageCount).toBe(1);
+    expect(res.textPages[0]).toContain('010-1111-2222 010-3333-4444');
+    expect(res.textPages[0]).toContain('900101-1234567 800202-2345678');
+    expect(res.textPages[0]).toContain('\uC784\uB300\uC778');
+  });
+});
