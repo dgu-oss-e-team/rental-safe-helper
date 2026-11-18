@@ -59,11 +59,20 @@ describe('PART 4 화면 ② "같은 사람인가요?" (renderPersonQuestions)', 
   });
 
   it('questions를 넘기면 그 질문만 그린다 (PART 5가 겹치는 질문을 뺀 목록, #172)', () => {
-    const all = buildPersonQuestions(analysis.fields, analysis.personGroups);
+    // P2도 AMBIGUOUS로 바꿔 원래 판정의 질문을 2개로 만들고, 그중 1개만 넘긴다
+    const unsure = mockPersonGroups.map((g) => (g.personId === 'P2' ? { ...g, status: 'AMBIGUOUS' } : g));
+    const all = buildPersonQuestions(analysis.fields, unsure);
+    expect(all).toHaveLength(2);
     const given = all.slice(0, 1);
-    const node = renderPersonQuestions({ analysis, personAnswers: {}, onChange: vi.fn(), questions: given });
+    const node = renderPersonQuestions({
+      analysis: { ...analysis, personGroups: unsure },
+      personAnswers: {},
+      onChange: vi.fn(),
+      questions: given,
+    });
     expect(node?.querySelectorAll('fieldset')).toHaveLength(1);
     expect(node?.querySelector(`#pq-${given[0].personId}-none`)).not.toBeNull();
+    expect(node?.querySelector(`#pq-${all[1].personId}-none`)).toBeNull();
     // 빈 목록을 넘기면 원래 판정에 질문이 있어도 아무것도 그리지 않는다
     expect(renderPersonQuestions({ analysis, personAnswers: {}, onChange: vi.fn(), questions: [] })).toBeNull();
   });
