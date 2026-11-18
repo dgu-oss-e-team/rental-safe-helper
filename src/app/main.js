@@ -10,6 +10,7 @@
 import './style.css';
 import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
+import { filesWithSlots } from './upload-check.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -175,8 +176,9 @@ async function refreshPreviews() {
 /**
  * 서류를 읽고, 사진·스캔이 있으면 "Confirm text" 단계로, 없으면 바로 분석으로 간다. (#54)
  * @param {File[]} files
+ * @param {import('./upload-check.js').UploadSlot[] | null} [slots]  파일마다 올린 칸 (시연 샘플은 null, #186)
  */
-async function runAnalysis(files) {
+async function runAnalysis(files, slots = null) {
   appState.setState({ busy: 'Reading your documents…', error: null });
   const p = await pipeline();
   if (!p) return;
@@ -192,19 +194,20 @@ async function runAnalysis(files) {
     appState.setState({
       busy: null,
       step: 'confirm',
-      ocrReview: { read: read.data, files: ocrIndexes.map((i) => read.data.files[i]) },
+      ocrReview: { read: read.data, files: ocrIndexes.map((i) => read.data.files[i]), slots },
     });
     return;
   }
-  await finishAnalysis(p, read.data);
+  await finishAnalysis(p, read.data, slots);
 }
 
 /**
  * 읽은(그리고 확인한) 서류로 나머지 분석을 하고 ② 결과 화면으로 간다.
  * @param {typeof import('./pipeline.js')} p
  * @param {{ files: File[], documents: any[] }} read
+ * @param {import('./upload-check.js').UploadSlot[] | null} slots  read.files[i]를 올린 칸
  */
-async function finishAnalysis(p, read) {
+async function finishAnalysis(p, read, slots) {
   appState.setState({ busy: 'Checking risks…', error: null });
   const r = p.analyzeReadDocuments(read);
   // 새 서류면 findingId·blockId·personId가 달라지므로 이전 수정(maskingEdits)과 "같은 사람인가요?" 답도 비운다
@@ -216,6 +219,7 @@ async function finishAnalysis(p, read) {
     appState.setState({
       busy: null,
       analysis: r.data,
+      uploadSlots: slots,
       ocrReview: null,
       personAnswers: {},
       checked: null,
@@ -237,8 +241,9 @@ const act = {
     loadPipeline().catch(() => {});
   },
   async analyze() {
-    const { registry, lease } = appState.getState().files;
-    await runAnalysis(/** @type {File[]} */ ([registry, lease].filter(Boolean)));
+    // 파일마다 올린 칸을 같이 넘긴다. ②에서 판별 결과와 다르면 안내한다 (#186)
+    const { files, slots } = filesWithSlots(appState.getState().files);
+    await runAnalysis(files, slots);
   },
   async analyzeSample() {
     // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.
@@ -295,7 +300,7 @@ const act = {
     // 고친 서류를 원래 자리에 넣는다 (documentId로 찾기)
     const edited = new Map(ocrDraft.map((d) => [d.documentId, d]));
     const documents = ocrReview.read.documents.map((d) => edited.get(d.documentId) ?? d);
-    await finishAnalysis(p, { files: ocrReview.read.files, documents });
+    await finishAnalysis(p, { files: ocrReview.read.files, documents }, ocrReview.slots);
   },
   cancelOcr() {
     ocrDraft = [];

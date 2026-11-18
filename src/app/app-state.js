@@ -55,9 +55,16 @@ export function initialState() {
     /**
      * "Confirm text" 단계 (#54): 읽은 서류 전체와, 확인할 사진·스캔 서류의 원본 파일.
      * 사용자가 고친 글자는 화면을 다시 그리지 않으려고 main.js의 ocrDraft에 따로 둔다.
-     * @type {{ read: { files: File[], documents: any[] }, files: File[] } | null}
+     * slots: 파일마다 올린 칸 (#186, 확인 단계를 거쳐도 유지)
+     * @type {{ read: { files: File[], documents: any[] }, files: File[], slots: import('./upload-check.js').UploadSlot[] | null } | null}
      */
     ocrReview: null,
+    /**
+     * 분석한 파일마다 올린 칸 (analysis.documents[i] ↔ uploadSlots[i]). 시연 샘플은 칸이 없어서 null. (#186)
+     * ② 결과 화면이 판별 결과와 비교해서, 칸과 서류 종류가 다르면 안내한다.
+     * @type {import('./upload-check.js').UploadSlot[] | null}
+     */
+    uploadSlots: null,
     /** analyzeDocuments() 결과 (원래 판정. "같은 사람인가요?" 답은 반영되지 않음) */
     /** @type {import('./pipeline.js').Analysis | null} */
     analysis: null,

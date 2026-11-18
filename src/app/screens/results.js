@@ -7,6 +7,7 @@ import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { currentAnalysis } from '../app-state.js';
 import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
+import { uploadSlotNotices } from '../upload-check.js';
 
 /**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
@@ -26,6 +27,8 @@ export function resultsScreen(state, act) {
     questions: visiblePersonQuestions(allQuestions, state.personAnswers),
   });
   const unknown = analysis.documents.filter((d) => d.documentType === DOCUMENT_TYPE.UNKNOWN).length;
+  // 업로드 칸과 판별 결과가 다르면 안내한다 (#186). 결과는 내용으로 판별한 그대로 쓴다.
+  const slotNotices = uploadSlotNotices(analysis.documents, state.uploadSlots);
 
   // 질문 카드는 결과 목록 아래에 있어서 휴대폰에서는 화면 몇 개 아래로 밀린다.
   // 그래서 결과 요약 바로 아래에 안내와 "바로 가기" 버튼을 둔다. (#91)
@@ -73,6 +76,9 @@ export function resultsScreen(state, act) {
         ? el('p', { class: 'warning' }, [
             `We could not tell the type of ${unknown} document(s). Please check that you uploaded a property register or a lease contract.`,
           ])
+        : null,
+      slotNotices.length > 0
+        ? el('div', { class: 'warning upload-slot-notice', id: 'upload-slot-notice' }, slotNotices.map((t) => el('p', {}, [t])))
         : null,
     ]),
     card('Check before you sign', [
