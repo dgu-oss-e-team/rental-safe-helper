@@ -24,6 +24,7 @@ import {
   findAddressContinuation,
   findTrailingRegion,
   reachesLineEnd,
+  hasOpenParen,
 } from './name-detector.js';
 import {
   findDeposit,
@@ -144,7 +145,7 @@ function scanDocument(document) {
         let next = null;
 
         if (open) {
-          const c = findAddressContinuation(line, open.regionOnly);
+          const c = findAddressContinuation(line, open.regionOnly, hasOpenParen(open.hit.value));
           /** @type {any} */
           const piece = c && { ...c, start: c.start + offset, end: c.end + offset };
           if (piece && !overlapsAny(found, piece)) {
