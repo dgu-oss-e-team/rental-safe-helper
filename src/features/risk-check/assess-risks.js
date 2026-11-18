@@ -105,7 +105,8 @@ function assessRightsRule(fields, { ruleId, kinds, activeStatus, activeVariant }
 }
 
 /** 특약의 신탁 안내를 찾는 기본 설정 (규칙 파일의 TRUST_REGISTERED.params가 우선) */
-const DEFAULT_NOTICE_WORDS = ['수탁자', '동의', '계좌'];
+const DEFAULT_NOTICE_WORDS = ['수탁자', '신탁회사', '동의서'];
+const DEFAULT_EXCLUDE_WORDS = ['말소'];
 const DEFAULT_NOTICE_WINDOW_LINES = 3;
 
 /**
@@ -119,8 +120,9 @@ export function hasActiveTrust(fields) {
 
 /**
  * 계약서 특약에 신탁 안내가 있는지.
- * "신탁"이라는 낱말 하나만으로는 안내로 보지 않는다. "신탁"과 (수탁자 / 동의 / 계좌) 중 하나가
+ * "신탁"이라는 낱말 하나만으로는 안내로 보지 않는다. "신탁"과 (수탁자 / 신탁회사 / 동의서) 중 하나가
  * 가까운 줄(기본 3줄) 안에 같이 있어야 한다. 특약은 줄 단위로 넘어오고 한 조항이 여러 줄이라서 줄 묶음으로 본다.
+ * 같은 줄 묶음에 "말소"가 있으면 안내로 보지 않는다. ("잔금 전까지 신탁등기를 말소한다"는 조건이지 신탁 안내가 아니다)
  * 신탁 안내가 있다고 안전하다는 뜻은 아니다. (위조 계약서에도 이 문구는 쓸 수 있다)
  * @param {unknown} specialTerms  fields.contract.specialTerms (못 읽으면 null)
  */
@@ -128,15 +130,20 @@ export function hasTrustNotice(specialTerms) {
   if (!Array.isArray(specialTerms)) return false;
   const lines = specialTerms.filter((t) => typeof t === 'string').map(normalizeTerm);
 
-  const configuredWords = getRuleParam('TRUST_REGISTERED', 'noticeWords', DEFAULT_NOTICE_WORDS);
-  const words = (Array.isArray(configuredWords) ? configuredWords : DEFAULT_NOTICE_WORDS)
-    .filter((w) => typeof w === 'string' && w.trim() !== '')
-    .map(normalizeTerm);
+  const readWords = (name, fallback) => {
+    const configured = getRuleParam('TRUST_REGISTERED', name, fallback);
+    return (Array.isArray(configured) ? configured : fallback)
+      .filter((w) => typeof w === 'string' && w.trim() !== '')
+      .map(normalizeTerm);
+  };
+  const words = readWords('noticeWords', DEFAULT_NOTICE_WORDS);
+  const excludeWords = readWords('excludeWords', DEFAULT_EXCLUDE_WORDS);
   const configuredWindow = getRuleParam('TRUST_REGISTERED', 'noticeWindowLines', DEFAULT_NOTICE_WINDOW_LINES);
   const windowLines = Number.isInteger(configuredWindow) && configuredWindow > 0 ? configuredWindow : DEFAULT_NOTICE_WINDOW_LINES;
 
   for (let i = 0; i < lines.length; i += 1) {
     const text = lines.slice(i, i + windowLines).join('');
+    if (excludeWords.some((w) => text.includes(w))) continue;
     if (text.includes('신탁') && words.some((w) => text.includes(w))) return true;
   }
   return false;

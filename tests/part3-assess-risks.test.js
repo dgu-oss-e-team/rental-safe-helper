@@ -146,7 +146,7 @@ describe('PART 3 신탁 + 특약의 신탁 안내 (TRUST_REGISTERED, #175)', () 
     '보증금과 월 임대료는 아래 지정 계좌로 납부한다.',
   ];
 
-  it('특약에 신탁 안내(신탁 + 수탁자/동의/계좌)가 있으면 STOP이 아니라 CHECK', () => {
+  it('특약에 신탁 안내(신탁 + 수탁자/신탁회사/동의서)가 있으면 STOP이 아니라 CHECK', () => {
     const r = assessTrust(trustWithTerms(NOTICE));
     expect(r.ok).toBe(true);
     expect(r.data.status).toBe(CHECK);
@@ -172,6 +172,21 @@ describe('PART 3 신탁 + 특약의 신탁 안내 (TRUST_REGISTERED, #175)', () 
 
   it('"신탁"만 있고 수탁자·동의·계좌가 없는 문장은 STOP 유지', () => {
     expect(assessTrust(trustWithTerms(['이 건물은 신탁 부동산이다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁"만 있는 문장에 흔한 낱말(동의·계좌)만 같이 있으면 안내로 보지 않아 STOP 유지 (#198 리뷰)', () => {
+    expect(assessTrust(trustWithTerms(['신탁 등기가 있으면 계약을 해제한다.', '임차인은 위 내용에 동의한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁등기가 되어 있다.', '보증금은 임대인 계좌로 입금한다.'])).data.status).toBe(STOP);
+  });
+
+  it('"신탁 말소 후 잔금" 같은 조건은 안내로 보지 않아 STOP 유지 (#198 리뷰)', () => {
+    expect(assessTrust(trustWithTerms(['잔금 전까지 신탁등기를 말소하고, 보증금은 임대인 계좌로 입금한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['잔금 전까지 신탁등기를 말소한다.', '수탁자의 동의서를 받아 제출한다.'])).data.status).toBe(STOP);
+  });
+
+  it('신탁회사·동의서 낱말도 신탁 안내로 본다', () => {
+    expect(assessTrust(trustWithTerms(['이 주택은 신탁등기가 되어 있다.', '신탁회사가 지정한 계좌로 납부한다.'])).data.status).toBe(CHECK);
+    expect(assessTrust(trustWithTerms(['신탁 부동산이므로 임대차 동의서를 첨부한다.'])).data.status).toBe(CHECK);
   });
 
   it('수탁자·동의·계좌만 있고 "신탁"이 없으면 STOP 유지', () => {

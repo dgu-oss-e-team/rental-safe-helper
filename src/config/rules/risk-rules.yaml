@@ -125,8 +125,11 @@ rules:
   TRUST_REGISTERED:
     title: Trust (신탁)
     params:
-      # 특약에 "신탁"과 아래 낱말 중 하나가 가까이(noticeWindowLines줄 안) 있으면 "신탁 안내가 있다"고 본다
-      noticeWords: [수탁자, 동의, 계좌]
+      # 특약에 "신탁"과 noticeWords 중 하나가 가까이(noticeWindowLines줄 안) 있으면 "신탁 안내가 있다"고 본다
+      # "동의", "계좌"처럼 흔한 낱말은 쓰지 않는다. (신탁을 말하는 낱말만)
+      noticeWords: [수탁자, 신탁회사, 동의서]
+      # 같은 줄 묶음에 excludeWords가 있으면 안내로 보지 않는다. ("잔금 전까지 신탁등기를 말소한다" 같은 조건은 STOP 유지)
+      excludeWords: [말소]
       noticeWindowLines: 3
     evidence:
       left: Registry trust entries
