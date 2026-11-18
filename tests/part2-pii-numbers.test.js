@@ -91,6 +91,31 @@ describe('PART 2 전체 탐지 순서 (findPatternPII)', () => {
   });
 });
 
+describe('PART 2 법인등록번호 (#192, 팀 합의: 등기 고유번호 종류로)', () => {
+  const typeOf = (text) => findPatternPII(text).map((r) => [r.type, r.value]);
+
+  it('"법인등록번호" 라벨 뒤 번호는 REGISTRY_ID로 잡아서 가린다', () => {
+    expect(typeOf('법인등록번호 110111-3579246 전화번호 02-0000-5791')[0]).toEqual([PII_TYPE.REGISTRY_ID, '110111-3579246']);
+  });
+
+  it('바로 앞이 회사 이름이면 REGISTRY_ID다 (붙여 쓴 이름, 띄어 쓴 이름, 은행·신탁·회사로 끝나는 이름)', () => {
+    for (const text of [
+      '소유자 가상주택리츠주식회사 110111-3579246',
+      '소유자 주식회사 가상건설 110111-2000001',
+      '근저당권자 주식회사가상은행 110111-2468013',
+      '수탁자 가상자산신탁 110111-6802467',
+      '가상부동산투자회사 110111-6901999',
+    ]) {
+      expect(typeOf(text)[0][0], text).toBe(PII_TYPE.REGISTRY_ID);
+    }
+  });
+
+  it('회사 이름이 없으면 지금처럼 주민·외국인등록번호로 본다 (애매하면 넓게 가리기)', () => {
+    expect(typeOf('소유자 김철수 800101-1******')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+    expect(typeOf('110111-3579246')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
+  });
+});
+
 describe('PART 2 붙어서 읽힌 번호 (이슈 #166)', () => {
   const found = (text) => findPatternPII(text).map((r) => [r.type, r.value, r.uncertain]);
 

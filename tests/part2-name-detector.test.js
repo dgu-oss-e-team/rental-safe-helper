@@ -417,6 +417,11 @@ describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)',
     expect(findLabeledNames('김영자 750315-2******', 'OWNER').map((r) => r.value)).toEqual(['김영자']);
   });
 
+  it('법인등록번호 앞의 회사 이름은 사람 이름이 아니고, 생년월일로도 쓰지 않는다 (#192)', () => {
+    expect(findLabeledNames('소유자 주식회사 가상건설 110111-2000001', 'OWNER')).toEqual([]);
+    expect(findPeople('대표 김철수 법인등록번호 110111-3579246')[0]).toMatchObject({ value: '김철수', birthDate: null });
+  });
+
   it('라벨 뒤 이름과 겹치면 라벨 쪽 역할을 남긴다', () => {
     expect(findLabeledNames('소유자 박문수 820914-*******', 'TENANT').map((r) => [r.value, r.role])).toEqual([
       ['박문수', 'OWNER'],
@@ -443,6 +448,9 @@ describe('PART 2 민간임대주택 표준임대차계약서 (#165)', () => {
       '임대사업자 자격',
       '임차인 보증금 반환',
       '임대사업자 임대료 증액',
+      '임대사업자 변경 신고', // #192 (#181 리뷰)
+      '임대사업자 각자 부담',
+      '임대사업자 사이의 분쟁',
     ]) {
       expect(peopleOf(text), text).toEqual([]);
     }

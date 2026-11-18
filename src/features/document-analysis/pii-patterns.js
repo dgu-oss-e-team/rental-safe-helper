@@ -88,6 +88,32 @@ function findByRegex(text, regex, type) {
   return results;
 }
 
+/*
+ * 법인등록번호 (#192)
+ * "110111-3579246"처럼 모양만으로는 주민등록번호와 구분할 수 없다. 그래서 바로 앞 글자로 판단한다.
+ * - "법인등록번호" 라벨이 바로 앞에 있음 (예: "법인등록번호 110111-…", "(법인등록번호) …")
+ * - 바로 앞 낱말이 회사 이름: 주식회사·유한회사·㈜·(주)가 들어 있거나, 회사·법인·리츠·신탁·은행·조합·공사·재단·협회·금고로 끝남
+ *   (예: "가상주택리츠주식회사 110111-…", "근저당권자 주식회사가상은행 110111-…", "…부동산투자회사 110111-…")
+ * 법인등록번호는 등기 고유번호(REGISTRY_ID) 종류로 돌려준다. 가리는 건 같고(REDACT), 사람 생년월일로는 쓰지 않는다.
+ * 애매하면(회사 이름이 줄 위쪽에 있는 등) 지금처럼 주민·외국인등록번호로 본다. (놓치는 것보다 넓게 가리기)
+ */
+const CORPORATE_LABEL_BEFORE = /법\s*인\s*등\s*록\s*번\s*호\s*\)?\s*[:：]?\s*$/;
+const COMPANY_WORD_BEFORE =
+  /(?:(?:주식회사|유한회사|㈜|\(주\))\s*\S*|\S*(?:회사|법인|리츠|신탁|은행|조합|공사|재단|협회|금고))\s*$/;
+/** 번호 앞에서 볼 글자 수 */
+const CORPORATE_LOOKBACK = 40;
+
+/**
+ * 주민번호 모양의 번호가 법인등록번호인지 (바로 앞 글자로 판단)
+ * @param {string} text
+ * @param {number} start 번호가 시작하는 위치
+ */
+export function isCorporateNumber(text, start) {
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  const before = text.slice(Math.max(lineStart, start - CORPORATE_LOOKBACK), start);
+  return CORPORATE_LABEL_BEFORE.test(before) || COMPANY_WORD_BEFORE.test(before);
+}
+
 /**
  * 주민등록번호와 외국인등록번호를 찾는다.
  * 뒷자리 첫 숫자가 5-8이면 외국인, 1-4면 내국인이다.
@@ -103,6 +129,11 @@ export function findIdNumbers(text) {
     const hasSeparator = /[-./]/.test(match[1]);
     const firstBackDigit = match[2];
     const uncertain = firstBackDigit === '*' || !hasSeparator;
+    if (isCorporateNumber(text, match.index ?? 0)) {
+      // 법인등록번호: 개인정보 종류는 아니지만 주민번호 모양이라 가려야 보내기 전 검사(PART 4)를 통과한다 (#192, 팀 합의 A안)
+      results.push({ type: PII_TYPE.REGISTRY_ID, value: match[0], start: match.index, end: match.index + match[0].length });
+      continue;
+    }
     results.push({
       type: '5678'.includes(firstBackDigit) ? PII_TYPE.FOREIGNER_ID : PII_TYPE.RESIDENT_ID,
       value: match[0],
