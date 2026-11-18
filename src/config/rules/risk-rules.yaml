@@ -36,12 +36,31 @@ rules:
           The registered owner and the landlord appear to be the same person ({landlord}).
           This is based only on the documents you uploaded.
         action: No action needed for this check. Still check the landlord's ID when you meet.
+      CHECK.entity:
+        explanation: >-
+          The registered owner and the landlord look like different parties, but a company
+          or a trust seems to be involved. In a trust, the registered owner is usually the
+          trust company (the trustee), and a company has no birth date to compare, so a
+          different name does not always mean a problem.
+        action: >-
+          Check who has the right to lease the home: the company registration number, or the
+          trust register (신탁원부) if there is a trust. Ask for the trustee's written consent
+          to the lease.
       UNVERIFIABLE:
         explanation: >-
           We could not tell whether the registered owner and the landlord are the same
           person, because a name or birth date could not be read or confirmed.
         action: >-
           Ask to see the landlord's ID and compare it with the owner on the registry yourself.
+      UNVERIFIABLE.entity:
+        explanation: >-
+          We did not compare the registered owner and the landlord, because a company or a
+          trust seems to be involved. Names and birth dates cannot be used to compare
+          companies or trustees, and this is not a sign that the lease is safe.
+        action: >-
+          Check who has the right to lease the home: the company registration number, or the
+          trust register (신탁원부) if there is a trust. Ask for the trustee's written consent
+          to the lease.
 
   ACCOUNT_HOLDER_MISMATCH:
     title: Account holder check
@@ -105,6 +124,10 @@ rules:
 
   TRUST_REGISTERED:
     title: Trust (신탁)
+    params:
+      # 특약에 "신탁"과 아래 낱말 중 하나가 가까이(noticeWindowLines줄 안) 있으면 "신탁 안내가 있다"고 본다
+      noticeWords: [수탁자, 동의, 계좌]
+      noticeWindowLines: 3
     evidence:
       left: Registry trust entries
       right: Entries with unclear status
@@ -116,6 +139,17 @@ rules:
         action: >-
           Do not sign until you have the trust register (신탁원부) and written consent to
           the lease from the trustee.
+      CHECK.trust_notice:
+        explanation: >-
+          The registry shows an active trust registration, and the special terms of this
+          contract mention the trust. Some rental homes, such as company-run rental housing,
+          use a trust on purpose. But a notice written in the contract does not prove that the
+          trust company (the trustee) agreed to the lease.
+        action: >-
+          Before you sign, check four things. (1) In the trust register (신탁원부), who has the
+          right to lease the home. (2) Whether the trustee has agreed to the lease in writing.
+          (3) Whether the deposit goes to an account designated by the trust company.
+          (4) Who will return the deposit at the end of the lease.
       CHECK.cancel_unknown:
         explanation: >-
           The registry shows a trust entry, but we could not tell whether it has been cancelled.

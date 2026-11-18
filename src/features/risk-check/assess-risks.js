@@ -19,6 +19,7 @@
 import { ok, RISK_STATUS } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
 import { getRuleParam } from './risk-rules.js';
+import { normalizeTerm } from './special-terms.js';
 
 /** PART 2 findRegistryRights()가 주는 권리 종류 이름 */
 const KIND = Object.freeze({
@@ -86,28 +87,73 @@ const formatKRW = (amount) => (amount === null ? null : `KRW ${amount.toLocaleSt
 /**
  * 신탁·압류처럼 "있으면 위험"인 권리 규칙의 공통 판정.
  * @param {any} fields
- * @param {{ ruleId: string, kinds: string[], activeStatus: string }} rule
+ * @param {{ ruleId: string, kinds: string[], activeStatus: string, activeVariant?: string }} rule
+ *   activeVariant: 유효한 권리가 있을 때 쓸 문구 변형 (예: 'trust_notice')
  */
-function assessRightsRule(fields, { ruleId, kinds, activeStatus }) {
+function assessRightsRule(fields, { ruleId, kinds, activeStatus, activeVariant }) {
   const rights = readRights(fields);
   if (!rights) return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values: NO_VALUE });
 
   const { active, unclear } = splitRights(rights, kinds);
   const values = { left: describeActive(active), right: String(unclear.length) };
 
-  if (active.length > 0) return buildRiskResult(ruleId, activeStatus, { values });
+  if (active.length > 0) return buildRiskResult(ruleId, activeStatus, { variant: activeVariant, values });
   if (unclear.length > 0) {
     return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'cancel_unknown', values });
   }
   return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
 }
 
-/** 신탁 등기: 있으면 STOP (수탁자 동의 없이 맺은 임대차는 효력이 없을 수 있다) */
+/** 특약의 신탁 안내를 찾는 기본 설정 (규칙 파일의 TRUST_REGISTERED.params가 우선) */
+const DEFAULT_NOTICE_WORDS = ['수탁자', '동의', '계좌'];
+const DEFAULT_NOTICE_WINDOW_LINES = 3;
+
+/**
+ * 유효한(말소되지 않은) 신탁 등기가 있는지. 못 읽었거나 말소 여부를 모르면 false.
+ * @param {any} fields
+ */
+export function hasActiveTrust(fields) {
+  const rights = readRights(fields);
+  return !!rights && rights.some((r) => r?.kind === KIND.TRUST && r.cancelled === false);
+}
+
+/**
+ * 계약서 특약에 신탁 안내가 있는지.
+ * "신탁"이라는 낱말 하나만으로는 안내로 보지 않는다. "신탁"과 (수탁자 / 동의 / 계좌) 중 하나가
+ * 가까운 줄(기본 3줄) 안에 같이 있어야 한다. 특약은 줄 단위로 넘어오고 한 조항이 여러 줄이라서 줄 묶음으로 본다.
+ * 신탁 안내가 있다고 안전하다는 뜻은 아니다. (위조 계약서에도 이 문구는 쓸 수 있다)
+ * @param {unknown} specialTerms  fields.contract.specialTerms (못 읽으면 null)
+ */
+export function hasTrustNotice(specialTerms) {
+  if (!Array.isArray(specialTerms)) return false;
+  const lines = specialTerms.filter((t) => typeof t === 'string').map(normalizeTerm);
+
+  const configuredWords = getRuleParam('TRUST_REGISTERED', 'noticeWords', DEFAULT_NOTICE_WORDS);
+  const words = (Array.isArray(configuredWords) ? configuredWords : DEFAULT_NOTICE_WORDS)
+    .filter((w) => typeof w === 'string' && w.trim() !== '')
+    .map(normalizeTerm);
+  const configuredWindow = getRuleParam('TRUST_REGISTERED', 'noticeWindowLines', DEFAULT_NOTICE_WINDOW_LINES);
+  const windowLines = Number.isInteger(configuredWindow) && configuredWindow > 0 ? configuredWindow : DEFAULT_NOTICE_WINDOW_LINES;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const text = lines.slice(i, i + windowLines).join('');
+    if (text.includes('신탁') && words.some((w) => text.includes(w))) return true;
+  }
+  return false;
+}
+
+/**
+ * 신탁 등기: 있으면 STOP (수탁자 동의 없이 맺은 임대차는 효력이 없을 수 있다)
+ * 단, 계약서 특약에 신탁 안내가 있으면 CHECK로 낮추고 확인할 4가지를 알린다. (리츠·기업형 임대 등 정상적인 신탁도 있다)
+ * 낮추더라도 NO_FLAG는 쓰지 않는다. 신탁 안내가 없거나 특약을 못 읽었으면 STOP 그대로다.
+ */
 export function assessTrust(fields) {
+  const notice = hasActiveTrust(fields) && hasTrustNotice(fields?.contract?.specialTerms);
   return assessRightsRule(fields, {
     ruleId: 'TRUST_REGISTERED',
     kinds: [KIND.TRUST],
-    activeStatus: RISK_STATUS.STOP,
+    activeStatus: notice ? RISK_STATUS.CHECK : RISK_STATUS.STOP,
+    activeVariant: notice ? 'trust_notice' : undefined,
   });
 }
 

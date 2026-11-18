@@ -86,6 +86,61 @@ describe('PART 3 소유자 ↔ 임대인 비교 (OWNER_MISMATCH)', () => {
     expect(compareOwnerAndLandlord(fields(), []).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
   });
 
+  describe('회사·신탁 (#175)', () => {
+    const trustRight = { kind: 'TRUST', maxClaimAmount: null, cancelled: false, receivedAt: null };
+
+    it('유효한 신탁이 있고 소유자≠임대인이면 STOP이 아니라 CHECK (소유자가 수탁자일 수 있다)', () => {
+      const f = fields();
+      f.registry.rights = [trustRight];
+      const r = compareOwnerAndLandlord(f, groups());
+      expect(r.ok).toBe(true);
+      expect(r.data.status).toBe(RISK_STATUS.CHECK);
+      expect(r.data.action).toContain('trust register');
+    });
+
+    it('유효한 신탁이 있고 비교를 못 했으면(소유자 null) NO_FLAG가 아니라 UNVERIFIABLE', () => {
+      const f = fields();
+      f.registry.rights = [trustRight];
+      f.registry.owners = null;
+      const r = compareOwnerAndLandlord(f, groups());
+      expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+      expect(r.data.explanation).toContain('company or a trust');
+    });
+
+    it('말소된 신탁은 회사·신탁으로 보지 않아 기존 판정(STOP) 그대로', () => {
+      const f = fields();
+      f.registry.rights = [{ ...trustRight, cancelled: true }];
+      expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.STOP);
+    });
+
+    it('임대인 이름이 회사 이름이고 소유자와 다르면 CHECK', () => {
+      const f = fields();
+      f.contract.landlords = [{ findingId: 'PII_L02', name: '가상주택리츠 주식회사', birthDate: null, role: 'LANDLORD' }];
+      expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.CHECK);
+    });
+
+    it('소유자 이름이 회사 이름이고 임대인을 못 읽었으면 UNVERIFIABLE', () => {
+      const f = fields();
+      f.registry.owners = [{ findingId: 'PII_R03', name: '(주)가상신탁', birthDate: null, role: 'OWNER' }];
+      f.contract.landlords = null;
+      expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('신탁이 있어도 소유자와 임대인이 같은 사람으로 확인되면 NO_FLAG 그대로', () => {
+      const f = fields();
+      f.registry.rights = [trustRight];
+      expect(compareOwnerAndLandlord(f, mergeOwnerAndLandlord(groups())).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('문구에는 실제 이름을 넣지 않고, 근거 칸에만 화면용 값을 보여 준다', () => {
+      const f = fields();
+      f.registry.rights = [trustRight];
+      const r = compareOwnerAndLandlord(f, groups());
+      expect(r.data.explanation).not.toContain('김철수');
+      expect(r.data.evidence.left.value).toContain('김철수');
+    });
+  });
+
   it('근거 칸(evidence)은 화면용 실제 값, 값이 없으면 —', () => {
     const r = compareOwnerAndLandlord(fields(), groups());
     expect(r.data.evidence.left).toEqual({ label: 'Registry owner', value: '김철수 (birth 800101)' });
