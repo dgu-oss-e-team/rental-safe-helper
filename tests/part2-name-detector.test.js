@@ -159,8 +159,17 @@ describe('PART 2 주소 탐지', () => {
     expect(findAddresses('서울특별시 중구 필동로 00, 101호')).toHaveLength(1);
   });
 
-  it('괄호 앞에서 끝낸다', () => {
-    expect(findAddresses('경기도 수원시 팔달구 효원로 00 (인계동)')[0].value).toBe('경기도 수원시 팔달구 효원로 00');
+  it('뒤의 괄호(동 이름)와 괄호 뒤 호수까지 주소로 잡는다 (끊긴 부분은 AI 글에 남으므로, #165)', () => {
+    expect(findAddresses('경기도 수원시 팔달구 효원로 00 (인계동)')[0].value).toBe('경기도 수원시 팔달구 효원로 00 (인계동)');
+    expect(findAddresses('주소 서울특별시 성동구 가상로 00, 3층 (가상동, 가상타운) 301호')[0].value).toBe(
+      '서울특별시 성동구 가상로 00, 3층 (가상동, 가상타운) 301호',
+    );
+  });
+
+  it('괄호 뒤에는 동·층·호만 붙인다 (전화번호 같은 다른 칸은 주소가 아니다)', () => {
+    expect(findAddresses('주소 서울특별시 중구 필동로 00 (필동) 전화 010-0000-0000')[0].value).toBe(
+      '서울특별시 중구 필동로 00 (필동)',
+    );
   });
 
   it('시·군·구 없이 시·도 이름만 있으면 잡지 않는다', () => {
@@ -338,6 +347,11 @@ describe('PART 2 이름 탐지 보강 (#142)', () => {
     expect(namesOf('계약금 금 오백만원정 영수자 김철수 (인)')).toEqual([['김철수', null]]);
   });
 
+  it('법인 계약서의 "대표이사" 뒤 이름도 역할 없이 찾는다 (#165)', () => {
+    expect(namesOf('가상주택리츠 주식회사 (대표이사 홍길동)')).toEqual([['홍길동', null]]);
+    expect(namesOf('임대사업자 가상주택리츠 주식회사 대표이사 홍길동 (서명 또는 인)')).toEqual([['홍길동', null]]);
+  });
+
   it('회사 이름은 이름으로 잡지 않는다 ("채권자 주식회사가상은행")', () => {
     expect(namesOf('채권자 주식회사가상은행')).toEqual([]);
   });
@@ -382,6 +396,23 @@ describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)',
     for (const w of words) expect(findLabeledNames(`${w} 750315-1******`, 'LANDLORD'), w).toEqual([]);
   });
 
+  it('실제 서류에서 이름으로 잘못 잡던 단어를 거른다 (실제 서류 점검)', () => {
+    const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
+    expect(namesOf('임대사업자와 임차인 간에 합의가 이루어지지 않은 경우')).toEqual([]);
+    expect(namesOf('임대보증금 보증 미가입에 대한 임차인 동의서')).toEqual([]);
+    expect(namesOf('예금주 주식회사 가상주택리츠')).toEqual([]);
+    expect(namesOf('예금주 유한회사 가상관리')).toEqual([]);
+    expect(namesOf('임차인 실태조사 등을 하는 경우')).toEqual([]);
+    expect(namesOf('임대인(위탁자)과 임차인은')).toEqual([]);
+  });
+
+  it('영문 1-2글자(서명 그림 조각 "BD")는 이름이 아니지만, 여러 낱말 외국인 이름은 찾는다', () => {
+    const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
+    expect(namesOf('임차인 성명: BD')).toEqual([]);
+    expect(namesOf('임차인 성명: NGUYEN VAN A')).toEqual(['NGUYEN VAN A']);
+    expect(namesOf('임차인 JOHN SMITH')).toEqual(['JOHN SMITH']);
+  });
+
   it('"자"로 끝나는 진짜 이름은 그대로 찾는다 (끝 글자 규칙이 아니라 목록으로 거르므로)', () => {
     expect(findLabeledNames('김영자 750315-2******', 'OWNER').map((r) => r.value)).toEqual(['김영자']);
   });
@@ -390,6 +421,35 @@ describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)',
     expect(findLabeledNames('소유자 박문수 820914-*******', 'TENANT').map((r) => [r.value, r.role])).toEqual([
       ['박문수', 'OWNER'],
     ]);
+  });
+});
+
+describe('PART 2 민간임대주택 표준임대차계약서 (#165)', () => {
+  const peopleOf = (text) => findLabeledNames(text).map((r) => [r.value, r.role]);
+
+  it('"임대사업자"는 임대인 라벨이고, "성명(법인명)" 칸의 이름을 읽는다', () => {
+    expect(peopleOf('임대사업자 성명(법인명) 김철수 (서명 또는 인)')).toEqual([['김철수', 'LANDLORD']]);
+    expect(peopleOf('임차인 성명(법인명) 박지훈 (서명 또는 인)')).toEqual([['박지훈', 'TENANT']]);
+    expect(peopleOf('성명(법인명) 이영희')).toEqual([['이영희', null]]);
+  });
+
+  it('"임대사업자" 뒤의 일반 낱말은 이름이 아니다', () => {
+    for (const text of [
+      '임대사업자 또는 임대사업자가 지정한',
+      '임대사업자 지정 양식',
+      '임대사업자 등록번호 2017-서울중구-00000',
+      '임대사업자 등록번\n호', // 좁은 칸에서 "등록번호"의 "호"가 다음 줄로 넘어감
+      '임대사업자 의무 위반',
+      '임대사업자 자격',
+      '임차인 보증금 반환',
+      '임대사업자 임대료 증액',
+    ]) {
+      expect(peopleOf(text), text).toEqual([]);
+    }
+  });
+
+  it('법인 임대사업자의 회사 이름은 사람 이름으로 잡지 않는다', () => {
+    expect(peopleOf('임대사업자 가상주택리츠 주식회사')).toEqual([]);
   });
 });
 

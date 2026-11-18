@@ -78,6 +78,29 @@ describe('PART 2 보증금·월세', () => {
   });
 });
 
+describe('PART 2 보증금·월세: 금액 표와 다른 항목 금액 (실제 양식 서류 점검)', () => {
+  it('제목 줄 / 금액 줄로 나뉜 표에서 순서대로 짝지어 읽는다 (민간임대 계약서)', () => {
+    const lines = ['구분 임대보증금 계약금 중도금 잔금 월 임대료', '금액 ₩30,000,000 ₩0 ₩0 ₩30,000,000 ₩450,000'];
+    expect(findDeposit(lines)).toBe(30000000);
+    expect(findMonthlyRent(lines)).toBe(450000);
+  });
+
+  it('한글 금액과 괄호 숫자가 섞인 표도 읽는다', () => {
+    const lines = ['구분 임대보증금 월임대료', '금액 금 일천만 원정(\\ 10,000,000 ) 금 칠십만 원정(\\ 700,000 )'];
+    expect(findDeposit(lines)).toBe(10000000);
+    expect(findMonthlyRent(lines)).toBe(700000);
+  });
+
+  it('항목 수와 금액 수가 다르면 표에서 추측하지 않는다 (빈 칸이 있는 표)', () => {
+    const lines = ['구분 임대보증금 계약금 월 임대료', '금액 ₩30,000,000 ₩450,000'];
+    expect(findDeposit(lines)).toBeNull();
+  });
+
+  it('"보증금" 뒤에 다른 항목(계약금)의 금액이 오면 보증금으로 읽지 않는다 (0원 오류)', () => {
+    expect(findDeposit(['② 임차인은 임대보증금에 대하여 계약금 금 원정(₩ 0)은 계약 시에 지급'])).toBeNull();
+  });
+});
+
 describe('PART 2 특약사항', () => {
   it('mock 계약서와 같은 값', () => {
     expect(findSpecialTerms(linesOf(mockLeaseDocument))).toEqual(mockExtractedFields.contract.specialTerms);

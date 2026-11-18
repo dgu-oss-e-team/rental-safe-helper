@@ -24,6 +24,7 @@ import {
   findAddressContinuation,
   findTrailingRegion,
   reachesLineEnd,
+  hasOpenParen,
 } from './name-detector.js';
 import {
   findDeposit,
@@ -144,7 +145,7 @@ function scanDocument(document) {
         let next = null;
 
         if (open) {
-          const c = findAddressContinuation(line, open.regionOnly);
+          const c = findAddressContinuation(line, open.regionOnly, hasOpenParen(open.hit.value));
           /** @type {any} */
           const piece = c && { ...c, start: c.start + offset, end: c.end + offset };
           if (piece && !overlapsAny(found, piece)) {
@@ -275,7 +276,8 @@ function collectPeople(hits, rejectedIds) {
 }
 
 /** 집 주소 앞에 붙는 라벨. 임대인·임차인 본인 주소보다 이 라벨이 붙은 주소를 먼저 고른다. */
-const PROPERTY_ADDRESS_LABEL = /소\s*재\s*지|도\s*로\s*명\s*주\s*소|지\s*번\s*주\s*소/;
+const PROPERTY_ADDRESS_LABEL = /(?<!사\s*무\s*소\s*)소\s*재\s*지|도\s*로\s*명\s*주\s*소|지\s*번\s*주\s*소/;
+// "(대표 사무소 소재지)"(임대사업자 사무실), "사무소소재지"(중개사무소)는 집 주소가 아니다. (#165 민간임대 계약서)
 /**
  * 등기부 맨 위(페이지마다)의 부동산 표시: "[집합건물] 서울특별시 중구 … 제702호".
  * 표 안의 주소는 좁은 칸끼리 섞여 읽힐 수 있어서("가상로 1층 410.52㎡"), 이 줄을 가장 먼저 고른다.

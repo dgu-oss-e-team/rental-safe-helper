@@ -92,7 +92,7 @@ export function collectPeople(fields) {
     if (!Array.isArray(list)) continue;
     for (const person of list) {
       if (!person?.name) continue; // 이름을 못 읽었으면 판정할 수 없음
-      people.push(person);
+      people.push({ ...person, source: docKey }); // 어느 서류에서 왔는지 (registry / contract)
     }
   }
   return people;
@@ -107,24 +107,36 @@ export function collectPeople(fields) {
  * @param {ReturnType<typeof collectPeople>} people
  */
 export function groupPeople(people) {
-  /** @type {{ name: string, birthDate: string | null, roles: string[], findingIds: string[], status: string }[]} */
+  /** @type {{ name: string, birthDate: string | null, roles: string[], findingIds: string[], status: string, sources: Set<string> }[]} */
   const groups = [];
 
   // 1단계: 묶기
   for (const person of people) {
     const name = normalizeName(person.name);
     const birthDate = person.birthDate ?? null;
-
+  
     // 이름과 생년월일이 모두 같은 그룹 (비슷한 이름은 합치지 않음, 생년월일이 없으면 확정할 수 없음)
-    const match = birthDate
-      ? groups.find((g) => g.name === name && g.birthDate === birthDate)
-      : undefined;
+    // 단, 같은 서류에서 같은 역할로 이름이 똑같이 또 나오면 같은 사람으로 묶는다. (#165, 계약서에 두 번 나오는 임차인)
+    // 한쪽에 생년월일이 없어도 묶고, 둘 다 있는데 다르면 묶지 않는다. 같은 계약서에 같은 이름의 임차인이 둘일 가능성은 아주 낮다.
+    // 역할이나 서류가 다르면(소유자와 임대인 등) 지금처럼 함부로 합치지 않는다.
+    const source = person.source ?? null;
+    const match =
+      (birthDate ? groups.find((g) => g.name === name && g.birthDate === birthDate) : undefined) ??
+      groups.find(
+        (g) =>
+          g.name === name &&
+          g.roles.includes(person.role) &&
+          g.sources.has(source) &&
+          (!g.birthDate || !birthDate || g.birthDate === birthDate),
+      );
 
     if (match) {
       if (!match.roles.includes(person.role)) match.roles.push(person.role);
       match.findingIds.push(person.findingId);
+      match.sources.add(source);
+      if (!match.birthDate && birthDate) match.birthDate = birthDate;
     } else {
-      groups.push({ name, birthDate, roles: [person.role], findingIds: [person.findingId], status: 'CONFIRMED' });
+      groups.push({ name, birthDate, roles: [person.role], findingIds: [person.findingId], status: 'CONFIRMED', sources: new Set([source]) });
     }
   }
 

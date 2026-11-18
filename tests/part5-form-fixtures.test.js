@@ -116,13 +116,13 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
     for (const name of ['이몽룡', '심청']) expect(shared).not.toContain(name);
   });
 
-  it.fails('두 줄 주소의 둘째 줄("61,107동602호(가상동,가상아파트)")이 AI로 가지 않는다', () => {
+  it('두 줄 주소의 둘째 줄("61,107동602호(가상동,가상아파트)")이 AI로 가지 않는다', () => {
     const shared = sharedText(coowner);
     expect(shared).not.toBe('');
     expect(shared).not.toContain('107동602호');
   });
 
-  it.fails('계약서 "대표이사" 다음 이름(홍길동)을 PERSON_NAME으로 찾는다', () => {
+  it('계약서 "대표이사" 다음 이름(홍길동)을 PERSON_NAME으로 찾는다', () => {
     expect(findingsOf(trust, 'PERSON_NAME')).toContain('홍길동');
   });
 });
@@ -132,7 +132,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(trust.fields.contract.landlords?.length).toBeGreaterThan(0);
   });
 
-  it.fails('금액 표의 제목 줄 / 금액 줄에서 보증금 3천만 원을 읽는다 (계약금 ₩0과 헷갈리지 않음)', () => {
+  it('금액 표의 제목 줄 / 금액 줄에서 보증금 3천만 원을 읽는다 (계약금 ₩0과 헷갈리지 않음)', () => {
     expect(trust.fields.contract.deposit).toBe(30000000);
   });
 
@@ -160,7 +160,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
 });
 
 describe('#165 남은 문제: PART 4 인물 판별', () => {
-  it.fails('계약서에 두 번 나오는 임차인 성춘향은 같은 가명 하나로 묶는다', () => {
+  it('계약서에 두 번 나오는 임차인 성춘향은 같은 가명 하나로 묶는다', () => {
     const tenants = trust.personGroups.filter((g) => g.roles.includes('TENANT'));
     expect(tenants).toHaveLength(1);
   });

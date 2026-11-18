@@ -40,6 +40,13 @@ function isWordWithParticle(name) {
 }
 
 /**
+ * 영문 한 낱말 1-2글자는 이름으로 보지 않는다. (#165 실제 서류: 서명 그림 조각 "BD", "MD"가 라벨 뒤에 읽힘)
+ * 외국인 이름은 "NGUYEN VAN A"처럼 여러 낱말이라 첫 낱말이 3글자 이상이다.
+ * 이 글자들은 #145 다시 찾기로 문서 전체에서 가려져서, 보내기 전 검사(PART 4)를 멈추게 하기도 했다.
+ */
+const TOO_SHORT_LATIN = /^[A-Za-z]{1,2}$/;
+
+/**
  * 이름 모양
  * - 한글 2-4자 (뒤에 한글이 더 붙어 있으면 이름이 아니다. 예: "임대인은")
  * - 영문 대문자로 시작하는 단어 1-4개 (예: NGUYEN VAN A)
@@ -54,6 +61,12 @@ const NAME_PATTERN = '([가-힣]{2,4}(?![가-힣])|[A-Z][A-Za-z\'-]*(?:[ \\t]+[A
 const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
 
 /**
+ * 민간임대주택 표준임대차계약서의 이름 칸: "성명(법인명)" (#165 실제 양식 서류)
+ * 예: "임대사업자 성명(법인명) 김철수 (서명 또는 인)", "임차인 성명(법인명) 박지훈"
+ */
+const CORP_NAME_NOTE = '(?:\\s*[(（]\\s*법\\s*인\\s*명\\s*[)）])?';
+
+/**
  * 라벨 하나에 대한 정규식을 만든다.
  * 라벨 → (성명) → (지분 표기) → (:) → 공백이나 콜론 1개 이상 → 이름
  * 라벨과 이름 사이에 구분(공백이나 :)이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
@@ -61,7 +74,7 @@ const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
  */
 function labelRegex(label) {
   return new RegExp(
-    `${spaced(label)}(?:\\s*(?:${NAME_FIELD}))?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+    `${spaced(label)}(?:\\s*(?:${NAME_FIELD})${CORP_NAME_NOTE})?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
     'g',
   );
 }
@@ -105,7 +118,7 @@ const ROLE_ANCHORS = rules.persons.flatMap(({ role, labels }) =>
  * 표준계약서 서명란은 "임대인"이 표 왼쪽에 한 번 나오고, 이름은 다른 줄의 "성명" 칸에 있다.
  */
 const STANDALONE_NAME_REGEX = new RegExp(
-  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
   'g',
 );
 
@@ -169,7 +182,7 @@ export function findLabeledNames(text, inheritedRole = null) {
    */
   const add = (match, roleAt) => {
     const name = match[1].trim();
-    if (NOT_NAMES.has(name) || isWordWithParticle(name)) return;
+    if (NOT_NAMES.has(name) || isWordWithParticle(name) || TOO_SHORT_LATIN.test(name)) return;
     const start = (match.index ?? 0) + match[0].lastIndexOf(match[1]);
     // 같은 이름을 두 규칙이 모두 찾으면("임대인 성명: 이영희") 역할 라벨 쪽을 남긴다.
     if (byStart.has(start)) return;
@@ -288,6 +301,35 @@ function cutAtTableCell(value) {
   return stop ? value.slice(0, stop.index).replace(/[\s,]+$/, '') : value;
 }
 
+/** 동·층·호 한 덩어리: "101동", "제2층", "1001호" */
+const DONG_HO = '제?[ \\t]*[0-9A-Za-z]+(?:-[0-9]+)?[ \\t]*(?:동|층|호)(?![가-힣])';
+
+/**
+ * 주소 바로 뒤의 괄호와 그 뒤 동·호수 (#165 실제 서류 점검)
+ * 예: "가상로 00, 3층 (가상동, 가상타운) 301호", "61,107동602호(가상동,가상아파트)", 줄 끝에서 안 닫힌 "304호(가"
+ * 끊긴 뒷부분은 AI에게 보내는 글에 그대로 남으므로, 괄호 안(동 이름·아파트 이름)과 뒤 호수까지 주소로 본다.
+ * 괄호 뒤에는 동·층·호만 이어 붙인다. (전화번호 등 다른 칸까지 주소로 잡지 않게)
+ */
+const PAREN_TAIL = new RegExp(`^[ \\t]*\\([^)\\n]*(?:\\)|(?=\\n|$))(?:[ \\t]*${DONG_HO})*`);
+
+/**
+ * 주소 끝(end) 뒤에 괄호 부분이 있으면 그 끝까지 늘린다.
+ * @param {string} text
+ * @param {number} end
+ */
+function withParenTail(text, end) {
+  let e = end;
+  for (let i = 0; i < 3; i += 1) {
+    const m = PAREN_TAIL.exec(text.slice(e));
+    if (!m || m[0].length === 0) break;
+    e += m[0].length;
+  }
+  return e;
+}
+
+/** 주소가 줄 끝에서 괄호를 열고 닫지 않았는지 ("… 304호(가" → 아랫줄 "상동,가상빌라)"로 이어짐) */
+export const hasOpenParen = (/** @type {string} */ value) => /\([^)]*$/.test(value);
+
 /**
  * @param {string} text
  * @returns {{type: string, value: string, start: number, end: number}[]}
@@ -295,13 +337,12 @@ function cutAtTableCell(value) {
 export function findAddresses(text) {
   const results = [];
   for (const match of text.matchAll(ADDRESS_REGEX)) {
-    const value = cutAtTableCell(match[0]);
-    results.push({
-      type: PII_TYPE.ADDRESS,
-      value,
-      start: match.index,
-      end: match.index + value.length,
-    });
+    const start = match.index ?? 0;
+    const cut = cutAtTableCell(match[0]);
+    // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
+    const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
+    const value = text.slice(start, end).trimEnd();
+    results.push({ type: PII_TYPE.ADDRESS, value, start, end: start + value.length });
   }
   return results;
 }
@@ -312,13 +353,22 @@ export function findAddresses(text) {
  * - 동·층·호: "101동 1001호", "제2층 제201호"
  * - 도로명: "필동로 00", "필동로12길 3"
  * - 시·군·구: 윗줄이 "서울특별시"처럼 시·도 이름으로 끝났을 때만 ("중구 필동로 00")
+ * - 건물번호 + 동·호: "61,107동602호", "31, 502호" (윗줄이 "가상대로"나 "가상대로 1"에서 끊긴 경우, #165)
+ *   표 칸이 섞여 줄 앞에 다른 칸 글자가 있어도("경 제57913호 전거 61,107동602호") 이 모양은 줄 안에서 찾는다.
+ * - 윗줄이 괄호를 열고 끝났으면("304호(가") 아랫줄의 닫는 괄호까지 ("상동,가상빌라)")
+ * 모두 뒤의 괄호(동 이름·아파트 이름)까지 포함한다.
  */
 const ADDRESS_TAIL = '(?:[^\\n(]*[^\\s\\n(])?';
-const DONG_HO = '제?[ \\t]*[0-9A-Za-z]+(?:-[0-9]+)?[ \\t]*(?:동|층|호)(?![가-힣])';
 const ROAD = '[가-힣0-9]+(?:로|길)[ \\t]*\\d';
 const SIGUNGU = `${NOT_SIGUNGU_GUARD}[가-힣]+(?:시|군|구)(?![가-힣])`;
-const CONTINUATION_REGEX = new RegExp(`^[ \\t]*((?:${DONG_HO}|${ROAD})${ADDRESS_TAIL})`);
+/** 건물번호 + 쉼표 + 동·호: "61,107동602호", "31, 502호" */
+const BUILDING_THEN_UNIT = `\\d+(?:-\\d+)?[ \\t]*,[ \\t]*${DONG_HO}`;
+const CONTINUATION_REGEX = new RegExp(`^[ \\t]*((?:${BUILDING_THEN_UNIT}|${DONG_HO}|${ROAD})${ADDRESS_TAIL})`);
 const CONTINUATION_AFTER_REGION_REGEX = new RegExp(`^[ \\t]*(${SIGUNGU}${ADDRESS_TAIL})`);
+/** 줄 중간의 "건물번호, 동·호" (앞에 숫자·쉼표가 붙어 있으면 아니다) */
+const BUILDING_THEN_UNIT_INSIDE = new RegExp(`(?<![\\d,])(${BUILDING_THEN_UNIT}${ADDRESS_TAIL})`);
+/** 윗줄에서 열린 괄호의 나머지: "상동,가상빌라)" + 뒤 동·호 */
+const PAREN_REST_REGEX = new RegExp(`^[ \\t]*([^)\\n]*\\)(?:[ \\t]*${DONG_HO})*)`);
 const TRAILING_REGION_REGEX = new RegExp(
   `(?<![가-힣])(${rules.addressRegions.map(escapeRegex).join('|')})[ \\t,]*$`,
 );
@@ -329,13 +379,25 @@ const ADDRESS_LINE_REST = /^[\s,]*(?:\([^)]*\))?[\s,]*$/;
  * 아랫줄 맨 앞의 주소 뒷부분을 찾는다.
  * @param {string} line 한 줄 (줄바꿈 없음)
  * @param {boolean} [afterRegion] 윗줄이 시·도 이름으로 끝났는지
+ * @param {boolean} [openParen] 윗줄 주소가 괄호를 열고 끝났는지
  * @returns {{ type: string, value: string, start: number, end: number } | null}
  */
-export function findAddressContinuation(line, afterRegion = false) {
-  const m = line.match(afterRegion ? CONTINUATION_AFTER_REGION_REGEX : CONTINUATION_REGEX);
+export function findAddressContinuation(line, afterRegion = false, openParen = false) {
+  if (openParen) {
+    const p = line.match(PAREN_REST_REGEX);
+    if (p) {
+      const start = (p.index ?? 0) + p[0].length - p[1].length;
+      return { type: PII_TYPE.ADDRESS, value: p[1], start, end: start + p[1].length };
+    }
+  }
+  const m =
+    line.match(afterRegion ? CONTINUATION_AFTER_REGION_REGEX : CONTINUATION_REGEX) ??
+    (afterRegion ? null : line.match(BUILDING_THEN_UNIT_INSIDE));
   if (!m) return null;
   const start = (m.index ?? 0) + m[0].length - m[1].length;
-  const value = cutAtTableCell(m[1]);
+  const cut = cutAtTableCell(m[1]);
+  const end = cut === m[1] ? withParenTail(line, start + cut.length) : start + cut.length;
+  const value = line.slice(start, end).trimEnd();
   return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
 }
 
@@ -364,7 +426,9 @@ const ADDRESS_LIKE_END = /(?:\d|,|[동층호로길시군구])$/;
  * @param {string} rest 주소 끝부터 줄 끝까지의 글자
  */
 export function reachesLineEnd(value, rest) {
-  return ADDRESS_LINE_REST.test(rest) && ADDRESS_LIKE_END.test(value.trim());
+  // 끝의 괄호("(가상동,가상아파트)", 안 닫힌 "(가")는 빼고 주소답게 끝나는지 본다.
+  const core = value.trim().replace(/\s*\([^)]*\)?$/, '');
+  return ADDRESS_LINE_REST.test(rest) && ADDRESS_LIKE_END.test(core);
 }
 
 /** 이름 바로 앞의 "성명" 칸 라벨 (표준계약서 서명란: "주민등록번호 … 전화 … 성명 김철수") */
