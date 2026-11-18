@@ -79,7 +79,14 @@ export function parseAmount(text) {
 const spacedRegex = (/** @type {string} */ word) => new RegExp([...word].join('\\s*'), 'g');
 
 /**
+ * 다른 금액 항목의 이름. 라벨 뒤에서 금액을 찾다가 이 이름이 나오면 멈춘다.
+ * 예: "임대보증금에 대하여 아래와 같이 … 계약금 금 원정(₩ 0)"에서 보증금을 0원으로 읽지 않게 (실제 양식 서류 점검)
+ */
+const OTHER_AMOUNT_LABEL = /계\s*약\s*금|중\s*도\s*금|잔\s*금|관\s*리\s*비|월\s*임\s*대\s*료|월\s*세|차\s*임/;
+
+/**
  * 라벨 뒤 40글자 안에서 처음 나오는 금액을 찾는다. 금액이 없는 라벨(예: 특약의 "보증금은")은 건너뛴다.
+ * 그 사이에 다른 금액 항목 이름이 나오면 그 앞까지만 본다.
  * @param {string[]} lines
  * @param {string[]} labels
  * @returns {number | null}
@@ -88,7 +95,10 @@ function findAmountAfterLabel(lines, labels) {
   for (const line of lines) {
     for (const label of labels) {
       for (const m of line.matchAll(spacedRegex(label))) {
-        const amount = parseAmount(line.slice(m.index + m[0].length, m.index + m[0].length + 40));
+        let after = line.slice(m.index + m[0].length, m.index + m[0].length + 40);
+        const other = OTHER_AMOUNT_LABEL.exec(after);
+        if (other) after = after.slice(0, other.index);
+        const amount = parseAmount(after);
         if (amount !== null) return amount;
       }
     }
@@ -96,20 +106,72 @@ function findAmountAfterLabel(lines, labels) {
   return null;
 }
 
-/**
- * 보증금 (원). 못 찾으면 null.
- * @param {string[]} lines
+/*
+ * 금액 표 (민간임대주택 표준임대차계약서 등, 실제 양식 서류 점검)
+ *   "구분 임대보증금 계약금 중도금 잔금 월 임대료"
+ *   "금액 ₩30,000,000 ₩0 ₩0 ₩30,000,000 ₩450,000"
+ * 제목 줄에서 항목 이름의 순서를 찾고, 바로 아랫줄("금액 …")의 금액을 같은 순서로 짝짓는다.
+ * 항목 수와 금액 수가 다르면 추측하지 않는다. (빈 칸이 있으면 어느 금액이 어느 항목인지 모른다)
  */
-export function findDeposit(lines) {
-  return findAmountAfterLabel(lines, ['보증금']);
+/** @type {Array<{ key: string, regex: RegExp }>} 표 제목 줄의 항목 이름 */
+const TABLE_COLUMNS = [
+  { key: 'deposit', regex: /보\s*증\s*금/ },
+  { key: 'downPayment', regex: /계\s*약\s*금/ },
+  { key: 'middlePayment', regex: /중\s*도\s*금/ },
+  { key: 'balance', regex: /잔\s*금/ },
+  { key: 'monthlyRent', regex: /월\s*임\s*대\s*료|월\s*세|차\s*임/ },
+];
+/** 금액 표의 금액 줄 맨 앞 */
+const AMOUNT_ROW_START = /^\s*금\s*액/;
+/** 금액 하나 (전역). "₩30,000,000", "금 일천만 원정(\ 10,000,000 )" */
+const AMOUNT_GLOBAL = new RegExp(AMOUNT_REGEX.source, 'g');
+
+/**
+ * 금액 줄의 금액들을 순서대로 읽는다.
+ * @param {string} line
+ * @returns {Array<number | null>}
+ */
+function amountsInRow(line) {
+  const amounts = [];
+  for (const m of line.matchAll(AMOUNT_GLOBAL)) amounts.push(parseAmount(line.slice(m.index ?? 0)));
+  return amounts;
 }
 
 /**
- * 월세 (원). 표준계약서는 "차임"이라고 쓰기도 한다. 못 찾으면 null.
+ * 금액 표에서 항목 하나의 금액을 읽는다. 표가 없거나 짝이 안 맞으면 null.
+ * @param {string[]} lines
+ * @param {string} key TABLE_COLUMNS의 key
+ * @returns {number | null}
+ */
+function findAmountInTable(lines, key) {
+  for (let i = 0; i + 1 < lines.length; i += 1) {
+    if (!AMOUNT_ROW_START.test(lines[i + 1])) continue;
+    const columns = TABLE_COLUMNS.map((c) => ({ key: c.key, at: lines[i].search(c.regex) }))
+      .filter((c) => c.at !== -1)
+      .sort((a, b) => a.at - b.at);
+    if (columns.length < 2) continue;
+    const amounts = amountsInRow(lines[i + 1]);
+    if (amounts.length !== columns.length) continue;
+    const index = columns.findIndex((c) => c.key === key);
+    if (index !== -1) return amounts[index];
+  }
+  return null;
+}
+
+/**
+ * 보증금 (원). 금액 표를 먼저 보고, 없으면 "보증금" 라벨 뒤 금액. 못 찾으면 null.
+ * @param {string[]} lines
+ */
+export function findDeposit(lines) {
+  return findAmountInTable(lines, 'deposit') ?? findAmountAfterLabel(lines, ['보증금']);
+}
+
+/**
+ * 월세 (원). 표준계약서는 "차임", 민간임대 계약서는 "월 임대료"라고 쓴다. 금액 표를 먼저 본다. 못 찾으면 null.
  * @param {string[]} lines
  */
 export function findMonthlyRent(lines) {
-  return findAmountAfterLabel(lines, ['월세', '차임']);
+  return findAmountInTable(lines, 'monthlyRent') ?? findAmountAfterLabel(lines, ['월세', '차임', '월임대료']);
 }
 
 const SPECIAL_TERMS_HEADING = /^\s*[[【(]?\s*특\s*약\s*(?:사\s*항)?\s*[\]】)]?\s*[:：]?\s*/;

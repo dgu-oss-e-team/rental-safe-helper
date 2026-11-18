@@ -132,7 +132,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(trust.fields.contract.landlords?.length).toBeGreaterThan(0);
   });
 
-  it.fails('금액 표의 제목 줄 / 금액 줄에서 보증금 3천만 원을 읽는다 (계약금 ₩0과 헷갈리지 않음)', () => {
+  it('금액 표의 제목 줄 / 금액 줄에서 보증금 3천만 원을 읽는다 (계약금 ₩0과 헷갈리지 않음)', () => {
     expect(trust.fields.contract.deposit).toBe(30000000);
   });
 
