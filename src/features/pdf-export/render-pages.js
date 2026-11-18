@@ -9,7 +9,7 @@
  * 결과의 pointsPerPixel: 새 PDF에서 페이지 크기(포인트)를 정할 때 쓴다. (PDF 페이지 크기 = 픽셀 × pointsPerPixel)
  */
 
-import { pdfjsLib } from './pdfjs.js';
+import { openPdf } from './pdfjs.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 
@@ -59,7 +59,7 @@ function context2d(canvas) {
  * @returns {Promise<RenderedPage[]>}
  */
 export async function renderPdfPages(buffer) {
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+  const loadingTask = openPdf(buffer);
   const pdf = await loadingTask.promise;
   /** @type {RenderedPage[]} */
   const pages = [];
