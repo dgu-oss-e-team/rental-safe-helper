@@ -8,7 +8,7 @@
  */
 
 import { ok, fail, ERROR_CODE, MASKING_ACTION } from '../../shared/document-model.js';
-import { validAdds } from './user-edits.js';
+import { validAdds, isNonRemovable } from './user-edits.js';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -146,7 +146,11 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
   const findingById = new Map(findings.map((f) => [f.id, f]));
   const allowedTexts = plan.items.flatMap((i) => {
     if (i.action === MASKING_ACTION.REPLACE && i.replacement) return [String(i.replacement)];
-    if (i.action === MASKING_ACTION.KEEP) return [findingById.get(i.findingId)?.value ?? ''];
+    if (i.action === MASKING_ACTION.KEEP) {
+      // 풀 수 없는 값(주민번호 모양인 등기 번호 등)은 KEEP으로 들어와도 일부러 남긴 자리로 보지 않는다 (#192)
+      const f = findingById.get(i.findingId);
+      return f && !isNonRemovable(f) ? [f.value] : [];
+    }
     return [];
   });
   const allowedSpans = findSpans(all, allowedTexts);

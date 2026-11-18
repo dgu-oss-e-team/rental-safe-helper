@@ -15,7 +15,7 @@
  */
 
 import { MASKING_ACTION, PII_TYPE } from '../../shared/document-model.js';
-import { NON_REMOVABLE_TYPES } from './user-edits.js';
+import { isNonRemovable } from './user-edits.js';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -79,7 +79,7 @@ export function buildReviewRows({ findings, personGroups, plan }) {
       documentIds: [...new Set(list.map((f) => f.documentId))],
       result,
       resultText: replaced?.replacement ?? null,
-      locked: NON_REMOVABLE_TYPES.has(type),
+      locked: list.some(isNonRemovable),
       shown,
     };
   });

@@ -105,7 +105,7 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
     expect(findingsOf(trust, 'PHONE_NUMBER')).toEqual(expect.arrayContaining(['010-0000-4826', '010-0000-9173']));
   });
 
-  it.fails('법인등록번호(110111-…)를 주민·외국인등록번호로 보지 않는다', () => {
+  it('법인등록번호(110111-…)를 주민·외국인등록번호로 보지 않는다', () => {
     const personalIds = [...findingsOf(trust, 'RESIDENT_ID'), ...findingsOf(trust, 'FOREIGNER_ID')];
     for (const n of CORPORATE_NUMBERS) expect(personalIds).not.toContain(n);
   });
@@ -125,6 +125,17 @@ describe('#165 남은 문제: PART 2 개인정보 탐지', () => {
   it('계약서 "대표이사" 다음 이름(홍길동)을 PERSON_NAME으로 찾는다', () => {
     expect(findingsOf(trust, 'PERSON_NAME')).toContain('홍길동');
   });
+
+  // #195: 표제부(1동)의 소재지 칸이 좁아 주소가 여러 줄로 나뉘고, 같은 높이의 건물내역 칸 글자와 섞인다.
+  //   "[도로명주소] 서울특별시 성동구 22층 공동주택(아파트) 및" / "가상로 00 근린생활시설" / "가상타운 (철근)콘크리트지붕"
+  //   (실제 등기부도 같은 모양: 소재지번·건물명칭이 다음 줄로 넘어가 옆 칸 글자와 한 줄이 됨)
+  it('표제부 소재지가 옆 칸과 섞여 나뉘어도 도로명·건물번호·건물 이름이 AI로 가지 않는다', () => {
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const shared = sharedText(trust, purpose);
+      expect(shared, purpose).not.toBe('');
+      for (const part of ['가상로 00', '가상타운']) expect(shared, `${purpose}: ${part}`).not.toContain(part);
+    }
+  });
 });
 
 describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
@@ -136,7 +147,7 @@ describe('#165 남은 문제: PART 3 항목 추출·위험 점검', () => {
     expect(trust.fields.contract.deposit).toBe(30000000);
   });
 
-  it.fails('"4. 특약" 칸을 찾아 위험 특약(전입신고 제한)을 점검한다', () => {
+  it('"4. 특약" 칸을 찾아 위험 특약(전입신고 제한)을 점검한다', () => {
     expect(trust.fields.contract.specialTerms).not.toBeNull();
     expect(statusOf(trust, 'RISKY_SPECIAL_TERM')).not.toBe(RISK_STATUS.UNVERIFIABLE);
   });

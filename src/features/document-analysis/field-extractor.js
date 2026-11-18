@@ -83,20 +83,26 @@ const spacedRegex = (/** @type {string} */ word) => new RegExp([...word].join('\
  * 예: "임대보증금에 대하여 아래와 같이 … 계약금 금 원정(₩ 0)"에서 보증금을 0원으로 읽지 않게 (실제 양식 서류 점검)
  */
 const OTHER_AMOUNT_LABEL = /계\s*약\s*금|중\s*도\s*금|잔\s*금|관\s*리\s*비|월\s*임\s*대\s*료|월\s*세|차\s*임/;
+/**
+ * 월세를 찾을 때는 "보증금"에서도 멈춘다.
+ * 예: "보증금 및 차임: 보증금 ₩20,000,000, 차임 ₩600,000"에서 월세를 2천만 원으로 읽지 않게 (#192, #182 리뷰)
+ */
+const OTHER_AMOUNT_LABEL_FOR_RENT = new RegExp(`${OTHER_AMOUNT_LABEL.source}|보\\s*증\\s*금`);
 
 /**
  * 라벨 뒤 40글자 안에서 처음 나오는 금액을 찾는다. 금액이 없는 라벨(예: 특약의 "보증금은")은 건너뛴다.
  * 그 사이에 다른 금액 항목 이름이 나오면 그 앞까지만 본다.
  * @param {string[]} lines
  * @param {string[]} labels
+ * @param {RegExp} [stopAt] 멈출 다른 항목 이름
  * @returns {number | null}
  */
-function findAmountAfterLabel(lines, labels) {
+function findAmountAfterLabel(lines, labels, stopAt = OTHER_AMOUNT_LABEL) {
   for (const line of lines) {
     for (const label of labels) {
       for (const m of line.matchAll(spacedRegex(label))) {
         let after = line.slice(m.index + m[0].length, m.index + m[0].length + 40);
-        const other = OTHER_AMOUNT_LABEL.exec(after);
+        const other = stopAt.exec(after);
         if (other) after = after.slice(0, other.index);
         const amount = parseAmount(after);
         if (amount !== null) return amount;
@@ -171,46 +177,154 @@ export function findDeposit(lines) {
  * @param {string[]} lines
  */
 export function findMonthlyRent(lines) {
-  return findAmountInTable(lines, 'monthlyRent') ?? findAmountAfterLabel(lines, ['월세', '차임', '월임대료']);
+  return (
+    findAmountInTable(lines, 'monthlyRent') ??
+    findAmountAfterLabel(lines, ['월세', '차임', '월임대료'], OTHER_AMOUNT_LABEL_FOR_RENT)
+  );
 }
 
-const SPECIAL_TERMS_HEADING = /^\s*[[【(]?\s*특\s*약\s*(?:사\s*항)?\s*[\]】)]?\s*[:：]?\s*/;
+/**
+ * 특약 제목 줄
+ * - "[특약사항]", "특약사항:", "특약 …" (뒤에 한글이 붙은 "특약으로 정한다"는 문장이라 제목이 아니다)
+ * - "4. 특약" (민간임대주택 표준임대차계약서처럼 번호가 붙은 제목, #192)
+ * - "[표준임대차계약서 제17조에 대한 특약사항]" (괄호 안에 다른 글자가 앞에 있는 제목, #192)
+ * "제17조(특약) 임대사업자와 임차인은 … 특약으로 정할 수 있다"처럼 조항 안의 "특약"은 제목이 아니다. (줄 맨 앞이 아니므로)
+ */
+const SPECIAL_TERMS_HEADING = new RegExp(
+  '^\\s*(?:' +
+    '(\\d{1,2})?\\s*[.)]?\\s*[[【(]?\\s*특\\s*약\\s*(?:사\\s*항)?(?![가-힣])\\s*[\\]】)]?' +
+    '|[[【]\\s*[^\\]】\\n]{1,40}?특\\s*약\\s*(?:사\\s*항)?\\s*[\\]】]' +
+    ')\\s*[:：]?\\s*',
+);
 const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:임\s*대\s*인|임\s*차\s*인|개업\s*공인\s*중개사)\s/;
 const MAX_SPECIAL_TERM_LINES = 30;
+
+/*
+ * 특약 별지 (민간임대주택 표준임대차계약서의 "[표준임대차계약서 제17조에 대한 특약사항]", #192)
+ * 별지는 여러 쪽이고, 특약 조항("특) 제1조 …") 사이사이에 설명 확인란이 있다.
+ *   "본인은 계약 체결 후 명의변경은 불가하다는 내용에 대한 설명을 듣고 이해하였음." / "성명: (서명 또는 인)"
+ * 확인란에서 멈추면 뒤쪽 조항(예: 특) 제18조 [신탁계약 안내])을 못 읽으므로, 별지에서는 확인란 줄을 건너뛰고
+ * 다음 서식("■ … [별지 제25호의2서식]")이나 "본 계약을 증명" 문장이 나올 때까지 읽는다. (최대 200줄)
+ */
+/** 별지 제목: 괄호 안에서 "특약사항" 앞에 다른 글자가 있다 */
+const ANNEX_HEADING = /^\s*[[【]\s*[^\]】\n]{1,40}?특\s*약\s*(?:사\s*항)?\s*[\]】]/;
+const MAX_ANNEX_LINES = 200;
+/**
+ * 별지의 설명 확인란 줄 (특약이 아니다). 줄 모양으로만 좁게 본다. (#197 리뷰)
+ * - "본인은 … 설명을 듣고 이해하였음." (줄 끝이 이해·확인·동의)
+ * - "성명: (서명 또는 인)", "임차인 성명: …" (줄 맨 앞이 "(○○) 성명:")
+ * - "(서명 또는 날인)"만 있는 줄
+ * "임차인은 계약서에 서명 날인한 후 전입신고를 하지 않는다."처럼 특약 문장 속 "서명 날인"은 확인란이 아니다.
+ */
+const ANNEX_CONFIRM_LINE =
+  /^\s*본인은.*(?:이해|확인|동의)(?:하였음|했음|함|합니다)?\.?\s*$|^\s*(?:[가-힣]{1,6}\s*)?성\s*명\s*[:：]|^\s*(?:[가-힣]{1,6}\s*)?성\s*명\s+[가-힣A-Za-z ]{2,20}\s*\(\s*(?:인|서\s*명|날\s*인)|^\s*\(?\s*서\s*명\s*(?:또는|및)/;
+// 세 번째 모양: 콜론 없는 확인란 "성명 이영희 (인)" (#197 리뷰)
+/**
+ * 별지가 끝나는 곳: 줄 맨 앞의 다음 서식("■ …", "[별지 제25호의2서식]"), 계약 증명 문장.
+ * 조항 안의 "별지 제1호 서식에 따라"에서는 멈추지 않는다. (#197 리뷰)
+ */
+const ANNEX_STOP = /^\s*■|^\s*[[【]?\s*별\s*지\s*제?\s*\d+\s*호|본\s*계약을\s*증명/;
+/** 쪽 번호만 있는 줄: "2/3", "(3쪽 / 3쪽)". 특약이 아니다. */
+const PAGE_MARK_LINE = /^\s*(?:\(?\s*\d+\s*쪽\s*\/\s*\d+\s*쪽\s*\)?|\d+\s*\/\s*\d+)\s*$/;
+/**
+ * 특약 제목인지. 번호가 붙은 제목("4. 특약")은 줄이 제목만 있거나("4. 특약사항", "4. 특약 (별지 참조)") 콜론이 올 때만 제목이다.
+ * "2) 특약 위반 시 계약을 해제한다."처럼 "특약"으로 시작하는 번호 조항은 제목이 아니다. (#197 리뷰)
+ * @param {string} line
+ */
+function isSpecialTermsHeading(line) {
+  const m = SPECIAL_TERMS_HEADING.exec(line);
+  if (!m) return false;
+  if (!m[1]) return true;
+  const rest = line.slice(m[0].length).trim();
+  return rest === '' || /[:：]\s*$/.test(m[0]) || rest.startsWith('(');
+}
+
+/** 문장으로 끝나는 줄 ("… 한다.", "… 따름", "… 없음"): 번호 특약 문장이지 다음 제목이 아니다 */
+const SENTENCE_END = /(?:다|함|음|름|것|요|임)\.?\s*$/;
+const MAX_SECTION_TITLE = 30;
+
+/**
+ * 특약 제목 하나부터 그 구간이 끝날 때까지 읽는다.
+ * @param {string[]} lines
+ * @param {number} start 제목 줄
+ * @returns {{ start: number, body: number[], next: number }} next: 다음에 볼 줄
+ */
+function readSpecialTermSection(lines, start) {
+  const headingNumber = SPECIAL_TERMS_HEADING.exec(lines[start])?.[1];
+  // 다음 번호 제목: "5. 개인정보의 제3자 제공 동의서" (문장으로 끝나는 특약 "5. … 한다."는 제목이 아니다)
+  const nextSection = headingNumber ? new RegExp(`^\\s*${Number(headingNumber) + 1}\\s*[.)]\\s*\\S`) : null;
+  const annex = ANNEX_HEADING.test(lines[start]);
+  const end = Math.min(lines.length, start + 1 + (annex ? MAX_ANNEX_LINES : MAX_SPECIAL_TERM_LINES));
+  /** @type {number[]} */
+  const body = [];
+  let i = start + 1;
+  for (; i < end; i += 1) {
+    const line = lines[i];
+    if (isSpecialTermsHeading(line)) break; // 다른 특약 제목 ("4. 특약" 다음의 별지 제목 등)
+    if (annex) {
+      if (ANNEX_STOP.test(line)) break;
+      if (ANNEX_CONFIRM_LINE.test(line) || PAGE_MARK_LINE.test(line)) continue;
+      body.push(i);
+      continue;
+    }
+    if (SPECIAL_TERMS_STOP.test(line)) break;
+    if (nextSection && nextSection.test(line) && !SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE) break;
+    if (PAGE_MARK_LINE.test(line)) continue;
+    body.push(i);
+  }
+  return { start, body, next: i };
+}
+
+/**
+ * 특약 구간들을 모두 찾는다. 제목이 여러 개면 각 구간을 차례로 읽는다. (#197 리뷰)
+ * 예: "4. 특약" → "별지 특약사항 참조" → "5. …" → "[표준임대차계약서 제17조에 대한 특약사항]" → "특) 제1조 …"
+ * @param {string[]} lines
+ */
+function findSpecialTermSections(lines) {
+  const sections = [];
+  for (let i = 0; i < lines.length; ) {
+    if (isSpecialTermsHeading(lines[i])) {
+      const section = readSpecialTermSection(lines, i);
+      sections.push(section);
+      i = Math.max(section.next, i + 1);
+    } else {
+      i += 1;
+    }
+  }
+  return sections;
+}
 
 /**
  * 특약사항이 적힌 줄 번호 (제목 줄 포함). 제목이 없으면 [].
  * "특약사항" 제목 줄부터, 서명란이 나오기 전까지(최대 30줄).
+ * 제목에 번호가 붙어 있으면("4. 특약") 다음 번호의 제목("5. 개인정보의 제3자 제공 동의서")에서도 멈춘다.
+ * 쪽 번호 줄("2/3")은 넣지 않는다.
+ * 특약 별지("[… 특약사항]")는 설명 확인란 줄을 건너뛰고 다음 서식까지 읽는다. (위 ANNEX_* 설명)
+ * 특약 제목이 여러 개면("4. 특약"과 별지) 모든 구간의 줄을 모은다.
  * findSpecialTerms()와, 특약 속 이름에 역할을 붙이지 않을 때(index.js) 같이 쓴다.
  * @param {string[]} lines
  * @returns {number[]}
  */
 export function findSpecialTermLines(lines) {
-  const start = lines.findIndex((line) => SPECIAL_TERMS_HEADING.test(line));
-  if (start === -1) return [];
-  const indexes = [start];
-  const end = Math.min(lines.length, start + 1 + MAX_SPECIAL_TERM_LINES);
-  for (let i = start + 1; i < end; i += 1) {
-    if (SPECIAL_TERMS_STOP.test(lines[i])) break;
-    indexes.push(i);
-  }
-  return indexes;
+  return findSpecialTermSections(lines).flatMap((s) => [s.start, ...s.body]);
 }
 
 /**
  * 특약사항 문장들을 모은다.
- * "특약사항" 제목이 있는 줄의 나머지 글자 + 다음 줄들을, 서명란이 나오기 전까지 모은다.
+ * "특약사항" 제목이 있는 줄의 나머지 글자 + 다음 줄들을, 서명란이 나오기 전까지 모은다. 제목이 여러 개면 차례로 이어 붙인다.
  * 제목이 없으면 null(못 찾음), 제목은 있는데 내용이 없으면 [].
  * @param {string[]} lines
  * @returns {string[] | null}
  */
 export function findSpecialTerms(lines) {
-  const [start, ...rest] = findSpecialTermLines(lines);
-  if (start === undefined) return null;
+  const sections = findSpecialTermSections(lines);
+  if (sections.length === 0) return null;
   const terms = [];
-  const firstRest = lines[start].replace(SPECIAL_TERMS_HEADING, '').trim();
-  if (firstRest) terms.push(firstRest);
-  for (const i of rest) if (lines[i].trim()) terms.push(lines[i].trim());
+  for (const { start, body } of sections) {
+    const firstRest = lines[start].replace(SPECIAL_TERMS_HEADING, '').trim();
+    if (firstRest) terms.push(firstRest);
+    for (const i of body) if (lines[i].trim()) terms.push(lines[i].trim());
+  }
   return terms;
 }
 
