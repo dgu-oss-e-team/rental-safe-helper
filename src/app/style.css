@@ -155,6 +155,78 @@ label {
   word-break: break-all;
 }
 
+/*
+ * 파일 고르기 줄 (#188): [Choose file] 파일 이름 · Remove
+ * 브라우저 기본 파일 칸은 컴퓨터 언어로 글자가 나와서 숨기고(포커스는 받음), 영어 버튼과 상태 글을 보여 준다.
+ */
+.file-row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.file-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: var(--bg);
+}
+
+/* 키보드로 숨은 파일 칸에 오면 보이는 버튼에 테두리를 그린다 */
+.file-input:focus-visible + .file-button {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.file-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.file-name.chosen {
+  color: var(--ok);
+}
+
+/* 지우기: 작은 글자 버튼 (주 버튼보다 눈에 덜 띄게, 누르는 영역은 32px 이상) */
+button.link-button {
+  min-height: 32px;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+button.link-button:hover {
+  color: var(--stop);
+}
+
 input[type='file'] {
   font: inherit;
   max-width: 100%;
