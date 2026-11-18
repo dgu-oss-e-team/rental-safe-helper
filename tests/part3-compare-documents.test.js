@@ -89,13 +89,14 @@ describe('PART 3 소유자 ↔ 임대인 비교 (OWNER_MISMATCH)', () => {
   describe('회사·신탁 (#175)', () => {
     const trustRight = { kind: 'TRUST', maxClaimAmount: null, cancelled: false, receivedAt: null };
 
-    it('유효한 신탁이 있고 소유자≠임대인이면 STOP이 아니라 CHECK (소유자가 수탁자일 수 있다)', () => {
+    it('유효한 신탁이 있어도 소유자·임대인이 둘 다 사람 이름이고 다르면 STOP 유지 (#198 리뷰 2)', () => {
+      // PART 2는 회사(수탁자) 이름을 소유자 명단에 넣지 않으므로, 명단의 사람은 보통 위탁자다.
+      // 위탁자도 수탁자도 아닌 사람이 임대인이면 가장 강한 사기 신호라서 낮추지 않는다.
       const f = fields();
       f.registry.rights = [trustRight];
       const r = compareOwnerAndLandlord(f, groups());
       expect(r.ok).toBe(true);
-      expect(r.data.status).toBe(RISK_STATUS.CHECK);
-      expect(r.data.action).toContain('trust register');
+      expect(r.data.status).toBe(RISK_STATUS.STOP);
     });
 
     it('유효한 신탁이 있고 비교를 못 했으면(소유자 null) NO_FLAG가 아니라 UNVERIFIABLE', () => {
@@ -134,7 +135,7 @@ describe('PART 3 소유자 ↔ 임대인 비교 (OWNER_MISMATCH)', () => {
 
     it('문구에는 실제 이름을 넣지 않고, 근거 칸에만 화면용 값을 보여 준다', () => {
       const f = fields();
-      f.registry.rights = [trustRight];
+      f.contract.landlords = [{ findingId: 'PII_L02', name: '가상주택리츠 주식회사', birthDate: null, role: 'LANDLORD' }];
       const r = compareOwnerAndLandlord(f, groups());
       expect(r.data.explanation).not.toContain('김철수');
       expect(r.data.evidence.left.value).toContain('김철수');

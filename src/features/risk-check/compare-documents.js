@@ -94,23 +94,28 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
 const COMPANY_NAME = /주식회사|\(주\)|㈜|유한회사|유한책임회사|합자회사|리츠|법인/;
 
 /**
- * 소유자·임대인 비교에 회사나 신탁이 끼어 있는지.
- *  - 유효한 신탁 등기가 있으면: 등기부 소유자가 신탁회사(수탁자)일 수 있다
+ * 소유자·임대인 비교를 사람 비교로 못 하는 경우인지.
  *  - 소유자나 임대인 이름이 회사 이름이면: 법인은 사람 비교(이름·생년월일)가 맞지 않는다
+ *  - 유효한 신탁이 있는데 소유자를 못 읽었으면: 비교할 대상이 수탁자인지 위탁자인지 알 수 없다
+ * 유효한 신탁이 있어도 소유자·임대인이 둘 다 사람 이름이면 여기에 해당하지 않는다.
+ * (PART 2는 회사(수탁자) 이름을 소유자 명단에 넣지 않아서, 명단에 사람이 있으면 보통 위탁자다.
+ *  위탁자도 수탁자도 아닌 사람이 임대인이면 가장 강한 사기 신호라서 STOP을 낮추지 않는다)
  * @param {any} fields
  */
-function involvesCompanyOrTrust(fields) {
-  if (hasActiveTrust(fields)) return true;
-  const people = [fields?.registry?.owners, fields?.contract?.landlords].flatMap((list) => (Array.isArray(list) ? list : []));
-  return people.some((p) => typeof p?.name === 'string' && COMPANY_NAME.test(p.name));
+function involvesCompanyOrUnreadOwner(fields) {
+  const owners = Array.isArray(fields?.registry?.owners) ? fields.registry.owners : [];
+  const landlords = Array.isArray(fields?.contract?.landlords) ? fields.contract.landlords : [];
+  if ([...owners, ...landlords].some((p) => typeof p?.name === 'string' && COMPANY_NAME.test(p.name))) return true;
+  return hasActiveTrust(fields) && owners.length === 0;
 }
 
 /**
  * 등기부 소유자 ↔ 계약서 임대인
- * 회사나 신탁이 끼어 있으면 사람 비교로 판정하지 못하므로:
- *  - 다르다고 나와도 STOP이 아니라 CHECK (신탁이면 소유자가 수탁자라서 다른 게 정상일 수 있다)
+ * 회사 이름이 끼어 있거나 신탁이 있는데 소유자를 못 읽었으면 사람 비교로 판정하지 못하므로:
+ *  - 다르다고 나와도 STOP이 아니라 CHECK
  *  - 비교하지 못했으면 UNVERIFIABLE (NO_FLAG로 두지 않는다)
  *  - 같다(NO_FLAG)·공동 소유 확인(CHECK.co_owner)은 그대로 둔다
+ * 신탁이 있어도 소유자·임대인이 둘 다 사람 이름이고 서로 다르면 STOP을 유지한다.
  */
 export function compareOwnerAndLandlord(fields, personGroups) {
   const owners = fields?.registry?.owners;
@@ -125,7 +130,7 @@ export function compareOwnerAndLandlord(fields, personGroups) {
     display: { left: owners, right: landlords },
     coOwnerCheck: true,
   });
-  if (!result.ok || !involvesCompanyOrTrust(fields)) return result;
+  if (!result.ok || !involvesCompanyOrUnreadOwner(fields)) return result;
 
   const { status } = result.data;
   if (status === RISK_STATUS.NO_FLAG || status === RISK_STATUS.CHECK) return result;

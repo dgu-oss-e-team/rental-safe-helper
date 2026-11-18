@@ -189,6 +189,22 @@ describe('PART 3 신탁 + 특약의 신탁 안내 (TRUST_REGISTERED, #175)', () 
     expect(assessTrust(trustWithTerms(['신탁 부동산이므로 임대차 동의서를 첨부한다.'])).data.status).toBe(CHECK);
   });
 
+  it('위험 신호 문장은 신탁 안내로 보지 않아 STOP 유지 (#198 리뷰 2)', () => {
+    // 낱말 하나("신탁회사")로 "신탁"과 안내 낱말 두 조건을 다 채우지 못한다
+    expect(assessTrust(trustWithTerms(['보증금은 신탁회사가 아닌 임대인 개인 계좌로 입금한다.'])).data.status).toBe(STOP);
+    // 부정 표현(않, 없이, 아닌)이 같이 있으면 안내가 아니다
+    expect(assessTrust(trustWithTerms(['신탁 등기가 있으나 수탁자의 동의는 받지 않았다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁 부동산이며 수탁자의 동의 없이 계약한다.'])).data.status).toBe(STOP);
+  });
+
+  it('서로 다른 조항이 한 묶음으로 합쳐져도 안내로 보지 않아 STOP 유지 (#198 리뷰 2)', () => {
+    const terms = ['신탁 사실을 고지하였다.', '반려동물 금지.', '임대보증금 보증 미가입 동의서를 제출한다.'];
+    expect(assessTrust(trustWithTerms(terms)).data.status).toBe(STOP);
+    // 새 조항 시작("2.", "제N조")에서는 묶음을 끊는다
+    expect(assessTrust(trustWithTerms(['신탁 사실을 고지하였다.', '2. 임대보증금 보증 미가입 동의서를 제출한다.'])).data.status).toBe(STOP);
+    expect(assessTrust(trustWithTerms(['신탁 사실을 고지하였다.', '제19조 수탁자 동의서를 제출한다.'])).data.status).toBe(STOP);
+  });
+
   it('수탁자·동의·계좌만 있고 "신탁"이 없으면 STOP 유지', () => {
     expect(assessTrust(trustWithTerms(['임대인의 동의 없이 전대할 수 없다.', '계좌로 입금한다.'])).data.status).toBe(STOP);
   });
