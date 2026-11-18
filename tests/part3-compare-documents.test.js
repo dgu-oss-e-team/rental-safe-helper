@@ -613,4 +613,61 @@ describe('지번 등기부 ↔ 도로명 계약서 (#177)', () => {
       expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
     });
   });
+
+  describe('동이 글자인 경우 (가동/나동, A동/B동) (#202 리뷰)', () => {
+    const letterRegistry = (dong) => ({
+      registry: {
+        address: `서울특별시 성동구 가상동 12 가상빌라 ${dong} 제101호`,
+        roadAddress: '서울특별시 성동구 가상로 12',
+      },
+    });
+    const run = (dong, address) =>
+      compareAddresses(withRoad({ ...letterRegistry(dong), contract: { address } })).data.status;
+
+    it('등기부 가동 ↔ 계약서 나동이면 STOP', () => {
+      expect(run('가동', '서울특별시 성동구 가상로 12, 나동 101호')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('등기부 A동 ↔ 계약서 B동이면 STOP', () => {
+      expect(run('A동', '서울특별시 성동구 가상로 12, B동 101호')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('등기부에 가동이 있는데 계약서에 동이 없으면 UNVERIFIABLE (숫자 동과 같은 규칙)', () => {
+      expect(run('가동', '서울특별시 성동구 가상로 12, 101호')).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('동·호수가 같으면 건물 이름이 앞뒤에 있어도 NO_FLAG', () => {
+      expect(run('가동', '서울특별시 성동구 가상로 12, 가상빌라 가동 101호')).toBe(RISK_STATUS.NO_FLAG);
+      expect(run('가동', '서울특별시 성동구 가상로 12, 가동101호 중 방 1칸')).toBe(RISK_STATUS.NO_FLAG);
+      expect(run('A동', '서울특별시 성동구 가상로 12, 가상빌라 A동 101호 일부')).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('영문 동은 대문자·소문자 차이를 무시한다 (a동 ↔ A동)', () => {
+      expect(run('A동', '서울특별시 성동구 가상로 12, a동 101호')).toBe(RISK_STATUS.NO_FLAG);
+    });
+
+    it('동은 같아도 호수가 다르면 STOP', () => {
+      expect(run('가동', '서울특별시 성동구 가상로 12, 가동 102호')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('계약서에만 글자 동이 있고 등기부에 동이 없으면 UNVERIFIABLE', () => {
+      const f = withRoad({
+        registry: { address: '서울특별시 성동구 가상동 12 가상빌라 제101호', roadAddress: '서울특별시 성동구 가상로 12' },
+        contract: { address: '서울특별시 성동구 가상로 12, 가동 101호' },
+      });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    });
+
+    it('숫자 동과 글자 동이 섞이면 다른 동으로 본다 (103동 ↔ 가동)', () => {
+      expect(run('103동', '서울특별시 성동구 가상로 12, 가동 101호')).toBe(RISK_STATUS.STOP);
+    });
+
+    it('행정동 이름(가상동)의 끝 글자를 건물 동으로 읽지 않는다', () => {
+      const f = withRoad({
+        registry: { address: '서울특별시 성동구 가상동 12 가상빌라 제101호', roadAddress: '서울특별시 성동구 가상로 12' },
+        contract: { address: '서울특별시 성동구 가상로 12 가상동 101호' },
+      });
+      expect(compareAddresses(f).data.status).toBe(RISK_STATUS.NO_FLAG);
+    });
+  });
 });
