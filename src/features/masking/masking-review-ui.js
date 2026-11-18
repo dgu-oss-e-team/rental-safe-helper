@@ -29,7 +29,7 @@ const TYPE_TEXT = {
   [PII_TYPE.PHONE_NUMBER]: 'Phone number',
   [PII_TYPE.BANK_ACCOUNT]: 'Bank account',
   [PII_TYPE.ADDRESS]: 'Address',
-  [PII_TYPE.REGISTRY_ID]: 'Registry no.',
+  [PII_TYPE.REGISTRY_ID]: 'Registry / corporate no.',
 };
 
 /** 서류 종류 → 짧은 이름 */
