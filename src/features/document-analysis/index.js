@@ -19,6 +19,9 @@ import { toFormalAddress } from './address-normalizer.js';
 import {
   findPeople,
   findKnownNames,
+  findNameAfterFieldBlock,
+  followsNameField,
+  roleAnchorsIn,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -123,6 +126,10 @@ function scanDocument(document) {
   const termLines = new Set(findSpecialTermLines(linesOf(document)));
   /** linesOf 기준으로 지금 블록의 첫 줄 번호 */
   let firstLine = 0;
+  /** 윗 블록 글 ("성명(법인명)"만 있는 블록 다음의 이름을 찾는 데 쓴다, #205) */
+  let prevText = '';
+  /** @type {{ order: number, index: number, role: string }[]} 문서 전체의 역할 칸 위치 (#205) */
+  const anchors = [];
 
   for (const page of document.pages) {
     for (const block of page.blocks) {
@@ -130,14 +137,28 @@ function scanDocument(document) {
       const text = block.text ?? '';
       /** @type {any[]} */
       const found = [...findPatternPII(text)];
-      for (const r of [...findPeople(text, role), ...findAddresses(text)]) {
+      const people = findPeople(text, role);
+      const split = findNameAfterFieldBlock(prevText, text, role).filter((p) => !people.some((q) => q.start === p.start));
+      const blockAnchors = roleAnchorsIn(text);
+      // 괄호 안 낱말은 칸 설명이라 역할 칸이 아니다: "(대표 사무소 소재지)"의 "대표"
+      for (const a of blockAnchors) {
+        const before = text.slice(0, a.index);
+        if (before.lastIndexOf('(') <= before.lastIndexOf(')')) anchors.push({ order, index: a.index, role: a.role });
+      }
+      for (const r of [...people, ...split, ...findAddresses(text)]) {
         if (overlapsAny(found, r)) continue;
         const line = firstLine + (text.slice(0, r.start).match(/\n/g)?.length ?? 0);
         if (r.type === PII_TYPE.PERSON_NAME && termLines.has(line)) Object.assign(r, { role: null, birthDate: null });
+        if (r.type === PII_TYPE.PERSON_NAME) {
+          // "성명" 칸의 이름인지, 같은 블록에서 역할 칸 뒤에 왔는지 (fixLateRoleLabels가 쓴다)
+          r.fieldName = split.includes(r) || followsNameField(text, r.start);
+          r.anchorBefore = blockAnchors.some((a) => a.index < r.start);
+        }
         found.push(r);
       }
       firstLine += text.split('\n').length;
       role = lastRoleIn(text, role);
+      prevText = text;
 
       // 줄 단위로 훑으며 윗줄 주소와 이어지는 조각을 찾는다.
       let offset = 0;
@@ -194,6 +215,8 @@ function scanDocument(document) {
     }
   }
 
+  fixLateRoleLabels(hits, anchors);
+
   // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
   // 예: 갑구 "소유자 김철수"를 찾았으면 을구 "채무자 김철수", 계약서 첫 줄 "임대인(김철수)과"도.
   // 역할은 모르므로 null이다. (위험 점검용 사람 목록에는 영향이 없다)
@@ -220,6 +243,54 @@ function scanDocument(document) {
   // 문서에 나오는 순서(블록 순서 → 블록 안 위치)대로 ID를 붙인다.
   hits.sort((a, b) => a.order - b.order || a.start - b.start);
   return hits.map((hit, i) => ({ ...hit, id: `PII_${document.documentId}_${String(i + 1).padStart(3, '0')}` }));
+}
+
+/** 이름 뒤 역할 칸·주민번호를 찾는 범위 (블록 수) */
+const LATE_LABEL_WINDOW = 8;
+
+/**
+ * 역할 칸이 이름보다 뒤에 나오는 표에서 역할과 생년월일을 고친다. (#205)
+ * 민간임대 표준계약서는 "임대사업자"·"임차인" 칸이 세로로 합친 칸이라서 PDF 글자 순서로는 이름 뒤에 나온다.
+ *   "성명(법인명)" / "김철수 (서명 또는 인)" / 주소 / "임대사업자" / 주민등록번호 750315-1…
+ *   "성명(법인명) 박지훈 (서명 또는 인)" / "임차인 주소 …" / 주민등록번호 …
+ * 위에서 역할을 이어받으면 첫 이름은 역할이 없고, 둘째 이름(임차인)은 "임대사업자"를 이어받아 임대인이 된다.
+ * - 이 순서인 서류인지: 첫 "성명" 칸 이름에 역할이 없고, 다음 "성명" 칸 이름 전에(가까이에) 역할 칸이 나온다.
+ *   원래 순서("임대인" → "성명 김철수") 서류는 첫 이름에 역할이 있으므로 아무것도 바꾸지 않는다.
+ * - 그렇다면 "성명" 칸 이름마다 뒤에 처음 나오는 역할 칸으로 역할을 정하고(다음 "성명" 칸 이름 전까지),
+ *   생년월일이 없으면 뒤에 처음 나오는 주민·외국인등록번호로 읽는다.
+ * - 같은 블록에서 역할 라벨 바로 뒤의 이름("임차인 성명: 박지훈")은 역할이 분명하므로 그대로 둔다.
+ * @param {any[]} hits
+ * @param {{ order: number, index: number, role: string }[]} anchors
+ */
+function fixLateRoleLabels(hits, anchors) {
+  /** @param {{ order: number, start?: number, index?: number }} x */
+  const pos = (x) => [x.order, x.start ?? x.index ?? 0];
+  /** a가 b보다 앞인지 @param {any} a @param {any} b */
+  const isBefore = (a, b) => {
+    const [ao, ai] = pos(a);
+    const [bo, bi] = pos(b);
+    return ao < bo || (ao === bo && ai < bi);
+  };
+  const byPos = (/** @type {any} */ a, /** @type {any} */ b) => (isBefore(a, b) ? -1 : isBefore(b, a) ? 1 : 0);
+  const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME && h.fieldName).sort(byPos);
+  if (names.length === 0 || names[0].role !== null) return;
+
+  /** 이름 h 뒤, 다음 "성명" 칸 이름 전, 가까이에 있는 첫 항목 @param {any[]} list @param {any} h @param {any} next */
+  const firstAfter = (list, h, next) =>
+    list.find((x) => isBefore(h, x) && x.order - h.order <= LATE_LABEL_WINDOW && (!next || isBefore(x, next)));
+  if (!firstAfter(anchors, names[0], names[1])) return;
+
+  const ids = hits.filter((h) => h.type === PII_TYPE.RESIDENT_ID || h.type === PII_TYPE.FOREIGNER_ID).sort(byPos);
+  names.forEach((h, i) => {
+    if (h.anchorBefore) return;
+    const next = names[i + 1];
+    const anchor = firstAfter(anchors, h, next);
+    if (!anchor) return;
+    h.role = anchor.role;
+    if (h.birthDate) return;
+    const digits = firstAfter(ids, h, next)?.value.replace(/\D/g, '').slice(0, 6) ?? '';
+    if (digits.length === 6) h.birthDate = digits;
+  });
 }
 
 /**
