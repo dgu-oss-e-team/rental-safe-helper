@@ -424,6 +424,35 @@ describe('PART 2 주민번호 바로 앞의 이름 (등기부 공유자, #165)',
   });
 });
 
+describe('PART 2 민간임대주택 표준임대차계약서 (#165)', () => {
+  const peopleOf = (text) => findLabeledNames(text).map((r) => [r.value, r.role]);
+
+  it('"임대사업자"는 임대인 라벨이고, "성명(법인명)" 칸의 이름을 읽는다', () => {
+    expect(peopleOf('임대사업자 성명(법인명) 김철수 (서명 또는 인)')).toEqual([['김철수', 'LANDLORD']]);
+    expect(peopleOf('임차인 성명(법인명) 박지훈 (서명 또는 인)')).toEqual([['박지훈', 'TENANT']]);
+    expect(peopleOf('성명(법인명) 이영희')).toEqual([['이영희', null]]);
+  });
+
+  it('"임대사업자" 뒤의 일반 낱말은 이름이 아니다', () => {
+    for (const text of [
+      '임대사업자 또는 임대사업자가 지정한',
+      '임대사업자 지정 양식',
+      '임대사업자 등록번호 2017-서울중구-00000',
+      '임대사업자 등록번\n호', // 좁은 칸에서 "등록번호"의 "호"가 다음 줄로 넘어감
+      '임대사업자 의무 위반',
+      '임대사업자 자격',
+      '임차인 보증금 반환',
+      '임대사업자 임대료 증액',
+    ]) {
+      expect(peopleOf(text), text).toEqual([]);
+    }
+  });
+
+  it('법인 임대사업자의 회사 이름은 사람 이름으로 잡지 않는다', () => {
+    expect(peopleOf('임대사업자 가상주택리츠 주식회사')).toEqual([]);
+  });
+});
+
 describe('PART 2 조사가 붙은 일상 단어는 이름이 아니다 (#158)', () => {
   const namesOf = (text) => findLabeledNames(text).map((r) => r.value);
 
