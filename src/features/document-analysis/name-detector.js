@@ -344,7 +344,9 @@ export function findAddresses(text) {
     // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
     const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
     const value = text.slice(start, end).trimEnd();
-    results.push({ type: PII_TYPE.ADDRESS, value, start, end: start + value.length });
+    // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
+    const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
+    results.push({ type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) });
   }
   return results;
 }
@@ -428,6 +430,53 @@ const ADDRESS_LIKE_END = /(?:\d|,|[동층호로길시군구])$/;
  * @param {string} rest 주소 끝부터 줄 끝까지의 글자
  */
 export function reachesLineEnd(value, rest) {
+  return reachesLineEndCore(value, rest);
+}
+
+/*
+ * 표 칸이 섞인 두 줄 주소 (#196, 실제 등기부 표제부)
+ * 등기부 표제부는 소재지 칸이 좁아 주소가 여러 줄로 나뉘고, 같은 높이의 건물내역 칸 글자와 한 줄로 섞인다.
+ *   "1 2023년12월4일 서울특별시 성동구 가상동 246-8 철근콘크리트구조 …" / "가상타운 (철근)콘크리트지붕"
+ *   "[도로명주소] 서울특별시 성동구 22층 공동주택(아파트) 및" / "가상로 00 근린생활시설"
+ *   "… 서울특별시 ○○구 ○○동 철근콘크리트구조" / "123 (철근)콘크리트지붕 ○층"
+ * 윗줄 주소가 줄 끝까지 오지 않았어도(옆 칸 글자가 붙음) 아랫줄 맨 앞이 주소 모양이면 그 부분만 잇는다.
+ * 1) 도로명 + 번호 ("가상로 00")
+ * 2) 윗줄이 동·가·리·로·길로 끝났으면 번지·건물번호 숫자 ("123", "246-8")
+ * 3) 윗줄이 건물내역 칸에서 끊겼고(tableCut) 번지로 끝났으면 첫 낱말을 건물 이름으로 ("가상타운")
+ *    표 밖(계약서 등)에서는 쓰지 않는다. 칸 이름("주민등록번호")을 주소로 잘못 가리지 않게.
+ */
+/** 등기부 건물내역 칸의 시작 (이 앞에서 끊긴 주소는 표 안의 주소다) */
+const BUILDING_COLUMN_STOP =
+  /\s(?:철\s*근\s*콘\s*크\s*리\s*트|\(?\s*철\s*근\s*\)|[가-힣]*구\s*조|\d[\d,.]*\s*(?:㎡|m²|m2)|\d{4}\s*년|도\s*면\s*편\s*철\s*장|지\s*목|대(?=\s+\d))/;
+const MIXED_ROAD = /^[ \t]*([가-힣0-9]+(?:로|길)[ \t]*\d+(?:-\d+)?)(?![\d가-힣])/;
+const MIXED_LOT_NUMBER = /^[ \t]*(\d{1,5}(?:-\d{1,5})?)(?![\d.,/]|\s*(?:층|호|동|㎡|년|분의))/;
+const MIXED_BUILDING_NAME = /^[ \t]*((?![제(\[【])[가-힣A-Za-z][가-힣A-Za-z0-9]{1,19})(?=\s|$)/;
+/** 건물 이름으로 보지 않는 첫 낱말 (표 칸 글자) */
+const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권)/;
+
+/**
+ * 칸이 섞여 줄 끝까지 오지 않은 주소 다음 줄에서 이어지는 조각을 찾는다. (위 설명)
+ * @param {string} line 한 줄
+ * @param {string} prevValue 윗줄 주소 조각
+ * @param {boolean} tableCut 윗줄 주소가 등기부 건물내역 칸에서 끊겼는지
+ * @returns {{ type: string, value: string, start: number, end: number } | null}
+ */
+export function findMixedContinuation(line, prevValue, tableCut) {
+  const core = prevValue.trim().replace(/\s*\([^)]*\)?$/, '');
+  const m =
+    MIXED_ROAD.exec(line) ??
+    (/[동가리로길]$/.test(core) ? MIXED_LOT_NUMBER.exec(line) : null) ??
+    (tableCut && /\d$/.test(core) ? MIXED_BUILDING_NAME.exec(line) : null);
+  if (!m || NOT_BUILDING_NAME.test(m[1]) || NOT_NAMES.has(m[1])) return null;
+  const start = (m.index ?? 0) + m[0].length - m[1].length;
+  return { type: PII_TYPE.ADDRESS, value: m[1], start, end: start + m[1].length };
+}
+
+/**
+ * @param {string} value
+ * @param {string} rest
+ */
+function reachesLineEndCore(value, rest) {
   // 끝의 괄호("(가상동,가상아파트)", 안 닫힌 "(가")는 빼고 주소답게 끝나는지 본다.
   const core = value.trim().replace(/\s*\([^)]*\)?$/, '');
   return ADDRESS_LINE_REST.test(rest) && ADDRESS_LIKE_END.test(core);

@@ -217,7 +217,8 @@ const MAX_ANNEX_LINES = 200;
  * "임차인은 계약서에 서명 날인한 후 전입신고를 하지 않는다."처럼 특약 문장 속 "서명 날인"은 확인란이 아니다.
  */
 const ANNEX_CONFIRM_LINE =
-  /^\s*본인은.*(?:이해|확인|동의)(?:하였음|했음|함|합니다)?\.?\s*$|^\s*(?:[가-힣]{1,6}\s*)?성\s*명\s*[:：]|^\s*\(?\s*서\s*명\s*(?:또는|및)/;
+  /^\s*본인은.*(?:이해|확인|동의)(?:하였음|했음|함|합니다)?\.?\s*$|^\s*(?:[가-힣]{1,6}\s*)?성\s*명\s*[:：]|^\s*(?:[가-힣]{1,6}\s*)?성\s*명\s+[가-힣A-Za-z ]{2,20}\s*\(\s*(?:인|서\s*명|날\s*인)|^\s*\(?\s*서\s*명\s*(?:또는|및)/;
+// 세 번째 모양: 콜론 없는 확인란 "성명 이영희 (인)" (#197 리뷰)
 /**
  * 별지가 끝나는 곳: 줄 맨 앞의 다음 서식("■ …", "[별지 제25호의2서식]"), 계약 증명 문장.
  * 조항 안의 "별지 제1호 서식에 따라"에서는 멈추지 않는다. (#197 리뷰)
@@ -225,6 +226,19 @@ const ANNEX_CONFIRM_LINE =
 const ANNEX_STOP = /^\s*■|^\s*[[【]?\s*별\s*지\s*제?\s*\d+\s*호|본\s*계약을\s*증명/;
 /** 쪽 번호만 있는 줄: "2/3", "(3쪽 / 3쪽)". 특약이 아니다. */
 const PAGE_MARK_LINE = /^\s*(?:\(?\s*\d+\s*쪽\s*\/\s*\d+\s*쪽\s*\)?|\d+\s*\/\s*\d+)\s*$/;
+/**
+ * 특약 제목인지. 번호가 붙은 제목("4. 특약")은 줄이 제목만 있거나("4. 특약사항", "4. 특약 (별지 참조)") 콜론이 올 때만 제목이다.
+ * "2) 특약 위반 시 계약을 해제한다."처럼 "특약"으로 시작하는 번호 조항은 제목이 아니다. (#197 리뷰)
+ * @param {string} line
+ */
+function isSpecialTermsHeading(line) {
+  const m = SPECIAL_TERMS_HEADING.exec(line);
+  if (!m) return false;
+  if (!m[1]) return true;
+  const rest = line.slice(m[0].length).trim();
+  return rest === '' || /[:：]\s*$/.test(m[0]) || rest.startsWith('(');
+}
+
 /** 문장으로 끝나는 줄 ("… 한다.", "… 따름", "… 없음"): 번호 특약 문장이지 다음 제목이 아니다 */
 const SENTENCE_END = /(?:다|함|음|름|것|요|임)\.?\s*$/;
 const MAX_SECTION_TITLE = 30;
@@ -246,7 +260,7 @@ function readSpecialTermSection(lines, start) {
   let i = start + 1;
   for (; i < end; i += 1) {
     const line = lines[i];
-    if (SPECIAL_TERMS_HEADING.test(line)) break; // 다른 특약 제목 ("4. 특약" 다음의 별지 제목 등)
+    if (isSpecialTermsHeading(line)) break; // 다른 특약 제목 ("4. 특약" 다음의 별지 제목 등)
     if (annex) {
       if (ANNEX_STOP.test(line)) break;
       if (ANNEX_CONFIRM_LINE.test(line) || PAGE_MARK_LINE.test(line)) continue;
@@ -269,7 +283,7 @@ function readSpecialTermSection(lines, start) {
 function findSpecialTermSections(lines) {
   const sections = [];
   for (let i = 0; i < lines.length; ) {
-    if (SPECIAL_TERMS_HEADING.test(lines[i])) {
+    if (isSpecialTermsHeading(lines[i])) {
       const section = readSpecialTermSection(lines, i);
       sections.push(section);
       i = Math.max(section.next, i + 1);
