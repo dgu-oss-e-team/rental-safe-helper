@@ -46,6 +46,29 @@ describe('PART 2 등기 고유번호 탐지', () => {
   it('날짜는 잡지 않는다', () => {
     expect(findRegistryIds('2024-01-05')).toHaveLength(0);
   });
+
+  describe('임대사업자 등록번호 (연도-시·군·구-일련번호)', () => {
+    it.each([
+      ['한 줄', '임대사업자 등록번호 2017-서울중구-00999', '2017-서울중구-00999'],
+      ['번호만 있는 줄', '2017-서울중구-00999', '2017-서울중구-00999'],
+      ['하이픈 앞뒤 공백', '등록번호: 2020 - 경기수원 - 0123', '2020 - 경기수원 - 0123'],
+    ])('%s', (_name, text, value) => {
+      const r = findRegistryIds(text);
+      expect(r.map((x) => [x.type, x.value])).toEqual([[PII_TYPE.REGISTRY_ID, value]]);
+    });
+
+    it('날짜·지번·연도 뒤 낱말은 잡지 않는다', () => {
+      expect(findRegistryIds('2024-01-05')).toEqual([]);
+      expect(findRegistryIds('가상동 246-8')).toEqual([]);
+      expect(findRegistryIds('2017-서울중구')).toEqual([]);
+      expect(findRegistryIds('12017-서울중구-00999')).toEqual([]);
+    });
+
+    it('findPatternPII에서도 REGISTRY_ID 하나로 나오고, 일련번호가 계좌·전화로 따로 잡히지 않는다', () => {
+      const r = findPatternPII('2017-서울중구-00999 전화번호 010-0000-1111');
+      expect(r.map((x) => x.type)).toEqual([PII_TYPE.REGISTRY_ID, PII_TYPE.PHONE_NUMBER]);
+    });
+  });
 });
 
 describe('PART 2 계좌번호 탐지', () => {
