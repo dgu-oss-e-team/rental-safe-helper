@@ -149,7 +149,8 @@ function scanDocument(document) {
         const before = text.slice(0, a.index);
         if (before.lastIndexOf('(') <= before.lastIndexOf(')')) anchors.push({ order, index: a.index, role: a.role });
       }
-      for (const r of [...people, ...split, ...findAddresses(text)]) {
+      // 이름에는 fieldName·anchorBefore를 더 붙이므로 any로 둔다
+      for (const r of /** @type {any[]} */ ([...people, ...split, ...findAddresses(text)])) {
         if (overlapsAny(found, r)) continue;
         const line = firstLine + (text.slice(0, r.start).match(/\n/g)?.length ?? 0);
         if (r.type === PII_TYPE.PERSON_NAME && termLines.has(line)) Object.assign(r, { role: null, birthDate: null });
@@ -274,6 +275,8 @@ const REGISTRATION_FIELD = /^\s*등\s*록\s*번\s*호/;
  * - 원래 순서 서류 위쪽에 역할 없는 "확인자 성명 최작성"이 있어도 밀리지 않게, 둘째 "성명" 칸 이름 바로 앞에
  *   역할 칸이 있으면 이 순서의 서류로 보지 않는다. (#207 리뷰)
  * - "임대사업자 등록번호"처럼 번호 칸 이름으로 쓰인 역할 낱말은 역할 칸이 아니다.
+ * - 이 순서의 서류에서 뒤에 역할 칸을 못 찾은 이름은 역할을 비운다. (이어받은 역할로 거짓 STOP이 나지 않게)
+ * - 이 순서의 서류 위쪽에 역할 칸 없는 "확인자 성명 최작성"이 있으면 그 이름은 건너뛰고 판단한다.
  * @param {any[]} hits
  * @param {{ order: number, index: number, role: string }[]} allAnchors
  * @param {string[]} texts 블록 순서(order) → 블록 글
@@ -296,12 +299,23 @@ function fixLateRoleLabels(hits, allAnchors, texts) {
     return ao < bo || (ao === bo && ai < bi);
   };
   const byPos = (/** @type {any} */ a, /** @type {any} */ b) => (isBefore(a, b) ? -1 : isBefore(b, a) ? 1 : 0);
-  const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME && h.fieldName).sort(byPos);
-  if (names.length === 0 || names[0].role !== null) return;
-
   /** 이름 h 뒤, 다음 "성명" 칸 이름 전, 가까이에 있는 첫 항목 @param {any[]} list @param {any} h @param {any} next */
   const firstAfter = (list, h, next) =>
     list.find((x) => isBefore(h, x) && x.order - h.order <= LATE_LABEL_WINDOW && (!next || isBefore(x, next)));
+
+  const allNames = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME && h.fieldName).sort(byPos);
+  // 위쪽의 역할 없는 "확인자 성명 최작성"처럼, 다음 이름 전까지 역할 칸이 하나도 없는 이름은 당사자 칸이 아니라서 건너뛴다. (#207 리뷰)
+  let first = 0;
+  while (
+    allNames[first + 1] &&
+    allNames[first].role === null &&
+    !firstAfter(anchors, allNames[first], allNames[first + 1])
+  ) {
+    first++;
+  }
+  const names = allNames.slice(first);
+  if (names.length === 0 || names[0].role !== null) return;
+
   /** 이름 h 바로 앞(앞 이름보다 뒤, 1-2블록 안)에 역할 칸이 있는지 @param {any} h @param {any} prev */
   const nearAnchorBefore = (h, prev) =>
     anchors.some((x) => isBefore(x, h) && (!prev || isBefore(prev, x)) && h.order - x.order <= NEAR_BEFORE);
@@ -313,7 +327,12 @@ function fixLateRoleLabels(hits, allAnchors, texts) {
     if (h.anchorBefore || nearAnchorBefore(h, names[i - 1])) return;
     const next = names[i + 1];
     const anchor = firstAfter(anchors, h, next);
-    if (!anchor) return;
+    // 뒤에서 역할 칸을 못 찾으면(OCR이 놓침, 너무 멂) 위에서 이어받은 역할을 믿지 않는다.
+    // 임차인이 위의 "임대사업자"를 이어받아 임대인이 되면 거짓 STOP이 나므로, 모르는 채로 둔다. (#207 리뷰)
+    if (!anchor) {
+      h.role = null;
+      return;
+    }
     h.role = anchor.role;
     if (h.birthDate) return;
     const digits = firstAfter(ids, h, next)?.value.replace(/\D/g, '').slice(0, 6) ?? '';

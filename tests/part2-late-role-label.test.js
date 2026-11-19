@@ -145,6 +145,26 @@ describe('PART 2 역할 칸이 이름 뒤에 나오는 민간임대 계약서 (#
     expect(contract.tenants.map((p) => p.name)).toEqual(['이가상']);
   });
 
+  it('이름 뒤에 역할 칸이 안 보이면 위의 "임대사업자"를 이어받지 않는다 → 거짓 STOP이 아니다 (#207 리뷰)', () => {
+    // 임차인 "임차인 주소" 칸을 OCR이 놓친 경우: '성명(법인명) 이가상 …' 줄까지만 있다
+    const lines = LEASE.slice(0, LEASE.indexOf('성명(법인명) 이가상 (서명 또는 인)') + 1);
+    const data = analyze(lines);
+    expect(data.fields.contract.landlords.map((p) => p.name)).toEqual(['김가상']);
+    expect(data.riskResults.find((r) => r.ruleId === 'OWNER_MISMATCH')?.status).not.toBe('STOP');
+    const r = prepareForAi(data, MASKING_PURPOSE.FRAUD_CHECK);
+    expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+    const shared = [r.data.prompt, ...Object.values(r.data.maskedText)].join('\n');
+    expect(shared).not.toContain('이가상');
+  });
+
+  it('역할 칸이 이름 뒤에 나오는 계약서 위에 역할 없는 "확인자 성명"이 있어도 바로 읽는다 (#207 리뷰)', () => {
+    const at = LEASE.indexOf('1. 계약 당사자') + 1;
+    const lines = [...LEASE.slice(0, at), '확인자 성명 최가상', ...LEASE.slice(at)];
+    const { contract } = analyze(lines).fields;
+    expect(contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([['김가상', '720303']]);
+    expect(contract.tenants.map((p) => p.name)).toEqual(['이가상', '이가상']);
+  });
+
   it('한 블록에 "임대인 성명 김가상"처럼 붙어 있어도 위쪽 "확인자 성명" 때문에 밀리지 않는다', () => {
     const lines = ['확인자 성명 최가상', '임대인 성명 김가상', '주소 서울특별시 중구 가상로 7', '임차인 성명 이가상'];
     const { contract } = analyze(lines).fields;
