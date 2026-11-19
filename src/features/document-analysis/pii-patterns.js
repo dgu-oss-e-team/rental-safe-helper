@@ -54,6 +54,14 @@ const PHONE_INTL_REGEX =
 const REGISTRY_ID_REGEX = /(?<!\d)\d{4}-\d{4}-\d{6}(?!\d)/g;
 
 /**
+ * 임대사업자 등록번호: 등록 연도-시·군·구 이름-일련번호 (예: 2017-서울중구-00999, 실제 민간임대 계약서로 확인)
+ * 공개 번호지만 임대인을 찾아낼 수 있어서 가린다. 새 종류를 만들지 않고 REGISTRY_ID로 돌려준다. (팀 합의)
+ * 주민번호 모양이 아니라서 ④에서 가림을 풀 수 있다. (#201 잠금 대상 아님)
+ * 가운데가 한글이라 날짜("2024-01-05")나 다른 번호와 겹치지 않는다.
+ */
+const RENTAL_BUSINESS_ID_REGEX = /(?<![\d가-힣])(?:19|20)\d{2}\s*-\s*[가-힣]{2,8}\s*-\s*\d{3,6}(?!\d)/g;
+
+/**
  * 계좌번호 후보: 하이픈이나 공백으로 나뉜 숫자 덩어리(예: 123-45-678901) 또는 10-16자리 연속 숫자
  * 은행마다 형식이 달라서 모양만으로는 판단하기 어렵다.
  * 그래서 번호 앞이나 뒤에 은행 관련 단어가 있을 때만 계좌번호로 본다.
@@ -166,9 +174,15 @@ export function findPhoneNumbers(text) {
   ];
 }
 
-/** @param {string} text */
+/**
+ * 등기 고유번호와 임대사업자 등록번호 (둘 다 REGISTRY_ID)
+ * @param {string} text
+ */
 export function findRegistryIds(text) {
-  return findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID);
+  return [
+    ...findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID),
+    ...findByRegex(text, RENTAL_BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID),
+  ].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
 }
 
 /**
