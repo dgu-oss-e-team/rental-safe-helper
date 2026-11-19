@@ -302,6 +302,12 @@ const ADDRESS_REGEX = new RegExp(
  * ("필동로 00, 대표빌딩 101호"처럼 건물 이름으로 시작하는 진짜 주소를 끊어서 호수를 남기지 않게. #152 정연님 리뷰)
  */
 const MIN_PREFIX_STOP_WORD = 4;
+/**
+ * 층과 면적이 붙은 층별 면적: "2층138.48㎡", "옥탑1층19.89㎡" (등기부 표제부 건물내역 칸, 실제 서류로 확인)
+ * 도로명주소 줄 옆에 붙어 읽힌다: "[도로명주소] 1층 19.65㎡" / "서울특별시 중구 가상로1길 2층138.48㎡" / "15 3층 138.6㎡"
+ * 띄어 쓴 "가상로 1층 410.52㎡"는 지금처럼 면적 앞에서만 끊는다. ("1층"은 주소의 층일 수 있다)
+ */
+const FLOOR_AREA = '(?:지하|지상|옥탑)?\\d+층\\d[\\d,.]*\\s*(?:㎡|m²|m2)';
 /** @param {string} word */
 const stopWord = (word) =>
   word.length >= MIN_PREFIX_STOP_WORD ? spaced(word) : `${spaced(word)}(?=[\\s:：]|$)`;
@@ -309,6 +315,7 @@ const ADDRESS_STOP = new RegExp(
   '\\s(?:' +
     [
       '\\d[\\d,.]*\\s*(?:㎡|m²|m2)', // 면적
+      FLOOR_AREA, // 층별 면적 "2층138.48㎡" (등기부 표제부 건물내역 칸)
       '\\d{4}\\s*년', // 날짜 "2015년3월2일"
       '\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}', // 날짜 "2015.03.02"
       ...rules.addressStopWords.map(stopWord), // 항목 이름
@@ -468,13 +475,28 @@ export function reachesLineEnd(value, rest) {
  *    표 밖(계약서 등)에서는 쓰지 않는다. 칸 이름("주민등록번호")을 주소로 잘못 가리지 않게.
  */
 /** 등기부 건물내역 칸의 시작 (이 앞에서 끊긴 주소는 표 안의 주소다) */
-const BUILDING_COLUMN_STOP =
-  /\s(?:철\s*근\s*콘\s*크\s*리\s*트|\(?\s*철\s*근\s*\)|[가-힣]*구\s*조|\d[\d,.]*\s*(?:㎡|m²|m2)|\d{4}\s*년|도\s*면\s*편\s*철\s*장|지\s*목|대(?=\s+\d))/;
+const BUILDING_COLUMN_STOP = new RegExp(
+  '\\s(?:철\\s*근\\s*콘\\s*크\\s*리\\s*트|\\(?\\s*철\\s*근\\s*\\)|[가-힣]*구\\s*조|\\d[\\d,.]*\\s*(?:㎡|m²|m2)|' +
+    `${FLOOR_AREA}|\\d{4}\\s*년|도\\s*면\\s*편\\s*철\\s*장|지\\s*목|대(?=\\s+\\d))`,
+);
 const MIXED_ROAD = /^[ \t]*([가-힣0-9]+(?:로|길)[ \t]*\d+(?:-\d+)?)(?![\d가-힣])/;
 const MIXED_LOT_NUMBER = /^[ \t]*(\d{1,5}(?:-\d{1,5})?)(?![\d.,/]|\s*(?:층|호|동|㎡|년|분의))/;
 const MIXED_BUILDING_NAME = /^[ \t]*((?![제(\[【])[가-힣A-Za-z][가-힣A-Za-z0-9]{1,19})(?=\s|$)/;
 /** 건물 이름으로 보지 않는 첫 낱말 (표 칸 글자) */
 const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권|갑구|을구|표제부)/;
+
+/**
+ * 도로명(…로·…길) 뒤 다음 줄의 짧은 건물번호("15")는 잇지 않는다.
+ * 짧은 숫자를 주소로 잡으면 보내기 전 검사(PART 4)가 다른 서류의 "제15조", "15일"까지 새어 나간 주소로 보고 멈춘다.
+ * 도로 이름은 가려지므로 숫자만 남아도 집을 알 수 없다. (하이픈이 있거나 4자리 이상이면 잇는다)
+ * 지번(…동·…가·…리 뒤 "123")은 지금처럼 잇는다.
+ * @param {string} core 윗줄 주소 조각
+ * @param {RegExpExecArray | null} m
+ */
+function shortRoadNumberOk(core, m) {
+  if (m && /[로길]$/.test(core) && /^\d{1,3}$/.test(m[1])) return null;
+  return m;
+}
 
 /**
  * 칸이 섞여 줄 끝까지 오지 않은 주소 다음 줄에서 이어지는 조각을 찾는다. (위 설명)
@@ -487,7 +509,7 @@ export function findMixedContinuation(line, prevValue, tableCut) {
   const core = prevValue.trim().replace(/\s*\([^)]*\)?$/, '');
   const m =
     MIXED_ROAD.exec(line) ??
-    (/[동가리로길]$/.test(core) ? MIXED_LOT_NUMBER.exec(line) : null) ??
+    (/[동가리로길]$/.test(core) ? shortRoadNumberOk(core, MIXED_LOT_NUMBER.exec(line)) : null) ??
     (tableCut && /\d$/.test(core) ? MIXED_BUILDING_NAME.exec(line) : null);
   if (!m || NOT_BUILDING_NAME.test(m[1]) || NOT_NAMES.has(m[1])) return null;
   const start = (m.index ?? 0) + m[0].length - m[1].length;
