@@ -60,7 +60,7 @@ export function replaceUnlistedAliases(text, legend) {
  *           legend: Record<string, string> }} input
  */
 export function buildPrompt({ purpose, riskResults, maskedText, legend }) {
-  const questions = getRecommendedQuestions(purpose);
+  const questions = getRecommendedQuestions(purpose, riskResults);
   if (!questions) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Unknown purpose.');
   }
