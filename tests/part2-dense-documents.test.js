@@ -126,6 +126,52 @@ describe('PART 2 같은 지번이 다른 칸에 혼자 또 나오는 등기부',
   }
 });
 
+describe('PART 2 숫자 지번 조각이 금액·호수 안에도 나오는 등기부 (#206)', () => {
+  const lines = [
+    '[집합건물] 서울특별시 중구 가상동3가 740 가상빌 제3층 제304호',
+    '【 표 제 부 】 ( 1동의 건물의 표시 )',
+    '1 2017년7월27일 서울특별시 중구 가상동3가 철근콘크리트구조',
+    '740 (철근)콘크리트지붕',
+    '가상빌 6층 단지형다세대주택',
+    '( 대지권의 목적인 토지의 표시 )',
+    '1 1. 서울특별시 중구 가상동3가 대 329㎡ 2017년7월27일 등기',
+    ' 740',
+    '【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )',
+    '1 근저당권설정 2018년1월2일 제1740호 채권최고액 금740,000,000원',
+  ];
+  const registry = {
+    documentId: 'DOC_LOT740',
+    fileName: 'lot740.pdf',
+    sourceType: 'TEXT_PDF',
+    pages: [
+      {
+        pageIndex: 0,
+        width: 595,
+        height: 842,
+        blocks: lines.map((text, i) => ({
+          blockId: `p0_b${i}`,
+          text,
+          bbox: { x: 0.05, y: (i + 1) / (lines.length + 2), width: 0.9, height: 0.01 },
+          confidence: null,
+        })),
+      },
+    ],
+  };
+
+  for (const purpose of Object.values(MASKING_PURPOSE)) {
+    it(`${purpose}: 혼자 나온 지번은 가리고, 금액·접수번호는 그대로 둔다`, () => {
+      const a = analyzeReadDocuments({ files: [], documents: [registry] });
+      expect(a.ok).toBe(true);
+      const r = prepareForAi(a.data, purpose);
+      expect(r.ok, r.ok ? '' : `stopped at ${r.step}: ${r.error.message}`).toBe(true);
+      const masked = Object.values(r.data.maskedText).join('\n');
+      expect(masked).toContain('금740,000,000원');
+      expect(masked).toContain('제1740호');
+      expect(masked).not.toMatch(/(?<![\d,])740(?![\d,])/);
+    });
+  }
+});
+
 describe('PART 2 빽빽한 계약서 (#141)', () => {
   it('서명란에서 이름 앞에 있는 주민·외국인등록번호로 생년월일을 읽는다', () => {
     expect(fields.contract.landlords.map((p) => [p.name, p.birthDate])).toEqual([['김철수', '750315']]);
