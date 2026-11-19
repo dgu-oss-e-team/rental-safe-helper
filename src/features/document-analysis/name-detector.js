@@ -505,7 +505,50 @@ function reachesLineEndCore(value, rest) {
 }
 
 /** 이름 바로 앞의 "성명" 칸 라벨 (표준계약서 서명란: "주민등록번호 … 전화 … 성명 김철수") */
-const NAME_FIELD_BEFORE = new RegExp(`(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?\\s*$`);
+const NAME_FIELD_BEFORE = new RegExp(
+  `(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?\\s*$`,
+);
+
+/** "성명(법인명)"처럼 이름 칸 이름만 있는 블록 (이름은 다음 블록에 있다) */
+const NAME_FIELD_ONLY = new RegExp(
+  `^\\s*(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?\\s*$`,
+);
+
+/**
+ * 이름이 "성명" 칸 바로 뒤에 있는지 (같은 블록 안에서)
+ * @param {string} text
+ * @param {number} start 이름 시작 위치
+ */
+export function followsNameField(text, start) {
+  return NAME_FIELD_BEFORE.test(text.slice(0, start));
+}
+
+/**
+ * 글 안의 역할 라벨 위치 (앞에서부터). "임대인 주소"처럼 이름 없이 나온 역할 칸도 포함한다.
+ * @param {string} text
+ */
+export function roleAnchorsIn(text) {
+  return findRoleAnchors(text);
+}
+
+/**
+ * 윗 블록이 "성명(법인명)"뿐이면, 이 블록 맨 앞의 이름을 찾는다. (#205)
+ * 민간임대 표준계약서를 PDF로 읽으면 칸 이름과 이름이 다른 블록으로 나온다.
+ *   "성명(법인명)" / "김철수 (서명 또는 인)"
+ * 이름을 거르는 규칙(notNames 등)과 같은 줄 생년월일 읽기는 findPeople과 같다.
+ * @param {string} prevText 윗 블록 글
+ * @param {string} text 이 블록 글
+ * @param {string | null} [inheritedRole]
+ */
+export function findNameAfterFieldBlock(prevText, text, inheritedRole = null) {
+  if (!NAME_FIELD_ONLY.test(prevText ?? '')) return [];
+  const label = prevText.trim();
+  const offset = label.length + 1;
+  const lead = text.length - text.trimStart().length;
+  return findPeople(`${label} ${text}`, inheritedRole)
+    .filter((p) => p.start - offset === lead)
+    .map((p) => ({ ...p, start: p.start - offset, end: p.end - offset }));
+}
 
 /**
  * 주민·외국인등록번호의 앞 6자리 (6자리가 아니면 null)
