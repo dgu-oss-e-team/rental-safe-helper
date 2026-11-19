@@ -1,7 +1,8 @@
 // PART 5. 마스킹 PDF 다시 검사 (노션 10장: 생성된 PDF를 다시 OCR하여 개인정보가 보이는지 확인)
 // OCR 대신, 다시 읽은 결과(DocumentModel)를 직접 만들어 비교 로직을 검사한다. 가짜 데이터만 사용.
 import { describe, it, expect, vi } from 'vitest';
-import { findVisiblePii, unverifiable, CHECK_STATUS, partlyCheckedText } from '../src/app/double-check.js';
+import { findVisiblePii, unverifiable, CHECK_STATUS, partlyCheckedText, PII_TYPE_TEXT } from '../src/app/double-check.js';
+import { PII_TYPE } from '../src/shared/document-model.js';
 
 // pipeline의 readDocument(PART 1)를 가짜로 바꿔, OCR 성공·실패를 흉내 낸다
 vi.mock('../src/features/document-input/index.js', async (importOriginal) => ({
@@ -168,5 +169,15 @@ describe('PART 5 doubleCheckPdfs(): 서류마다 PDF를 다시 읽어 검사', (
     const other = { ...pdfOk, documentId: 'DOC_OTHER' };
     const [r] = await doubleCheckPdfs(analysis, plan(), [other]);
     expect(r.status).toBe(CHECK_STATUS.NOT_FOUND);
+  });
+});
+
+describe('PART 5 다시 검사 결과의 종류 이름', () => {
+  it('모든 개인정보 종류에 화면 이름이 있다 (값 대신 이것만 보여 준다)', () => {
+    for (const type of Object.values(PII_TYPE)) expect(PII_TYPE_TEXT[type], type).toBeTruthy();
+  });
+
+  it('REGISTRY_ID는 등기 고유번호와 법인등록번호를 둘 다 뜻하게 쓴다 (#197)', () => {
+    expect(PII_TYPE_TEXT[PII_TYPE.REGISTRY_ID]).toBe('Registry or corporate number');
   });
 });

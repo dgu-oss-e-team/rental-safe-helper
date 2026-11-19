@@ -8,7 +8,7 @@
  * 하나라도 어기면 실패를 돌려준다. 메시지에는 실제 값을 넣지 않는다.
  */
 
-import { pdfjsLib } from './pdfjs.js';
+import { openPdf } from './pdfjs.js';
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
 
 const INFO_KEYS = ['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer'];
@@ -18,8 +18,8 @@ const INFO_KEYS = ['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Produce
  * @returns {Promise<import('../../shared/document-model.js').Result<{ pageCount: number }>>}
  */
 export async function validateMaskedPdf(pdfBytes) {
-  // pdf.js가 버퍼를 넘겨받아 비울 수 있으므로 복사본을 넘긴다
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice() });
+  // pdf.js가 버퍼를 넘겨받아 비울 수 있으므로 복사본을 넘긴다. 설정은 PART 1과 같다 (CMap·글꼴, #214)
+  const loadingTask = openPdf(pdfBytes.slice().buffer);
   const pdf = await loadingTask.promise;
   try {
     for (let i = 1; i <= pdf.numPages; i++) {

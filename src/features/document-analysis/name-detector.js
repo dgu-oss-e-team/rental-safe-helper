@@ -235,6 +235,28 @@ export function findKnownNames(text, names) {
 }
 
 /**
+ * 이미 찾은 주소 조각이 같은 서류의 다른 곳에 또 나오는 자리를 찾는다.
+ * 예: 표제부에서 찾은 지번 "39-30"이 대지권 칸 둘째 줄에 혼자 또 나옴 (그 줄만 보면 주소인지 알 수 없음)
+ * 보내기 전 검사(PART 4)는 찾은 값이 어디에든 글자 그대로 보이면 멈추므로, 같은 기준(글자 그대로)으로 찾는다.
+ * 긴 조각부터 찾아서, 짧은 조각이 긴 조각 안에서 따로 잡히지 않게 한다.
+ * @param {string} text
+ * @param {string[]} values
+ */
+export function findKnownAddresses(text, values) {
+  /** @type {{ type: string, value: string, start: number, end: number }[]} */
+  const results = [];
+  const sorted = [...new Set(values)].filter((v) => v.trim().length >= 2).sort((a, b) => b.length - a.length);
+  for (const value of sorted) {
+    for (let start = text.indexOf(value); start !== -1; start = text.indexOf(value, start + 1)) {
+      const end = start + value.length;
+      if (results.some((r) => start < r.end && r.start < end)) continue;
+      results.push({ type: PII_TYPE.ADDRESS, value, start, end });
+    }
+  }
+  return results.sort((a, b) => a.start - b.start);
+}
+
+/**
  * 주소 찾기: 시·도 이름 + 공백 + 시·군·구로 시작하는 부분부터 줄 끝(또는 괄호 앞)까지.
  * 예: "소재지 서울특별시 중구 필동로 00, 101호" → "서울특별시 중구 필동로 00, 101호"
  * 등기부처럼 라벨 없이 주소만 있는 줄도 찾는다.
@@ -452,7 +474,7 @@ const MIXED_ROAD = /^[ \t]*([가-힣0-9]+(?:로|길)[ \t]*\d+(?:-\d+)?)(?![\d가
 const MIXED_LOT_NUMBER = /^[ \t]*(\d{1,5}(?:-\d{1,5})?)(?![\d.,/]|\s*(?:층|호|동|㎡|년|분의))/;
 const MIXED_BUILDING_NAME = /^[ \t]*((?![제(\[【])[가-힣A-Za-z][가-힣A-Za-z0-9]{1,19})(?=\s|$)/;
 /** 건물 이름으로 보지 않는 첫 낱말 (표 칸 글자) */
-const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권)/;
+const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권|갑구|을구|표제부)/;
 
 /**
  * 칸이 섞여 줄 끝까지 오지 않은 주소 다음 줄에서 이어지는 조각을 찾는다. (위 설명)
@@ -483,7 +505,50 @@ function reachesLineEndCore(value, rest) {
 }
 
 /** 이름 바로 앞의 "성명" 칸 라벨 (표준계약서 서명란: "주민등록번호 … 전화 … 성명 김철수") */
-const NAME_FIELD_BEFORE = new RegExp(`(?:${rules.standaloneNameFields.map(spaced).join('|')})\\s*[:：]?\\s*$`);
+const NAME_FIELD_BEFORE = new RegExp(
+  `(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?\\s*$`,
+);
+
+/** "성명(법인명)"처럼 이름 칸 이름만 있는 블록 (이름은 다음 블록에 있다) */
+const NAME_FIELD_ONLY = new RegExp(
+  `^\\s*(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?\\s*$`,
+);
+
+/**
+ * 이름이 "성명" 칸 바로 뒤에 있는지 (같은 블록 안에서)
+ * @param {string} text
+ * @param {number} start 이름 시작 위치
+ */
+export function followsNameField(text, start) {
+  return NAME_FIELD_BEFORE.test(text.slice(0, start));
+}
+
+/**
+ * 글 안의 역할 라벨 위치 (앞에서부터). "임대인 주소"처럼 이름 없이 나온 역할 칸도 포함한다.
+ * @param {string} text
+ */
+export function roleAnchorsIn(text) {
+  return findRoleAnchors(text);
+}
+
+/**
+ * 윗 블록이 "성명(법인명)"뿐이면, 이 블록 맨 앞의 이름을 찾는다. (#205)
+ * 민간임대 표준계약서를 PDF로 읽으면 칸 이름과 이름이 다른 블록으로 나온다.
+ *   "성명(법인명)" / "김철수 (서명 또는 인)"
+ * 이름을 거르는 규칙(notNames 등)과 같은 줄 생년월일 읽기는 findPeople과 같다.
+ * @param {string} prevText 윗 블록 글
+ * @param {string} text 이 블록 글
+ * @param {string | null} [inheritedRole]
+ */
+export function findNameAfterFieldBlock(prevText, text, inheritedRole = null) {
+  if (!NAME_FIELD_ONLY.test(prevText ?? '')) return [];
+  const label = prevText.trim();
+  const offset = label.length + 1;
+  const lead = text.length - text.trimStart().length;
+  return findPeople(`${label} ${text}`, inheritedRole)
+    .filter((p) => p.start - offset === lead)
+    .map((p) => ({ ...p, start: p.start - offset, end: p.end - offset }));
+}
 
 /**
  * 주민·외국인등록번호의 앞 6자리 (6자리가 아니면 null)

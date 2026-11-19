@@ -53,7 +53,8 @@ export const PII_TYPE_TEXT = {
   [PII_TYPE.PHONE_NUMBER]: 'Phone number',
   [PII_TYPE.BANK_ACCOUNT]: 'Bank account',
   [PII_TYPE.ADDRESS]: 'Address',
-  [PII_TYPE.REGISTRY_ID]: 'Registry number',
+  // 법인등록번호도 REGISTRY_ID로 온다 (#197). 등기 고유번호로만 오해하지 않게 둘 다 적는다.
+  [PII_TYPE.REGISTRY_ID]: 'Registry or corporate number',
 };
 
 /** 이 길이 이상의 숫자열은 하이픈·공백을 빼고 숫자만으로도 비교한다 (OCR이 기호를 틀리게 읽어도 잡도록) */

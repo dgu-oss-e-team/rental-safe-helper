@@ -114,6 +114,19 @@ export function findLeftoverNumber(line) {
 }
 
 /**
+ * 값의 앞뒤가 같은 숫자의 일부인지. 숫자이거나, 쉼표·하이픈 너머에 숫자가 이어지면("740,000", "1-740") 같은 숫자로 본다.
+ * "246-8, 가상아파트"처럼 쉼표 뒤에 숫자가 없으면 나열이라 경계로 본다.
+ * @param {string} text
+ * @param {number} at  값 바로 바깥 글자의 위치
+ * @param {-1 | 1} step  앞쪽이면 -1, 뒤쪽이면 1
+ */
+function joinsNumber(text, at, step) {
+  const c = text[at] ?? '';
+  if (/[0-9]/.test(c)) return true;
+  return (c === ',' || c === '-') && /[0-9]/.test(text[at + step] ?? '');
+}
+
+/**
  * text 안에서 words 각각이 나오는 모든 자리를 [시작, 끝] 목록으로 돌려준다.
  * @param {string} text
  * @param {string[]} words
@@ -124,8 +137,14 @@ function findSpans(text, words) {
   const spans = [];
   for (const word of words) {
     if (!word) continue;
+    const startsWithDigit = /^\d/.test(word);
+    const endsWithDigit = /\d$/.test(word);
     for (let at = text.indexOf(word); at !== -1; at = text.indexOf(word, at + 1)) {
-      spans.push([at, at + word.length]);
+      const end = at + word.length;
+      // 숫자 경계: "740"을 "제1740호", "금740,000,000원", "246-89" 안에서 찾지 않는다 (#204)
+      if (startsWithDigit && joinsNumber(text, at - 1, -1)) continue;
+      if (endsWithDigit && joinsNumber(text, end, 1)) continue;
+      spans.push([at, end]);
     }
   }
   return spans;
