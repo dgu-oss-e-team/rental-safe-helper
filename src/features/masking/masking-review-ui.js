@@ -29,7 +29,8 @@ const TYPE_TEXT = {
   [PII_TYPE.PHONE_NUMBER]: 'Phone number',
   [PII_TYPE.BANK_ACCOUNT]: 'Bank account',
   [PII_TYPE.ADDRESS]: 'Address',
-  [PII_TYPE.REGISTRY_ID]: 'Registry / corporate no.',
+  // 등기 고유번호·법인등록번호·임대사업자 등록번호. 주민·외국인등록번호와 다른 번호라는 게 보이게 Other를 붙인다
+  [PII_TYPE.REGISTRY_ID]: 'Other registration no.',
 };
 
 /** 서류 종류 → 짧은 이름 */

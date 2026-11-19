@@ -131,6 +131,13 @@ describe('PART 4 화면 ④ 보내기 전 확인 (renderMaskingReview)', () => {
     }
   });
 
+  it('등기·법인·임대사업자 번호 줄은 "Other registration no."로 보인다 (주민·외국인등록번호와 헷갈리지 않게)', () => {
+    const { node } = render();
+    const rows = rowsOf(node, 'Other registration no.');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const tr of rows) expect(tr.cells[0].textContent).not.toMatch(/^(Resident|Foreigner)/);
+  });
+
   it('"Show"를 체크하면 onChange의 remove에 그 항목이 들어간다', () => {
     const { node, onChange } = render();
     const tenant = rowsOf(node, 'Name').find((tr) => tr.querySelector('.mr-original')?.textContent === 'NGUYEN VAN A');
