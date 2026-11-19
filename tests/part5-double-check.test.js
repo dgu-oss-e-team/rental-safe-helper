@@ -177,7 +177,12 @@ describe('PART 5 다시 검사 결과의 종류 이름', () => {
     for (const type of Object.values(PII_TYPE)) expect(PII_TYPE_TEXT[type], type).toBeTruthy();
   });
 
-  it('REGISTRY_ID는 등기 고유번호와 법인등록번호를 둘 다 뜻하게 쓴다 (#197)', () => {
-    expect(PII_TYPE_TEXT[PII_TYPE.REGISTRY_ID]).toBe('Registry or corporate number');
+  it('REGISTRY_ID는 등기·법인·임대사업자 번호를 모두 담는 "Other registration number"로 쓴다 (#197, #220)', () => {
+    expect(PII_TYPE_TEXT[PII_TYPE.REGISTRY_ID]).toBe('Other registration number');
+  });
+
+  it('종류 이름이 서로 겹치지 않는다 (주민·외국인등록번호와 헷갈리지 않게)', () => {
+    const names = Object.values(PII_TYPE).map((type) => PII_TYPE_TEXT[type]);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
