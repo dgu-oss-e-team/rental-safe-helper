@@ -7,7 +7,7 @@
  *   OCR이 숫자를 비슷한 글자로 잘못 읽은 번호("75O315-1")가 남아 있어도 실패한다. (안전망, 아래 findLookalikeNumber)
  */
 
-import { ok, fail, ERROR_CODE, MASKING_ACTION } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, MASKING_ACTION, PII_TYPE } from '../../shared/document-model.js';
 import { validAdds, isNonRemovable } from './user-edits.js';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
@@ -151,6 +151,14 @@ function findSpans(text, words) {
 }
 
 /**
+ * 숫자(와 하이픈)만 있는 짧은 주소 조각인지. 6자리 이상은 숫자만 비교로 모든 서류에서 계속 찾는다.
+ * @param {PiiFinding} f
+ */
+function isShortNumberPiece(f) {
+  return f.type === PII_TYPE.ADDRESS && /^\d[\d-]*$/.test(f.value) && f.value.replace(/-/g, '').length < 6;
+}
+
+/**
  * 외부로 보내기 전에, 가려야 하는 원본 값이 남아 있지 않은지 검사한다.
  * @param {Record<string, string>} maskedText
  * @param {PiiFinding[]} findings
@@ -159,6 +167,14 @@ function findSpans(text, words) {
  */
 export function validateMaskedText(maskedText, findings, plan, edits) {
   const all = Object.values(maskedText).join('\n');
+  // 서류마다 all 안에서 차지하는 자리 [시작, 끝]
+  /** @type {Map<string, [number, number]>} */
+  const docRange = new Map();
+  let offset = 0;
+  for (const [documentId, text] of Object.entries(maskedText)) {
+    docRange.set(documentId, [offset, offset + text.length]);
+    offset += text.length + 1;
+  }
   // 일부러 남긴 글자(가명, 줄인 주소)가 있는 자리. 원래 값이 이 자리 "안에서만" 보이면 새어 나간 게 아니다.
   // 예: 두 줄 주소 조각 "서울특별시"는 줄인 주소 "서울특별시 중구" 안에 들어 있다.
   // 사용자가 해제한(KEEP) 값도 일부러 보이는 글자다. 같은 글자의 다른 항목(예: 동명이인)이 이 자리 때문에 걸리지 않게 한다.
@@ -188,8 +204,12 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
     if (action === MASKING_ACTION.KEEP) continue;
     checked += 1;
     const digitsOnly = f.value.replace(/[^0-9]/g, '');
+    // 숫자만 있는 짧은 주소 조각("15", "246-8")은 그 조각이 나온 서류 안에서만 찾는다 (#221)
+    // 등기부 건물번호 "15"가 계약서 "제15조"와 부딪히지 않게. 같은 서류에 혼자 남으면 그대로 멈춘다.
+    const range = isShortNumberPiece(f) ? docRange.get(f.documentId) : undefined;
+    const spans = findSpans(all, [f.value]).filter(([a, b]) => !range || (range[0] <= a && b <= range[1]));
     const leaked =
-      findSpans(all, [f.value]).some(([a, b]) => !allowedSpans.some(([x, y]) => x <= a && b <= y)) ||
+      spans.some(([a, b]) => !allowedSpans.some(([x, y]) => x <= a && b <= y)) ||
       (digitsOnly.length >= 6 && digitLines.some((line) => line.includes(digitsOnly)));
     if (leaked) {
       // 메시지에 실제 값을 넣지 않는다

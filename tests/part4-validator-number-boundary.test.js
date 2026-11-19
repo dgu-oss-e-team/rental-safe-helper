@@ -39,3 +39,24 @@ describe('PART 4 보내기 전 검사의 숫자 경계', () => {
     expect(validateMaskedText({ D: '960712-2583914881023-1647205' }, [rrn], plan).ok).toBe(false);
   });
 });
+
+describe('PART 4 숫자만 있는 짧은 주소 조각은 그 서류 안에서만 찾는다 (#221)', () => {
+  // 등기부(REG) 다음 줄의 건물번호 "15"를 주소로 가렸을 때, 계약서(CON)의 "제15조"와 부딪히지 않게
+  const fifteen = { ...piece('A15', '15'), documentId: 'REG' };
+  const road = { ...piece('AR', '가상대로'), documentId: 'REG' };
+  const findings = [road, fifteen];
+  const plan = createMaskingPlan(findings, [], MASKING_PURPOSE.FRAUD_CHECK).data;
+  const run = (reg, con) => validateMaskedText({ REG: reg, CON: con }, findings, plan).ok;
+
+  it('다른 서류(계약서)의 "제15조"는 새어 나간 주소로 보지 않는다', () => {
+    expect(run('[REDACTED]\n[REDACTED]', '제15조 (특약사항)')).toBe(true);
+  });
+
+  it('같은 서류에 "15"가 혼자 남으면 여전히 멈춘다', () => {
+    expect(run('[REDACTED]\n15', '제15조 (특약사항)')).toBe(false);
+  });
+
+  it('도로 이름 같은 글자 조각은 지금처럼 모든 서류에서 찾는다', () => {
+    expect(run('[REDACTED]\n[REDACTED]', '임차주택 가상대로 [REDACTED]')).toBe(false);
+  });
+});
