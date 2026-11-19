@@ -239,6 +239,11 @@ export function findKnownNames(text, names) {
  * 예: 표제부에서 찾은 지번 "39-30"이 대지권 칸 둘째 줄에 혼자 또 나옴 (그 줄만 보면 주소인지 알 수 없음)
  * 보내기 전 검사(PART 4)는 찾은 값이 어디에든 글자 그대로 보이면 멈추므로, 같은 기준(글자 그대로)으로 찾는다.
  * 긴 조각부터 찾아서, 짧은 조각이 긴 조각 안에서 따로 잡히지 않게 한다.
+ * 숫자로 시작하거나 끝나는 조각은 다른 숫자 안에서 찾지 않는다. (보내기 전 검사 #216과 같은 경계, #206)
+ *   "740" → "제1740호", "17400000", "246-740" 안에서는 찾지 않는다.
+ *   쉼표로 이어진 숫자는 금액·면적일 때만 건너뛴다. ("금740,000,000원", "740,000원", "1,740㎡")
+ *   "가상동 740,741"처럼 쉼표로 붙여 쓴 지번은 금액과 모양이 같아서 검사도 건너뛴다.
+ *   그래서 금액이라는 표시가 없으면 가린다. (더 가리는 것은 검사를 멈추게 하지 않는다)
  * @param {string} text
  * @param {string[]} values
  */
@@ -247,13 +252,53 @@ export function findKnownAddresses(text, values) {
   const results = [];
   const sorted = [...new Set(values)].filter((v) => v.trim().length >= 2).sort((a, b) => b.length - a.length);
   for (const value of sorted) {
+    const startsWithDigit = /^\d/.test(value);
+    const endsWithDigit = /\d$/.test(value);
     for (let start = text.indexOf(value); start !== -1; start = text.indexOf(value, start + 1)) {
       const end = start + value.length;
+      if (startsWithDigit && isInsideOtherNumber(text, start, end, start - 1, -1)) continue;
+      if (endsWithDigit && isInsideOtherNumber(text, start, end, end, 1)) continue;
       if (results.some((r) => start < r.end && r.start < end)) continue;
       results.push({ type: PII_TYPE.ADDRESS, value, start, end });
     }
   }
   return results.sort((a, b) => a.start - b.start);
+}
+
+/** 금액·면적 앞 표시: "금", "₩", "￦", "\" (원화 기호 대신 쓰는 경우) */
+const MONEY_BEFORE = /(?:금|₩|￦|\\)\s*$/;
+/** 금액·면적 뒤 표시: "원", "㎡", "m²" (소수점이 붙어도 된다: "1,740.5㎡") */
+const MONEY_OR_AREA_AFTER = /^(?:\.\d+)?\s*(?:원|㎡|m²)/;
+
+/**
+ * findKnownAddresses에서 찾은 조각이 다른 숫자의 일부인지 본다.
+ *  - 바깥 글자가 숫자이면 같은 숫자다. ("1740")
+ *  - 하이픈 너머에 숫자가 이어지면 같은 번호다. ("246-89", "1-740")
+ *  - 쉼표 너머에 숫자가 이어지면, 이어진 숫자 전체가 금액·면적 모양일 때만 같은 숫자로 본다.
+ *    금액·면적 모양 = 앞에 금·₩ 또는 뒤에 원·㎡가 있거나, "740,000,000"처럼 세 자리 묶음이 두 번 이상 이어진다.
+ * @param {string} text
+ * @param {number} start  조각 시작
+ * @param {number} end  조각 끝
+ * @param {number} at  조각 바로 바깥 글자의 위치
+ * @param {-1 | 1} step  앞쪽이면 -1, 뒤쪽이면 1
+ */
+function isInsideOtherNumber(text, start, end, at, step) {
+  const c = text[at] ?? '';
+  if (/[0-9]/.test(c)) return true;
+  if (!/[0-9]/.test(text[at + step] ?? '')) return false;
+  if (c === '-') return true;
+  if (c !== ',') return false;
+  // 조각을 포함해 숫자·쉼표로 이어진 부분 전체
+  let from = start;
+  while (from > 0 && /[0-9,]/.test(text[from - 1])) from--;
+  let to = end;
+  while (to < text.length && /[0-9,]/.test(text[to])) to++;
+  const run = text.slice(from, to);
+  return (
+    MONEY_BEFORE.test(text.slice(0, from)) ||
+    MONEY_OR_AREA_AFTER.test(text.slice(to)) ||
+    /^\d{1,3}(?:,\d{3}){2,}$/.test(run)
+  );
 }
 
 /**
