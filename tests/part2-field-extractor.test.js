@@ -244,7 +244,7 @@ describe('PART 2 특약사항', () => {
         '임대사업자는 개인정보를 제공한다.',
       ];
       expect(findSpecialTerms(lines)).toEqual(['1. 반려동물은 키울 수 없다.', '2. 관리비는 월세와 함께 낸다.']);
-      expect(findSpecialTerms([...FORM_TEXT, '1. 반려동물은 키울 수 없다.', '※ 작성 방법'])).toEqual([
+      expect(findSpecialTerms([...FORM_TEXT, '1. 반려동물은 키울 수 없다.', '■ 민간임대주택에 관한 특별법 시행규칙'])).toEqual([
         '1. 반려동물은 키울 수 없다.',
       ]);
     });
@@ -254,9 +254,35 @@ describe('PART 2 특약사항', () => {
       expect(findSpecialTerms(lines)).toEqual(['반려동물은 키울 수 없다.']);
     });
 
-    it('서식 문장이 한 줄로 읽혀도 건너뛴다', () => {
-      const lines = ['제17조(특약) 임대사업자와 임차인은 따로 특약으로 정할 수 있다. 다만, 법률을 위반해서는 안 된다.', '◈ 안내'];
+    it('서식 문장이 한 줄로 읽히거나, "다만" 문장이 없는 서식도 건너뛴다', () => {
+      const oneLine = FORM_TEXT.join(' ');
+      expect(findSpecialTerms([oneLine, '◈ 안내'])).toEqual([]);
+      const short = '제17조(특약) 임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대해서는 따로 특약으로 정할 수 있다.';
+      expect(findSpecialTerms([short, '◈ 안내'])).toEqual([]);
+    });
+
+    it('제목만 한 줄이고 서식 문장이 다음 줄부터 나와도 건너뛴다', () => {
+      const lines = ['제17조(특약)', FORM_TEXT[0].replace('제17조(특약) ', ''), ...FORM_TEXT.slice(1), '◈ 안내'];
       expect(findSpecialTerms(lines)).toEqual([]);
+      expect(findSpecialTerms(['제17조(특약)', '1. 반려동물 금지', '◈ 안내'])).toEqual(['1. 반려동물 금지']);
+    });
+
+    it('직접 쓴 특약이 "임대사업자와 임차인은"으로 시작해도 서식이 아니면 지우지 않는다 (#219 리뷰)', () => {
+      const lines = ['제17조(특약) 임대사업자와 임차인은 월세가 2회 밀리면 계약을 해지할 수 있다.', '◈ 안내'];
+      expect(findSpecialTerms(lines)).toEqual(['임대사업자와 임차인은 월세가 2회 밀리면 계약을 해지할 수 있다.']);
+      // 서식 문장 다음 줄에 이어 쓴 경우도 그 줄은 특약이다
+      const after = [...FORM_TEXT, '임대사업자와 임차인은 관리비를 반씩 낼 수 있다.', '◈ 안내'];
+      expect(findSpecialTerms(after)).toEqual(['임대사업자와 임차인은 관리비를 반씩 낼 수 있다.']);
+    });
+
+    it('마침표 없는 짧은 번호 특약("1. 반려동물 금지")도 번호가 이어지면 읽는다 (#219 리뷰)', () => {
+      const lines = [...FORM_TEXT, '1. 반려동물 금지', '2. 실내 흡연 금지', '3. 관리비 별도', '5. 개인정보의 제3자 제공 동의서'];
+      expect(findSpecialTerms(lines)).toEqual(['1. 반려동물 금지', '2. 실내 흡연 금지', '3. 관리비 별도']);
+    });
+
+    it('"※"로 시작하는 특약도 읽는다 (멈추면 특약이 사라진다, #219 리뷰)', () => {
+      const lines = [...FORM_TEXT, '※ 반려동물은 키울 수 없음', '◈ 주택월세 소득공제 안내'];
+      expect(findSpecialTerms(lines)).toEqual(['※ 반려동물은 키울 수 없음']);
     });
 
     it('별지 특약사항이 같이 있으면 별지의 특약도 읽는다', () => {

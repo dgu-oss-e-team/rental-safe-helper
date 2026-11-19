@@ -206,18 +206,27 @@ const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:
  *   "안 된다."
  *   "◈ 주택월세 소득공제 안내"
  * 특약 칸은 찾았으므로, 적은 특약이 없으면 null(못 찾음)이 아니라 [](없음)이다.
- * 서식에 원래 적힌 문장("임대사업자와 임차인은 … 된다.")은 특약이 아니라서 건너뛴다.
- * 그 뒤 안내 줄("◈ …", "※ …"), 다음 조항("제18조(…)"), 다음 번호 제목("5. 개인정보 …")에서 멈춘다.
+ * 서식에 원래 적힌 문장은 특약이 아니라서 건너뛴다. 단, 서식 문구 전체가 글자 그대로(띄어쓰기 무시) 맞을 때만이다.
+ *   직접 쓴 특약 "임대사업자와 임차인은 … 해지할 수 있다."를 서식으로 오해해 지우면 거짓 [](없음)이 된다. (#219 리뷰)
+ * 그 뒤 서식 안내 줄("◈ …", "■ …"), 다음 조항("제18조(…)"), 번호가 끊긴 번호 제목("5. 개인정보 …")에서 멈춘다.
+ *   "※"는 사용자가 특약 앞에 쓰기도 해서 멈추지 않는다. (멈추면 특약이 사라진다, #219 리뷰)
+ *   번호 줄은 1, 2, 3…으로 이어지면 특약이다. ("1. 반려동물 금지"처럼 마침표가 없어도, #219 리뷰)
  */
 const SPECIAL_TERMS_CLAUSE = /^\s*제\s*\d{1,2}\s*조\s*[(（]\s*특\s*약\s*(?:사\s*항)?\s*[)）]\s*/;
-/** 서식 문장의 시작: "임대사업자와 임차인은", "임대인과 임차인은" */
-const CLAUSE_FORM_TEXT_START = /^(?:임\s*대\s*사\s*업\s*자\s*와|임\s*대\s*인\s*과)\s*임\s*차\s*인\s*은/;
-/** 서식 문장의 끝 줄: "… 안 된다.", "… 정할 수 있다." */
-const CLAUSE_FORM_TEXT_END = /(?:된다|있다)\.\s*$/;
+/**
+ * 서식 문장 전체 (띄어쓰기를 지운 글자로 비교). 뒤의 "다만, …" 문장은 서식마다 있을 수도 없을 수도 있다.
+ * "임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대해서는 따로 특약으로 정할 수 있다.
+ *  다만, 특약의 내용은 「약관의 규제에 관한 법률」을 위반해서는 안 된다."
+ */
+const CLAUSE_FORM_TEXT = new RegExp(
+  '^(?:임대사업자와|임대인과)임차인은제\\d+조부터제\\d+조까지에서규정한사항외에필요한사항에대(?:하여|해서)는' +
+    '따로특약으로정할수있다\\.(?:다만,?특약의내용은[「『"]?약관의규제에관한법률[」』"]?을위반해서는(?:안|아니)된다\\.)?$',
+);
 const MAX_CLAUSE_FORM_TEXT_LINES = 4;
-/** 특약 조항 구간이 끝나는 줄: 안내 줄, 다음 조항, 번호 제목 */
-const CLAUSE_SECTION_STOP = /^\s*[◈※■▶]|^\s*제\s*\d{1,3}\s*조\s*[(（]/;
-const NUMBERED_TITLE = /^\s*\d{1,2}\s*[.)]\s*\S/;
+/** 특약 조항 구간이 끝나는 줄: 서식 안내 줄, 다음 조항 */
+const CLAUSE_SECTION_STOP = /^\s*[◈■]|^\s*제\s*\d{1,3}\s*조\s*[(（]/;
+/** 번호 줄: "1. …", "2) …" → [1] 번호 */
+const NUMBERED_LINE = /^\s*(\d{1,2})\s*[.)]\s*\S/;
 const MAX_SPECIAL_TERM_LINES = 30;
 
 /*
@@ -308,25 +317,32 @@ function readSpecialTermSection(lines, start) {
 function readSpecialTermClause(lines, start) {
   let headRest = lines[start].replace(SPECIAL_TERMS_CLAUSE, '').trim();
   let i = start + 1;
-  // 서식 문장은 건너뛴다: 제목 줄부터 "… 된다." 줄까지 (최대 4줄)
-  if (CLAUSE_FORM_TEXT_START.test(headRest)) {
+  // 서식 문장은 건너뛴다: 제목 줄 나머지부터 이어 붙인 글자가 서식 문장 전체와 맞는 마지막 줄까지 (최대 4줄)
+  let joined = headRest.replace(/\s+/g, '');
+  let formEnd = CLAUSE_FORM_TEXT.test(joined) ? start : -1;
+  const last = Math.min(lines.length, start + 1 + MAX_CLAUSE_FORM_TEXT_LINES);
+  for (let j = start + 1; j < last; j += 1) {
+    joined += lines[j].replace(/\s+/g, '');
+    if (CLAUSE_FORM_TEXT.test(joined)) formEnd = j;
+  }
+  if (formEnd >= 0) {
     headRest = '';
-    if (!CLAUSE_FORM_TEXT_END.test(lines[start])) {
-      const last = Math.min(lines.length, start + 1 + MAX_CLAUSE_FORM_TEXT_LINES);
-      let j = start + 1;
-      while (j < last && !CLAUSE_FORM_TEXT_END.test(lines[j])) j += 1;
-      // 끝 줄을 못 찾으면 어디까지가 서식인지 모르므로 제목 다음 줄부터 읽는다
-      if (j < last) i = j + 1;
-    }
+    i = formEnd + 1;
   }
   const end = Math.min(lines.length, i + MAX_SPECIAL_TERM_LINES);
   /** @type {number[]} */
   const body = [];
+  let nextNumber = 1;
   for (; i < end; i += 1) {
     const line = lines[i];
     if (isSpecialTermsHeading(line)) break;
     if (CLAUSE_SECTION_STOP.test(line) || SPECIAL_TERMS_STOP.test(line)) break;
-    if (NUMBERED_TITLE.test(line) && !SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE) break;
+    const numbered = NUMBERED_LINE.exec(line);
+    if (numbered) {
+      // 번호가 이어지면 특약, 끊긴 짧은 제목("5. 개인정보의 제3자 제공 동의서")은 다음 서식 구간
+      if (Number(numbered[1]) === nextNumber) nextNumber += 1;
+      else if (!SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE) break;
+    }
     if (PAGE_MARK_LINE.test(line)) continue;
     body.push(i);
   }
