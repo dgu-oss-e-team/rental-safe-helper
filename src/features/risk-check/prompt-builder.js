@@ -27,6 +27,7 @@ const ROLE_PHRASE = {
   Landlord: 'the landlord',
   Tenant: 'the tenant',
   AccountHolder: 'the account holder',
+  PrevOwner: 'the previous owner',
 };
 
 /** 역할을 알 수 없을 때 */
