@@ -19,6 +19,7 @@ import { toFormalAddress } from './address-normalizer.js';
 import {
   findPeople,
   findKnownNames,
+  findKnownAddresses,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -197,8 +198,10 @@ function scanDocument(document) {
   // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
   // 예: 갑구 "소유자 김철수"를 찾았으면 을구 "채무자 김철수", 계약서 첫 줄 "임대인(김철수)과"도.
   // 역할은 모르므로 null이다. (위험 점검용 사람 목록에는 영향이 없다)
+  // 주소 조각도 같다: 표제부에서 찾은 지번 "39-30"이 대지권 칸 둘째 줄에 혼자 또 나오는 곳 (실제 개인 등기부)
   const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME).map((h) => h.value);
-  if (names.length > 0) {
+  const addresses = hits.filter((h) => h.type === PII_TYPE.ADDRESS).map((h) => h.value);
+  if (names.length > 0 || addresses.length > 0) {
     /** @type {Map<any, any[]>} 블록 → 그 블록에서 찾은 결과 */
     const byBlock = new Map();
     for (const h of hits) byBlock.set(h.block, [...(byBlock.get(h.block) ?? []), h]);
@@ -207,7 +210,8 @@ function scanDocument(document) {
       for (const block of page.blocks) {
         blockOrder += 1;
         const inBlock = byBlock.get(block) ?? [];
-        for (const r of findKnownNames(block.text ?? '', names)) {
+        const text = block.text ?? '';
+        for (const r of [...findKnownNames(text, names), ...findKnownAddresses(text, addresses)]) {
           if (overlapsAny(inBlock, r)) continue;
           const hit = Object.assign(r, { page, block, order: blockOrder });
           inBlock.push(hit);

@@ -235,6 +235,28 @@ export function findKnownNames(text, names) {
 }
 
 /**
+ * 이미 찾은 주소 조각이 같은 서류의 다른 곳에 또 나오는 자리를 찾는다.
+ * 예: 표제부에서 찾은 지번 "39-30"이 대지권 칸 둘째 줄에 혼자 또 나옴 (그 줄만 보면 주소인지 알 수 없음)
+ * 보내기 전 검사(PART 4)는 찾은 값이 어디에든 글자 그대로 보이면 멈추므로, 같은 기준(글자 그대로)으로 찾는다.
+ * 긴 조각부터 찾아서, 짧은 조각이 긴 조각 안에서 따로 잡히지 않게 한다.
+ * @param {string} text
+ * @param {string[]} values
+ */
+export function findKnownAddresses(text, values) {
+  /** @type {{ type: string, value: string, start: number, end: number }[]} */
+  const results = [];
+  const sorted = [...new Set(values)].filter((v) => v.trim().length >= 2).sort((a, b) => b.length - a.length);
+  for (const value of sorted) {
+    for (let start = text.indexOf(value); start !== -1; start = text.indexOf(value, start + 1)) {
+      const end = start + value.length;
+      if (results.some((r) => start < r.end && r.start < end)) continue;
+      results.push({ type: PII_TYPE.ADDRESS, value, start, end });
+    }
+  }
+  return results.sort((a, b) => a.start - b.start);
+}
+
+/**
  * 주소 찾기: 시·도 이름 + 공백 + 시·군·구로 시작하는 부분부터 줄 끝(또는 괄호 앞)까지.
  * 예: "소재지 서울특별시 중구 필동로 00, 101호" → "서울특별시 중구 필동로 00, 101호"
  * 등기부처럼 라벨 없이 주소만 있는 줄도 찾는다.
@@ -452,7 +474,7 @@ const MIXED_ROAD = /^[ \t]*([가-힣0-9]+(?:로|길)[ \t]*\d+(?:-\d+)?)(?![\d가
 const MIXED_LOT_NUMBER = /^[ \t]*(\d{1,5}(?:-\d{1,5})?)(?![\d.,/]|\s*(?:층|호|동|㎡|년|분의))/;
 const MIXED_BUILDING_NAME = /^[ \t]*((?![제(\[【])[가-힣A-Za-z][가-힣A-Za-z0-9]{1,19})(?=\s|$)/;
 /** 건물 이름으로 보지 않는 첫 낱말 (표 칸 글자) */
-const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권)/;
+const NOT_BUILDING_NAME = /^(?:지하|지상|옥탑|철근|콘크리트|표시번호|열람|고유번호|등기|도면편철장|소유권|대지권|갑구|을구|표제부)/;
 
 /**
  * 칸이 섞여 줄 끝까지 오지 않은 주소 다음 줄에서 이어지는 조각을 찾는다. (위 설명)
