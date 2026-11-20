@@ -54,19 +54,50 @@ const analyze = () => {
 };
 
 describe('PART 2 주소 끝 동·층·호수 조각 (unitTailsOf)', () => {
-  it('등기부 표기 호수를 층과 함께, 그리고 호수만 뗀다', () => {
-    expect(unitTailsOf('서울특별시 중구 가상동3가 12-34 가상빌 제3층 제304호')).toEqual(['제3층 제304호', '제304호']);
-    expect(unitTailsOf('서울특별시 중구 가상로 12 가상아파트 제101동 제7층 제702호')).toEqual([
-      '제101동 제7층 제702호',
-      '제702호',
-    ]);
-    expect(unitTailsOf('서울특별시 중구 가상동 12 제301호')).toEqual(['제301호']);
+  it('등기부 표기 호수를 층·동과 함께 뗀다', () => {
+    expect(unitTailsOf('서울특별시 중구 가상동3가 12-34 가상빌 제3층 제304호')).toEqual(['제3층 제304호']);
+    expect(unitTailsOf('서울특별시 중구 가상로 12 가상아파트 제101동 제7층 제702호')).toEqual(['제101동 제7층 제702호']);
   });
 
-  it('"제"가 없는 호수, 호수가 없는 주소, 호수만 있는 값은 떼지 않는다', () => {
+  it('호수만("제301호"), "제"가 없는 호수, 호수가 없는 주소는 떼지 않는다 (#233 리뷰)', () => {
+    expect(unitTailsOf('서울특별시 중구 가상동 12 제301호')).toEqual([]);
     expect(unitTailsOf('서울특별시 중구 가상로 12, 301호')).toEqual([]);
     expect(unitTailsOf('서울특별시 중구 가상동3가 12-34')).toEqual([]);
     expect(unitTailsOf('제304호')).toEqual([]);
+  });
+});
+
+describe('PART 2 떼어 낸 호수 조각이 다른 서류와 부딪히지 않는다 (#233 정연님 리뷰)', () => {
+  /** @param {string[]} reg @param {string[]} lease */
+  const prepAll = (reg, lease) => {
+    const a = analyzeReadDocuments({ files: [], documents: [doc('REG', reg), doc('LEASE', lease)] });
+    if (!a.ok) throw new Error(`stopped at ${a.step}`);
+    return Object.values(MASKING_PURPOSE).map((p) => prepareForAi(a.data, p));
+  };
+
+  // 계약서 주소는 도로명 + "304호"("제" 없음): 계약서 안에서는 "제304호"를 다시 찾지 않는다
+  const ROAD_LEASE = LEASE.map((t) => (t.startsWith('소재지') ? '소재지 서울특별시 중구 가상로 7, 3층 304호' : t));
+  // 전유부분 표의 건물번호 칸이 "제3층" / "제304호"로 두 줄로 나뉜 등기부: 호수만 따로 나온다
+  /** @param {string} unit @param {string} floor */
+  const splitRegistry = (floor, unit) =>
+    REGISTRY.flatMap((t) =>
+      t === '1 2017년7월27일 제3층 제304호 철근콘크리트구조'
+        ? [`1 2017년7월27일 ${floor} 철근콘크리트구조`, `${unit} (철근)콘크리트지붕`]
+        : [t.replace('제3층 제304호', `${floor} ${unit}`)],
+    );
+
+  it('계약서 특약에 "제304호 현관 …"이 있어도 멈추지 않는다', () => {
+    const lease = [...ROAD_LEASE, '특약사항', '제304호 현관 비밀번호는 입주일에 알려준다.'];
+    for (const r of prepAll(splitRegistry('제3층', '제304호'), lease)) expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+  });
+
+  it('등기부 "제1층 제1호" + 계약서 "별지 제1호 서식"도 멈추지 않는다', () => {
+    const reg = splitRegistry('제1층', '제1호');
+    const lease = [...ROAD_LEASE, '첨부: 별지 제1호 서식 확인서'];
+    for (const r of prepAll(reg, lease)) {
+      expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+      expect(Object.values(r.data.maskedText).join('\n')).not.toContain('제1층 제1호');
+    }
   });
 });
 
