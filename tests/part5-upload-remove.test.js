@@ -52,10 +52,26 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
     const { node } = screenWith({});
     expect(node.querySelector('label.file-button[for="lease-file"]')?.textContent).toBe('Choose file');
     expect(node.querySelector('#lease-file-status')?.textContent).toBe('No file chosen');
-    // 기본 파일 칸은 숨기지만 키보드·화면 낭독기로 쓸 수 있게 남겨 두고, 상태 글과 연결한다
+    // 기본 파일 칸은 숨기지만 키보드·화면 낭독기로 쓸 수 있게 남겨 두고, 칸 설명·상태 글과 연결한다 (#234)
     const input = node.querySelector('#lease-file');
     expect(input?.classList.contains('file-input')).toBe(true);
-    expect(input?.getAttribute('aria-describedby')).toBe('lease-file-status');
+    expect(input?.getAttribute('aria-describedby')).toBe('lease-file-hint lease-file-status');
+  });
+
+  it('계약서 칸은 특약 별지까지 모든 쪽을 올리라고 안내한다 (#234)', () => {
+    const { node } = screenWith({});
+    const hint = node.querySelector('#lease-file-hint')?.textContent ?? '';
+    expect(hint).toContain('Include every page');
+    expect(hint).toContain('special terms page (특약사항 별지)');
+    // 사진은 한 장만 올라가므로 여러 쪽이면 PDF로
+    expect(hint).toContain('upload a PDF with all pages');
+    // 등기부 칸 설명은 그대로
+    expect(node.querySelector('#registry-file-hint')?.textContent).toBe('Shows who owns the home and any mortgage or seizure.');
+    // 칸 설명이 화면 낭독기 설명으로 연결된 대상이 실제로 있다
+    for (const id of ['registry-file', 'lease-file']) {
+      const ids = node.querySelector(`#${id}`)?.getAttribute('aria-describedby')?.split(' ') ?? [];
+      for (const ref of ids) expect(node.querySelector(`#${ref}`), ref).not.toBeNull();
+    }
   });
 
   it('Remove는 주 버튼보다 눈에 덜 띄는 글자 버튼이다', () => {
