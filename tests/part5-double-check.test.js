@@ -1,7 +1,7 @@
 // PART 5. 마스킹 PDF 다시 검사 (노션 10장: 생성된 PDF를 다시 OCR하여 개인정보가 보이는지 확인)
 // OCR 대신, 다시 읽은 결과(DocumentModel)를 직접 만들어 비교 로직을 검사한다. 가짜 데이터만 사용.
 import { describe, it, expect, vi } from 'vitest';
-import { findVisiblePii, unverifiable, CHECK_STATUS, partlyCheckedText, PII_TYPE_TEXT, digitRunsOf } from '../src/app/double-check.js';
+import { findVisiblePii, unverifiable, CHECK_STATUS, partlyCheckedText, PII_TYPE_TEXT, digitRunsOf, digitSegmentsOf } from '../src/app/double-check.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
 
 // pipeline의 readDocument(PART 1)를 가짜로 바꿔, OCR 성공·실패를 흉내 낸다
@@ -144,6 +144,30 @@ describe('PART 5 findVisiblePii(): 다시 읽은 글자에서 개인정보 찾�
       it('또렷한 줄에서도 기호가 섞인 번호("010 0000.0000")는 그대로 찾는다', () => {
         const r = findVisiblePii(ocrDoc('연락처 010 - 0000 . 0000'), findings, plan());
         expect(r.hits).toEqual([{ type: 'PHONE_NUMBER', pageIndex: 0 }]);
+      });
+
+      it.each([
+        ['750315  -  1234567', '공백 2칸씩'],
+        ['750315 | - | 1234567', '표 선이 낌'],
+        ['750315     1', '공백 5칸'],
+      ])('번호 사이가 넓게 벌어져도("%s", %s) 한글이 없으면 정확히 같은 번호로 찾는다 (#241 리뷰)', (text) => {
+        for (const confidence of [0.95, 0.5]) {
+          const r = findVisiblePii(ocrWith([`주민번호 ${text}`, confidence], ['특약사항', 0.9], ['계약일', 0.9]), findings, plan());
+          expect(r.status, `신뢰도 ${confidence}`).toBe(CHECK_STATUS.MAYBE_VISIBLE);
+          expect(r.hits).toEqual([{ type: 'RESIDENT_ID', pageIndex: 0 }]);
+        }
+      });
+
+      it('"거의 같은 번호"(1개 차이)는 넓게 벌어진 숫자까지 이어 보지 않는다 (우연히 맞기 쉬워서)', () => {
+        // 750815 … 1 → 정확히 같지 않고, 사이가 4칸 넘게 벌어져 좁은 덩어리로는 나뉜다
+        const r = findVisiblePii(ocrWith(['주민번호 750815     1', 0.5], ['특약사항', 0.9], ['계약일', 0.9]), findings, plan());
+        expect(r.status).toBe(CHECK_STATUS.PARTLY_CHECKED);
+      });
+
+      it('digitSegmentsOf(): 한글에서만 끊는다', () => {
+        expect(digitSegmentsOf('750315 | - | 1234567')).toEqual(['7503151234567']);
+        expect(digitSegmentsOf('2010년 9월 1일')).toEqual(['2010', '9', '1']);
+        expect(digitSegmentsOf('특약사항')).toEqual([]);
       });
 
       it('digitRunsOf(): 한글이 끼거나 4글자 이상 벌어지면 다른 덩어리', () => {

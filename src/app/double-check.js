@@ -80,6 +80,21 @@ export function digitRunsOf(text) {
 }
 
 /**
+ * 한 줄을 한글 글자에서 끊은 구간마다 숫자만 남겨 돌려준다. (#241 리뷰)
+ * "정확히 같은 번호"를 찾을 때 쓴다. 기호·공백이 아무리 벌어져도("750315  -  1234567", "750315 | - | 1234567")
+ * 한글이 끼지 않으면 이어서 본다. 정확히 같아야 하므로 관계없는 숫자가 우연히 맞을 일은 드물다.
+ * "거의 같은 번호"(1개 차이)는 우연히 맞기 쉬워서 digitRunsOf()의 좁은 덩어리로만 본다.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function digitSegmentsOf(text) {
+  return text
+    .split(/[가-힣]+/)
+    .map(digitsOf)
+    .filter((s) => s !== '');
+}
+
+/**
  * @typedef {Object} DoubleCheckResult
  * @property {'NOT_FOUND' | 'PARTLY_CHECKED' | 'MAYBE_VISIBLE' | 'UNVERIFIABLE'} status
  * @property {{ type: string, pageIndex: number }[]} hits  보일 수 있는 개인정보 (종류·페이지만)
@@ -138,6 +153,7 @@ export function findVisiblePii(ocrDocument, findings, plan) {
       pageIndex: page.pageIndex,
       text: compact(b.text),
       runs: digitRunsOf(b.text),
+      segments: digitSegmentsOf(b.text),
       unclear: isUnclear(b),
     })),
   );
@@ -154,7 +170,8 @@ export function findVisiblePii(ocrDocument, findings, plan) {
     for (const line of lines) {
       const seen =
         line.text.includes(value) ||
-        (longNumber && line.runs.some((run) => run.includes(digits))) ||
+        // 정확히 같은 번호: 한글이 끼지 않은 구간이면 기호·공백이 벌어져도 이어서 본다 (#241 리뷰)
+        (longNumber && line.segments.some((segment) => segment.includes(digits))) ||
         // 흐린 줄은 OCR이 숫자를 틀렸을 수 있으므로 거의 같은 숫자열도 "보일 수 있음"으로 본다 (안전한 쪽)
         // 단, 이어진 숫자 덩어리 안에서만 비교한다 (#239)
         (nearComparable && line.unclear && line.runs.some((run) => containsNearly(run, digits)));
