@@ -146,7 +146,8 @@ function scanDocument(document) {
       /** @type {any[]} */
       const found = [...findPatternPII(text)];
       const people = findPeople(text, role);
-      const split = findNameAfterFieldBlock(prevText, text, role).filter((p) => !people.some((q) => q.start === p.start));
+      const afterField = findNameAfterFieldBlock(prevText, text, role);
+      const split = afterField.filter((p) => !people.some((q) => q.start === p.start));
       const blockAnchors = roleAnchorsIn(text);
       // 괄호 안 낱말은 칸 설명이라 역할 칸이 아니다: "(대표 사무소 소재지)"의 "대표"
       for (const a of blockAnchors) {
@@ -160,7 +161,9 @@ function scanDocument(document) {
         if (r.type === PII_TYPE.PERSON_NAME && termLines.has(line)) Object.assign(r, { role: null, birthDate: null });
         if (r.type === PII_TYPE.PERSON_NAME) {
           // "성명" 칸의 이름인지, 같은 블록에서 역할 칸 뒤에 왔는지 (fixLateRoleLabels가 쓴다)
-          r.fieldName = split.includes(r) || followsNameField(text, r.start);
+          r.fieldName = afterField.some((p) => p.start === r.start) || followsNameField(text, r.start);
+          // "성명(법인명)" 칸: 민간임대 표준계약서에만 있는 칸 이름 (역할 칸이 이름 뒤에 나오는 서식)
+          r.corpNoteField = r.fieldName && CORP_NOTE_BEFORE.test(`${prevText}\n${text.slice(0, r.start)}`);
           r.anchorBefore = blockAnchors.some((a) => a.index < r.start);
         }
         found.push(r);
@@ -168,7 +171,13 @@ function scanDocument(document) {
       // "성명(법인명)" 칸의 회사 이름: 찾지는 않지만, 역할 칸 순서를 판단할 때 성명 칸 하나로 센다
       const corpAt = corporateNameInField(prevText, text);
       if (corpAt >= 0) {
-        corporateFields.push({ order, start: corpAt, role, anchorBefore: blockAnchors.some((a) => a.index < corpAt) });
+        corporateFields.push({
+          order,
+          start: corpAt,
+          role,
+          anchorBefore: blockAnchors.some((a) => a.index < corpAt),
+          corpNoteField: CORP_NOTE_BEFORE.test(`${prevText}\n${text.slice(0, corpAt)}`),
+        });
       }
       firstLine += text.split('\n').length;
       role = lastRoleIn(text, role);
@@ -270,6 +279,8 @@ const LATE_LABEL_WINDOW = 8;
 const NEAR_BEFORE = 2;
 /** 번호 칸 이름: "임대사업자 등록번호", "임대사업자" / "2017-서울중구-…" / "등록번호" */
 const REGISTRATION_FIELD = /^\s*등\s*록\s*번\s*호/;
+/** 이름 바로 앞이 "성명(법인명)" 칸 이름 (같은 블록 또는 윗 블록 끝) */
+const CORP_NOTE_BEFORE = /성\s*명\s*[(（]\s*법\s*인\s*명\s*[)）]\s*[:：]?\s*$/;
 
 /**
  * 역할 칸이 이름보다 뒤에 나오는 표에서 역할과 생년월일을 고친다. (#205)
@@ -337,13 +348,23 @@ function fixLateRoleLabels(hits, allAnchors, texts, corporateFields = []) {
   const nearAnchorBefore = (h, prev) =>
     anchors.some((x) => isBefore(x, h) && (!prev || isBefore(prev, x)) && h.order - x.order <= NEAR_BEFORE);
   if (!firstAfter(anchors, names[0], names[1])) return;
-  if (names[1] && nearAnchorBefore(names[1], names[0])) return;
+  // 단, 첫 이름이 "성명(법인명)" 칸이면 민간임대 서식이라 이 순서가 맞다. 줄이 짧게 읽혀 첫 이름 뒤 "임대사업자" 칸이
+  // 둘째 이름 바로 앞에 와도 둘째 이름(임차인)이 "임대사업자"를 이어받지 않게 한다. (PR #238 병합 후 리뷰)
+  if (names[1] && !names[0].corpNoteField && nearAnchorBefore(names[1], names[0])) return;
 
   const ids = hits.filter((h) => h.type === PII_TYPE.RESIDENT_ID || h.type === PII_TYPE.FOREIGNER_ID).sort(byPos);
+  // 앞 이름이 이미 가져간 역할 칸은 다음 이름 "앞의 역할 칸"으로 다시 보지 않는다. (PR #238 병합 후 리뷰)
+  // "성명(법인명) 김가상" / "임대사업자" / "주민등록번호 …" / "성명(법인명) 이가상" / "임차인 …"에서
+  // "임대사업자"는 김가상의 칸이라, 이가상 바로 앞에 있어도 이가상의 역할이 아니다.
+  const used = new Set();
+  /** @param {any} h @param {any} prev */
+  const freeAnchorBefore = (h, prev) =>
+    anchors.some((x) => !used.has(x) && isBefore(x, h) && (!prev || isBefore(prev, x)) && h.order - x.order <= NEAR_BEFORE);
   names.forEach((h, i) => {
-    if (h.anchorBefore || nearAnchorBefore(h, names[i - 1])) return;
+    if (h.anchorBefore || freeAnchorBefore(h, names[i - 1])) return;
     const next = names[i + 1];
     const anchor = firstAfter(anchors, h, next);
+    if (anchor) used.add(anchor);
     // 뒤에서 역할 칸을 못 찾으면(OCR이 놓침, 너무 멂) 위에서 이어받은 역할을 믿지 않는다.
     // 임차인이 위의 "임대사업자"를 이어받아 임대인이 되면 거짓 STOP이 나므로, 모르는 채로 둔다. (#207 리뷰)
     if (!anchor) {
