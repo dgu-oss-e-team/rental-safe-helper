@@ -1,0 +1,101 @@
+# 평가 결과 (Evaluation)
+
+> 이 파일은 `npm run eval`이 만든다. 직접 고치지 말고 다시 실행한다. (#251, 지도 교수님 피드백 ②)
+> 커밋 `643cc8a` · 서류 10장 · 정답 개인정보 123개 · 모든 서류와 값은 가짜다.
+
+## 평가 세트
+
+| 서류 | 종류 | 양식 | 정답 개인정보 |
+|---|---|---|---|
+| sample-registry | 등기부 | 집합건물 등기부 견본 (시연 샘플) | 11 |
+| sample-lease | 계약서 | 주택임대차표준계약서 (시연 샘플) | 9 |
+| dense-registry | 등기부 | 빽빽한 집합건물 등기부 (공개 견본 구조) | 17 |
+| dense-lease | 계약서 | 빽빽한 주택임대차표준계약서 | 13 |
+| form-trust-registry | 등기부 | 법인 소유·신탁 집합건물 등기부 (열람본 구조) | 9 |
+| form-private-lease | 계약서 | 민간임대 표준임대차계약서 (법인 임대사업자, 3쪽 요약) | 13 |
+| form-coowner-registry | 등기부 | 개인 공유 집합건물 등기부 (열람본 구조) | 13 |
+| form-individual-registry | 등기부 | 개인 공유→개인 소유 집합건물 등기부 (열람본 3쪽 구성) | 15 |
+| form-individual-lease | 계약서 | 민간임대 표준임대차계약서 (개인 임대사업자, 6쪽 서식 그대로) | 11 |
+| form-individual-lease-risky | 계약서 | 민간임대 표준임대차계약서 (위험 판정용: 임대인·예금주 다름, 위험 특약 4개) | 12 |
+
+정답 개인정보의 종류별 수: PERSON_NAME 23, RESIDENT_ID 17, FOREIGNER_ID 4, PHONE_NUMBER 12, BANK_ACCOUNT 5, ADDRESS 48, REGISTRY_ID 14
+
+## 1. 개인정보 유형별 미탐지율
+
+가장 많이 가리는 목적(CONTRACT_EXPLANATION)으로 가린 글(보내기 전 검사 전)에 정답 값이 그대로 남으면 "미탐지"로 센다.
+
+| 종류 | 정답 | 미탐지 | 미탐지율 |
+|---|---|---|---|
+| PERSON_NAME | 23 | 0 | 0.0% |
+| RESIDENT_ID | 17 | 0 | 0.0% |
+| FOREIGNER_ID | 4 | 0 | 0.0% |
+| PHONE_NUMBER | 12 | 0 | 0.0% |
+| BANK_ACCOUNT | 5 | 0 | 0.0% |
+| ADDRESS | 48 | 2 | 4.2% |
+| REGISTRY_ID | 14 | 1 | 7.1% |
+| **전체** | **123** | **3** | **2.4%** |
+
+미탐지 항목 (가짜 값):
+- dense-registry · REGISTRY_ID · `110111-0000001`
+- dense-registry · ADDRESS · `제7층 제702호`
+- form-coowner-registry · ADDRESS · `제6층 제602호`
+
+## 2. 과잉 마스킹 비율
+
+탐지 결과 중 어느 정답 개인정보와도 겹치지 않는 것(개인정보가 아닌데 가린 것)의 비율이다.
+
+| 서류 | 탐지 | 과잉 | 비율 |
+|---|---|---|---|
+| sample-registry | 17 | 0 | 0.0% |
+| sample-lease | 11 | 0 | 0.0% |
+| dense-registry | 24 | 0 | 0.0% |
+| dense-lease | 19 | 0 | 0.0% |
+| form-trust-registry | 14 | 1 | 7.1% |
+| form-private-lease | 15 | 0 | 0.0% |
+| form-coowner-registry | 21 | 0 | 0.0% |
+| form-individual-registry | 26 | 0 | 0.0% |
+| form-individual-lease | 14 | 0 | 0.0% |
+| form-individual-lease-risky | 14 | 0 | 0.0% |
+| **전체** | **175** | **1** | **0.6%** |
+
+과잉 마스킹 항목 (가짜 값):
+- `form-trust-registry · ADDRESS:서울특별시 성동구 22층 공동주택(아파트)`
+
+## 3. AI 전송 직전까지 남은 개인정보 (목표 0)
+
+목적마다 prepareForAi()가 만든 프롬프트와 가린 글(보내기 전 검사까지 통과한 것)에 정답 값이 남은 수다. 보내기 전 검사가 멈추면 보낼 글이 없으므로 "멈춤"으로 따로 센다.
+
+| 목적 | 서류 묶음 | 남은 개인정보 | 멈춤 |
+|---|---|---|---|
+| CLAUSE_EXPLANATION | 6 | 3 / 138 | 0 |
+| FRAUD_CHECK | 6 | 3 / 138 | 0 |
+| CONTRACT_EXPLANATION | 6 | 3 / 138 | 0 |
+
+- CLAUSE_EXPLANATION · dense-registry · REGISTRY_ID
+- CLAUSE_EXPLANATION · dense-registry · ADDRESS
+- FRAUD_CHECK · dense-registry · REGISTRY_ID
+- FRAUD_CHECK · dense-registry · ADDRESS
+- CONTRACT_EXPLANATION · dense-registry · REGISTRY_ID
+- CONTRACT_EXPLANATION · dense-registry · ADDRESS
+- CLAUSE_EXPLANATION · form-coowner-registry · ADDRESS
+- FRAUD_CHECK · form-coowner-registry · ADDRESS
+- CONTRACT_EXPLANATION · form-coowner-registry · ADDRESS
+
+## 4. 양식별 "확인 불가" 비율
+
+서류 묶음마다 위험 점검 결과 중 UNVERIFIABLE의 비율이다.
+
+| 묶음 | STOP | CHECK | UNVERIFIABLE | NO_FLAG | 확인 불가 비율 |
+|---|---|---|---|---|---|
+| 시연 샘플 (등기부 견본 + 주택임대차 표준계약서) | 1 | 3 | 1 | 3 | 12.5% |
+| 빽빽한 서류 (등기부 + 주택임대차 표준계약서) | 1 | 3 | 1 | 3 | 12.5% |
+| 법인·신탁 등기부 + 민간임대 계약서(법인) | 1 | 1 | 2 | 4 | 25.0% |
+| 개인 공유 등기부만 | 0 | 0 | 5 | 3 | 62.5% |
+| 개인 등기부 + 민간임대 계약서(개인, 6쪽) | 0 | 0 | 1 | 7 | 12.5% |
+| 개인 등기부 + 민간임대 계약서(위험 판정용) | 2 | 1 | 0 | 5 | 0.0% |
+
+## 한계
+
+- 글자가 들어 있는 PDF만 평가한다. 사진·스캔(OCR)은 포함하지 않는다.
+- 미탐지는 "가린 글에 값이 남았는지"로 본다. PDF 위 가림 상자의 위치·넓이는 따로 평가하지 않는다.
+- 서류는 공개 양식 구조를 따른 가짜 서류 10장이라, 실제 서류의 다양한 모양을 모두 대표하지는 않는다.

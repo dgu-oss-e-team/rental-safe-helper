@@ -1,0 +1,21 @@
+{
+  "document": "form-private-lease",
+  "file": "tests/fixtures/form-private-lease.pdf",
+  "documentType": "LEASE_CONTRACT",
+  "form": "민간임대 표준임대차계약서 (법인 임대사업자, 3쪽 요약)",
+  "pii": [
+    { "type": "PERSON_NAME", "value": "홍길동" },
+    { "type": "PERSON_NAME", "value": "성춘향" },
+    { "type": "REGISTRY_ID", "value": "110111-3579246" },
+    { "type": "REGISTRY_ID", "value": "2023-서울강남-04680" },
+    { "type": "PHONE_NUMBER", "value": "02-0000-5791" },
+    { "type": "PHONE_NUMBER", "value": "010-0000-4826" },
+    { "type": "PHONE_NUMBER", "value": "010-0000-9173" },
+    { "type": "RESIDENT_ID", "value": "960712-2583914" },
+    { "type": "RESIDENT_ID", "value": "881023-1647205" },
+    { "type": "BANK_ACCOUNT", "value": "468-135792-04681" },
+    { "type": "ADDRESS", "value": "서울특별시 강남구 가상대로 00, 12층 (가상동)", "secret": "가상대로 00, 12층" },
+    { "type": "ADDRESS", "value": "서울특별시 성동구 가상로 00, 3층 (가상동, 가상타운) 301호", "secret": "가상로 00, 3층" },
+    { "type": "ADDRESS", "value": "서울특별시 성동구 가상로 00, 3층 301호 (가상동, 가상타운)", "secret": "가상로 00, 3층 301호" }
+  ]
+}

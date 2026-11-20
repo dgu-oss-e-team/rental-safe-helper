@@ -1,0 +1,11 @@
+{
+  "description": "평가 세트 (#251). 서류는 모두 가짜다. pairs는 함께 올리는 서류 묶음(위험 점검은 묶음 단위)이다.",
+  "pairs": [
+    { "id": "sample", "label": "시연 샘플 (등기부 견본 + 주택임대차 표준계약서)", "documents": ["sample-registry", "sample-lease"] },
+    { "id": "dense", "label": "빽빽한 서류 (등기부 + 주택임대차 표준계약서)", "documents": ["dense-registry", "dense-lease"] },
+    { "id": "trust", "label": "법인·신탁 등기부 + 민간임대 계약서(법인)", "documents": ["form-trust-registry", "form-private-lease"] },
+    { "id": "coowner", "label": "개인 공유 등기부만", "documents": ["form-coowner-registry"] },
+    { "id": "individual", "label": "개인 등기부 + 민간임대 계약서(개인, 6쪽)", "documents": ["form-individual-registry", "form-individual-lease"] },
+    { "id": "individual-risky", "label": "개인 등기부 + 민간임대 계약서(위험 판정용)", "documents": ["form-individual-registry", "form-individual-lease-risky"] }
+  ]
+}

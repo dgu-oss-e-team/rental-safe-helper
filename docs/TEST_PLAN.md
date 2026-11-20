@@ -9,6 +9,26 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 
 테스트 파일은 `tests/` 폴더에 파트별로 둔다.
 
+### 평가 지표 (#251, 지도 교수님 피드백 ②)
+
+```bash
+npm run eval        # 평가 세트로 4가지 지표를 계산해 docs/EVALUATION.md를 새로 쓴다
+```
+
+- 평가 세트: 가짜 서류 10장(`public/samples/sample-*.pdf`, `tests/fixtures/dense-*.pdf`, `tests/fixtures/form-*.pdf`)과
+  서류마다 정답표 `tests/eval/truth/<서류>.json`, 함께 올리는 묶음 `tests/eval/set.json`
+- 정답표 한 항목 = 서류에 나오는 개인정보 값 하나 (`type`, `value`, AI 글에 남으면 안 되는 부분 `secret`)
+  - 주소의 `secret`은 시·군·구 뒤의 자세한 부분이다 (사기 위험 확인 목적은 시·구까지 남기므로)
+  - 회사 이름은 넣지 않는다 (INTERFACES.md: 가리지 않음)
+- 지표
+  1. 유형별 미탐지율: 가장 많이 가리는 목적(계약 설명)으로 가린 글(보내기 전 검사 전)에 정답 값이 남은 비율
+  2. 과잉 마스킹 비율: 탐지 결과 중 어느 정답과도 절반 이상 겹치지 않는 것의 비율
+  3. AI 전송 직전 남은 개인정보: 목적마다 `prepareForAi()` 결과에 남은 정답 값 수 (목표 0). 보내기 전 검사가 멈추면 "멈춤"
+  4. 양식별 "확인 불가" 비율: 서류 묶음마다 위험 점검 결과 중 UNVERIFIABLE의 비율
+- 계산 함수: `tests/eval/metrics.js` (단위 테스트 `tests/part5-eval-metrics.test.js`), 실행: `tests/eval/run-eval.test.js`
+  (`npm test`에서는 건너뛴다)
+- 서류를 추가하면 정답표도 같이 추가하고, 각 파트 담당이 빠진 개인정보가 없는지 리뷰한다
+
 ### 화면(DOM) 테스트 (#131)
 
 버튼·안내 칸처럼 화면이 필요한 테스트는 파일 맨 첫 줄에 아래 한 줄을 쓴다. 그 파일만 가짜 브라우저 화면(happy-dom)에서 돌아가고, 다른 테스트는 지금처럼 Node에서 돌아간다.

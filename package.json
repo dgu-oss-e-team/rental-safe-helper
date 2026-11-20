@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "eval": "vitest run tests/eval/run-eval.test.js --mode eval"
   },
   "devDependencies": {
     "happy-dom": "21.0.4",
