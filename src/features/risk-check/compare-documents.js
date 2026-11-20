@@ -12,6 +12,8 @@
  *  - personGroups에서 판정이 AMBIGUOUS인 사람이 있으면 UNVERIFIABLE
  *  - 공동 소유(소유자 2명 이상)인데 일부만 임대인으로 서명했으면 CHECK (나머지 소유자의 동의 필요) 
  *  - 문구에는 실제 이름 대신 역할 가명(alias)만 쓴다
+ *  - 등기부가 지번, 계약서가 도로명이면 등기부 표제부의 [도로명주소](registry.roadAddress)로 비교 (#177)
+ *    (계약서에서 같은 동·호수 조각을 찾아 비교한다. 위치와 건물 이름은 상관없다)
  */
 
 import { ok, RISK_STATUS } from '../../shared/document-model.js';
@@ -208,6 +210,118 @@ function addressStyle(address) {
 }
 
 /**
+ * 건물 "동" 이름: 숫자(103동) 또는 글자 한 개(가동, A동). (#202 리뷰)
+ * 글자 한 개일 때는 앞에 글자·숫자가 붙어 있지 않아야 한다.
+ * ("가상동"의 "상동"처럼 행정동 이름 끝을 건물 동으로 잘못 읽지 않기 위해서)
+ */
+const DONG_NAME = '(?:\\d+|(?<![가-힣A-Za-z0-9])[가-힣A-Za-z])';
+
+/**
+ * 동 이름을 비교용으로 정리한다. 숫자는 앞의 0을 뺀 숫자 글자로("03" → "3"), 영문은 대문자로("a" → "A").
+ * @param {string} name  "103", "가", "A" 처럼 "동"을 뺀 이름
+ */
+function normalizeDongName(name) {
+  return /^\d+$/.test(name) ? String(Number(name)) : name.toUpperCase();
+}
+
+/**
+ * 지번으로 적힌 등기부 주소에서 동·층·호수 부분만 꺼낸다. (정리한 글자로 돌려준다)
+ *  - "…가상동 246-8 가상타운 제3층 제301호" → "301호" (층은 호수와 맞으면 빠진다)
+ *  - "…가상아파트 제3동 제7층 제702호" → "3동702호"
+ *  - "…가상빌라 가동 제101호" → "가동101호" (동이 글자여도 같다)
+ * 호수가 없으면 ''.
+ * @param {string} lotAddress
+ */
+function unitPart(lotAddress) {
+  const cleaned = lotAddress.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, '');
+  const m = new RegExp(`(?:${DONG_NAME}\\s*동\\s*)?(?:\\d+\\s*층\\s*)?\\d{1,4}\\s*호\\s*$`).exec(cleaned.trim());
+  return m ? normalizeAddress(m[0]) : '';
+}
+
+/**
+ * 정리한 글자 안에서 동·호수 조각을 모두 찾는다. (끝에 있지 않아도 된다)
+ *  - "301호", "3동702호", "103동702호" → { dong, unit }
+ *  - 동이 글자인 "가동101호", "A동101호"도 같은 규칙으로 읽는다. (영문은 대문자로 맞춘다)
+ *  - "103-702" → 103동 702호로 맞춘다. (호수 쪽은 3~4자리일 때만. "246-8" 같은 지번 번지는 호수가 아니다)
+ *  - 앞에 숫자·"-"가 붙어 있으면 다른 숫자의 일부이므로 찾지 않는다. (13동702호 안의 "3동702호")
+ *  - "2호선"은 호수가 아니다.
+ *  - 동·리·읍·면·가·로·길·산 바로 뒤의 "123-456"은 지번·도로 번호라서 호수로 보지 않는다.
+ * 공백·쉼표를 지우면 "246-8, 301호"가 "246-8301호"로 붙어 버리므로, 공백은 남긴 채 "3동 702호" 같은
+ * 동·층·호 사이의 공백만 줄여서 찾는다.
+ * @param {string} loose  괄호와 "제"를 정리하고 공백·쉼표를 한 칸 공백으로 줄인 글자
+ * @returns {{ dong: string | null, unit: string }[]}
+ */
+function findUnitTokens(loose) {
+  // 전각 글자("Ａ동")는 반각으로 맞춘다. 같은 글자로 비교하기 위해서다.
+  const text = loose
+    .normalize('NFKC')
+    .replace(/(\d)\s+(?=동|층|호)/g, '$1')
+    .replace(/(동|층)\s+(?=\d)/g, '$1');
+  const pattern = new RegExp(
+    `(?<![0-9-])(?:(\\d{1,4})-(\\d{3,4})(?:호)?(?![0-9-])|(?:(${DONG_NAME})동)?(?:\\d{1,2}층)?(\\d{1,4})호(?!선))`,
+    'g',
+  );
+  const tokens = [];
+  for (const m of text.matchAll(pattern)) {
+    if (m[2] !== undefined) {
+      if (/[동리읍면가로길산]$/.test(text.slice(0, m.index).trimEnd())) continue;
+      tokens.push({ dong: String(Number(m[1])), unit: String(Number(m[2])) });
+    } else {
+      tokens.push({ dong: m[3] === undefined ? null : normalizeDongName(m[3]), unit: String(Number(m[4])) });
+    }
+  }
+  return tokens;
+}
+
+/**
+ * 등기부 [도로명주소]에 호수를 붙여 계약서 도로명 주소와 비교한다. (#177)
+ * 표제부 도로명주소는 건물 단위(호수 없음)이고, 계약서는 건물 이름이 앞뒤에 붙기도 해서
+ * 글자 전체가 아니라 "도로명+번호가 같은지"와 "계약서에 같은 동·호수가 적혀 있는지"를 따로 본다.
+ * 도로 번호와 호수가 붙어 보이지 않게(00 + 301호), 공백·쉼표를 지우기 전의 글자에서 도로 번호를 먼저 자른다.
+ *  - 도로명+번호가 다르면 DIFFERENT. 도로 번호 뒤에 숫자나 "-숫자"가 이어져도 다른 번호다. (12 ↔ 123, 315 ↔ 315-2)
+ *  - 같으면 계약서 나머지에서 동·호수 조각을 찾는다. 위치는 상관없다. ("301호 중 방 1칸", "301호 가상타운")
+ *    · 등기부와 같은 동·호수가 있으면 MATCH
+ *    · 호수가 다르거나 동이 서로 다르게 적혀 있으면 DIFFERENT (3동702호 ↔ 13동702호, 가동101호 ↔ 나동101호)
+ *    · 호수가 없거나, 한쪽에만 동이 적혀 있어 판단할 수 없으면 UNKNOWN (가동101호 ↔ 101호)
+ * @param {string} roadAddress  registry.roadAddress
+ * @param {string} registryAddress  registry.address (호수를 가져온다)
+ * @param {string} contractAddress  계약서 주소 원문
+ * @returns {'MATCH' | 'DIFFERENT' | 'UNKNOWN'}
+ */
+function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
+  if (!FORMAL_REGION_START.test(roadAddress.trim())) return 'UNKNOWN';
+  const road = normalizeAddress(roadAddress);
+  if (addressStyle(road) !== 'ROAD') return 'UNKNOWN';
+  const unit = unitPart(registryAddress);
+
+  // 공백·쉼표를 남긴 채 정리한 계약서 주소에서 "…로 00"까지를 자른다.
+  const loose = removeFloorBeforeUnit(contractAddress.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, ''))
+    .replace(/[\s,]+/g, ' ');
+  const m = /^(.*?[가-힣0-9]+(?:로|길)\s*\d+(?:-\d+)?)(?![0-9-])/.exec(loose.trim());
+  if (!m) return 'UNKNOWN';
+  const contractRoad = normalizeAddress(m[1]);
+  const rest = normalizeAddress(loose.trim().slice(m[1].length));
+
+  // 호수를 모르면 건물 전체가 같을 때만 같다고 보고, 다르면 확인 불가로 둔다. (건물 이름 차이를 STOP으로 오해하지 않게)
+  if (!unit) return contractRoad === road && rest === '' ? 'MATCH' : 'UNKNOWN';
+  if (contractRoad !== road) return 'DIFFERENT';
+
+  const registryUnit = findUnitTokens(unit)[0];
+  if (!registryUnit) return 'UNKNOWN';
+  const tokens = findUnitTokens(loose.trim().slice(m[1].length));
+  if (tokens.length === 0) return 'UNKNOWN'; // 계약서에 호수가 없다
+
+  let ambiguous = false;
+  for (const t of tokens) {
+    if (t.unit !== registryUnit.unit) continue; // 다른 호수
+    if (t.dong === registryUnit.dong) return 'MATCH'; // 호수도 동도 같다 (둘 다 동이 없는 경우 포함)
+    if (t.dong !== null && registryUnit.dong !== null) continue; // 호수는 같지만 동이 다르다
+    ambiguous = true; // 한쪽에만 동이 있어서 같은 집인지 알 수 없다
+  }
+  return ambiguous ? 'UNKNOWN' : 'DIFFERENT';
+}
+
+/**
  * 등기부 소재지 ↔ 계약서 소재지
  *  - 한쪽이라도 읽지 못했으면 UNVERIFIABLE
  *  - 한쪽이라도 정식 시·도 이름으로 시작하지 않으면 UNVERIFIABLE (region_unclear)
@@ -235,6 +349,12 @@ export function compareAddresses(fields) {
 
   const registryStyle = addressStyle(registry);
   const contractStyle = addressStyle(contract);
+  const roadAddress = fields?.registry?.roadAddress;
+  if (registryStyle === 'LOT' && contractStyle === 'ROAD' && roadAddress) {
+    const same = compareRoadAddress(roadAddress, registryAddress, contractAddress);
+    if (same === 'MATCH') return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
+    if (same === 'DIFFERENT') return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  }
   if (registryStyle === null || registryStyle !== contractStyle) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });
   }

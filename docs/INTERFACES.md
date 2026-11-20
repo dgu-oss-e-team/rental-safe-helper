@@ -166,6 +166,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 {
   registry: {
     documentId, address,
+    roadAddress,                    // 표제부 [도로명주소] (지번 등기부용, 없으면 null)
     owners: [{ findingId, name, birthDate, role: 'OWNER' }],                  // 지금 소유자만
     previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER' }], // 갑구의 예전 소유자 (이미 판 사람)
     rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
