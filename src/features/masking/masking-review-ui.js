@@ -150,7 +150,9 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
       control = el('label', { class: 'mr-toggle', for: `mr-${row.key}` }, [box, 'Show']);
     }
 
-    const where = row.documentIds.map((id) => DOC_SHORT[docType.get(id)] ?? 'Document').join(', ');
+    // 같은 값이 여러 곳에 나오면 한 줄로 묶고 몇 곳인지 보여 준다 (review-model.js)
+    const places = row.findingIds.length > 1 ? `${row.findingIds.length} places · ` : '';
+    const where = places + row.documentIds.map((id) => DOC_SHORT[docType.get(id)] ?? 'Document').join(', ');
     return el('tr', { class: row.shown ? 'mr-row-shown' : undefined }, [
       el('td', {}, [TYPE_TEXT[row.type] ?? row.type, el('br'), el('span', { class: 'mr-note' }, [where])]),
       // 원본 글자는 이 화면에만 보여 준다 (AI로 보내지 않음)

@@ -29,7 +29,28 @@ describe('PART 4 확인 화면 목록 (review-model)', () => {
     ];
     const rows = rowsFor(undefined, groups);
     expect(rowOf(rows, 'PII_R03').findingIds).toEqual(['PII_R03', 'PII_L02']);
-    expect(rows).toHaveLength(findings.length - 1);
+    // 같은 사람 이름 2개가 한 줄, 등기부·계약서의 같은 주소 2개가 한 줄
+    expect(rows).toHaveLength(findings.length - 2);
+  });
+
+  it('종류·원본 글자·처리 방식이 같으면 서류가 달라도 한 줄로 묶는다 (④ 목록이 너무 길어지지 않게)', () => {
+    const rows = rowsFor(undefined);
+    const address = rowOf(rows, 'PII_R02');
+    expect(address).toMatchObject({ findingIds: ['PII_R02', 'PII_L01'], result: 'PARTIAL', resultText: '서울특별시 중구' });
+    expect(address.documentIds).toHaveLength(2);
+    // 한 번에 같이 풀고 같이 가린다
+    expect(setRowShown(undefined, address, true).remove).toEqual(['PII_R02', 'PII_L01']);
+    // 원본 글자가 다르면 따로 (주민번호 두 개)
+    expect(rowOf(rows, 'PII_R04')).not.toBe(rowOf(rows, 'PII_L03'));
+  });
+
+  it('역할 없는 이름이 같은 서류의 그 사람과 같은 가명이면 그 사람 줄에 들어간다', () => {
+    const base = findings.find((f) => f.id === 'PII_L04');
+    const list = [base, { ...base, id: 'N1', blockId: 'X1' }];
+    const groups = [{ personId: 'P2', alias: '[Tenant_B]', roles: ['TENANT'], findingIds: ['PII_L04'], status: 'CONFIRMED' }];
+    const rows = rowsFor(undefined, groups, list);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ key: 'person:P2', findingIds: ['PII_L04', 'N1'], result: 'ALIAS', resultText: '[Tenant_B]' });
   });
 
   it('두 줄 주소는 같은 groupId 조각이 한 줄로 묶인다', () => {

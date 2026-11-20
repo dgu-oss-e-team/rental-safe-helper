@@ -12,18 +12,14 @@
  * 함수의 입력·출력 형식은 아래 JSDoc을 지켜 주세요.
  */
 
-import { DOCUMENT_TYPE } from '../shared/document-model.js';
 import { renderMaskingReview, renderPersonQuestions } from '../features/masking/index.js';
 // index.js가 아니라 UI 파일을 직접 불러온다 (index.js는 YAML 규칙 파일까지 불러와 첫 화면이 무거워진다, #43)
 import { renderRiskResults } from '../features/risk-check/risk-result-ui.js';
 
 /** @typedef {import('../shared/document-model.js').RiskResult} RiskResult */
 
-export const DOCUMENT_TEXT = {
-  [DOCUMENT_TYPE.REGISTRY]: 'Property register (등기부등본)',
-  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract (임대차계약서)',
-  [DOCUMENT_TYPE.UNKNOWN]: 'Unknown document',
-};
+// 서류 이름은 프롬프트에서도 같이 쓰므로 document-names.js로 옮겼다 (#240). 화면 파일은 지금처럼 여기서 불러온다.
+export { DOCUMENT_TEXT } from './document-names.js';
 
 export const slots = {
   /** PART 3: (riskResults: RiskResult[]) => HTMLElement */
