@@ -68,8 +68,15 @@ describe('PART 2 "성명(법인명)" 칸의 회사 이름 (corporateNameInField)
     expect(corporateNameInField('성명(법인명)', '가상건설(주)')).toBe(0);
   });
 
+  it('"가상 주식회사"처럼 회사 이름 뒤에 띄어 쓴 "주식회사"도 회사다 (PR #238 리뷰)', () => {
+    expect(corporateNameInField('성명(법인명)', '가상 주식회사 (서명 또는 인)')).toBe(0);
+    expect(corporateNameInField('', '성명(법인명) 가상리츠 유한회사')).toBe(8);
+  });
+
   it('사람 이름이거나 칸 이름이 없으면 -1', () => {
     expect(corporateNameInField('성명(법인명)', '김가상 (서명 또는 인)')).toBe(-1);
+    expect(corporateNameInField('성명(법인명)', '김신탁')).toBe(-1);
+    expect(corporateNameInField('성명(법인명)', '박은행 (서명 또는 인)')).toBe(-1);
     expect(corporateNameInField('주소', '주식회사가상리츠')).toBe(-1);
     expect(corporateNameInField('', '성명(법인명) 이가상')).toBe(-1);
   });
@@ -102,6 +109,71 @@ describe('PART 2 법인 임대사업자 민간임대 계약서', () => {
       expect(shared).not.toMatch(/\[Landlord_/);
       for (const v of ['이가상', '최가상', '040404', '010-0000-2222', '123456-12-000000']) expect(shared).not.toContain(v);
     }
+  });
+
+  it('회사 이름은 개인정보가 아니라서 가리지 않는다 (등기부 소유 법인과 맞춰 보는 데 필요, PR #238 리뷰)', () => {
+    const data = analyze();
+    expect(data.findings.map((f) => f.value).join('\n')).not.toContain('주식회사가상위탁관리부동산투자회사');
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const r = prepareForAi(data, purpose);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(Object.values(r.data.maskedText).join('\n')).toContain('주식회사가상위탁관리부동산투자회사');
+    }
+  });
+
+  it('회사 이름 뒤에 띄어 쓴 "주식회사"여도 임차인을 임대인으로 읽지 않는다 (PR #238 리뷰)', () => {
+    const at = LEASE.indexOf('성명(법인명)');
+    const lines = LEASE.map((l, i) => (i === at + 1 ? '가상위탁관리 주식회사 (서명 또는 인)' : l));
+    const { contract } = analyze(lines).fields;
+    expect(contract.landlords).toEqual([]);
+    expect(contract.tenants[0]).toMatchObject({ name: '이가상', birthDate: '040404' });
+  });
+
+  it('"성명(법인명) 주식회사… 대표이사 김가상"처럼 한 칸에 읽혀도 대표자 이름은 찾는다 (PR #238 리뷰)', () => {
+    const at = LEASE.indexOf('성명(법인명)');
+    const lines = [...LEASE.slice(0, at), '성명(법인명) 주식회사가상리츠 대표이사 김대표 (서명 또는 인)', ...LEASE.slice(at + 2)];
+    const data = analyze(lines);
+    const names = data.findings.filter((f) => f.type === PII_TYPE.PERSON_NAME).map((f) => f.value);
+    expect(names).toContain('김대표');
+    expect(data.fields.contract.tenants[0]).toMatchObject({ name: '이가상', birthDate: '040404' });
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const r = prepareForAi(data, purpose);
+      expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+      if (r.ok) expect(Object.values(r.data.maskedText).join('\n')).not.toContain('김대표');
+    }
+  });
+
+  it.each(['휴대폰', '핸드폰', '사업자등록번호', '법인등록번호'])('"%s"을 사람 이름으로 잡지 않는다', (word) => {
+    const lines = [...LEASE, `${word} 110111-1234567`];
+    const names = analyze(lines).findings.filter((f) => f.type === PII_TYPE.PERSON_NAME).map((f) => f.value);
+    expect(names).not.toContain(word);
+  });
+
+  it('같은 서식에 개인 임대사업자 이름("김가상 (서명 또는 인)")이 와도 임차인을 임대인으로 읽지 않는다 (PR #238 병합 후 리뷰)', () => {
+    const at = LEASE.indexOf('성명(법인명)');
+    const lines = LEASE.map((l, i) => (i === at + 1 ? '김가상 (서명 또는 인)' : l)).map((l) =>
+      l === '110111-6000000 전화번호 02-0000-0000' ? '750315-1234567 전화번호 010-0000-1111' : l,
+    );
+    const data = analyze(lines);
+    const { contract } = data.fields;
+    expect(contract.landlords).toEqual([expect.objectContaining({ name: '김가상', birthDate: '750315' })]);
+    expect(contract.tenants[0]).toMatchObject({ name: '이가상', birthDate: '040404' });
+    expect(contract.landlords.map((p) => p.name)).not.toContain('이가상');
+    expect(buildPersonQuestions(data.fields, data.personGroups)).toEqual([]);
+  });
+
+  it('리뷰에 적힌 짧은 순서 그대로여도 임대인·임차인을 바르게 읽는다 (PR #238 병합 후 리뷰)', () => {
+    const lines = [
+      '성명(법인명)',
+      '김가상 (서명 또는 인)',
+      '임대사업자',
+      '주민등록번호 750315-1234567',
+      '성명(법인명) 이가상 (서명 또는 인)',
+      '임차인 주소 경기도 고양시 일산동구 가상로 1234',
+    ];
+    const { contract } = analyze(lines).fields;
+    expect(contract.landlords).toEqual([expect.objectContaining({ name: '김가상', birthDate: '750315' })]);
+    expect(contract.tenants).toEqual([expect.objectContaining({ name: '이가상' })]);
   });
 
   it('임대사업자 칸이 같은 블록에 "성명(법인명) 회사이름"으로 읽혀도 같다', () => {
