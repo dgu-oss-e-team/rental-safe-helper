@@ -21,6 +21,7 @@ import {
   findKnownNames,
   findKnownAddresses,
   unitTailsOf,
+  corporateNameInField,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -134,6 +135,8 @@ function scanDocument(document) {
   const anchors = [];
   /** @type {string[]} 블록 순서(order) → 블록 글 (#205) */
   const texts = [];
+  /** @type {{ order: number, start: number, role: string | null, anchorBefore: boolean }[]} "성명(법인명)" 칸의 회사 이름 위치 */
+  const corporateFields = [];
 
   for (const page of document.pages) {
     for (const block of page.blocks) {
@@ -161,6 +164,11 @@ function scanDocument(document) {
           r.anchorBefore = blockAnchors.some((a) => a.index < r.start);
         }
         found.push(r);
+      }
+      // "성명(법인명)" 칸의 회사 이름: 찾지는 않지만, 역할 칸 순서를 판단할 때 성명 칸 하나로 센다
+      const corpAt = corporateNameInField(prevText, text);
+      if (corpAt >= 0) {
+        corporateFields.push({ order, start: corpAt, role, anchorBefore: blockAnchors.some((a) => a.index < corpAt) });
       }
       firstLine += text.split('\n').length;
       role = lastRoleIn(text, role);
@@ -221,7 +229,7 @@ function scanDocument(document) {
     }
   }
 
-  fixLateRoleLabels(hits, anchors, texts);
+  fixLateRoleLabels(hits, anchors, texts, corporateFields);
 
   // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
   // 예: 갑구 "소유자 김철수"를 찾았으면 을구 "채무자 김철수", 계약서 첫 줄 "임대인(김철수)과"도.
@@ -283,8 +291,10 @@ const REGISTRATION_FIELD = /^\s*등\s*록\s*번\s*호/;
  * @param {any[]} hits
  * @param {{ order: number, index: number, role: string }[]} allAnchors
  * @param {string[]} texts 블록 순서(order) → 블록 글
+ * @param {any[]} [corporateFields] "성명(법인명)" 칸의 회사 이름 위치. 사람 이름은 아니지만 성명 칸 하나로 센다.
+ *   법인 임대사업자 계약서에서 첫 성명 칸이 회사라서 빠지면, 임차인이 위의 "임대사업자"를 이어받아 임대인이 된다.
  */
-function fixLateRoleLabels(hits, allAnchors, texts) {
+function fixLateRoleLabels(hits, allAnchors, texts, corporateFields = []) {
   /** @param {{ order: number, index: number }} a */
   const isRegistrationField = (a) => {
     const rest = (texts[a.order] ?? '').slice(a.index).replace(/^\S+/, '');
@@ -306,7 +316,11 @@ function fixLateRoleLabels(hits, allAnchors, texts) {
   const firstAfter = (list, h, next) =>
     list.find((x) => isBefore(h, x) && x.order - h.order <= LATE_LABEL_WINDOW && (!next || isBefore(x, next)));
 
-  const allNames = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME && h.fieldName).sort(byPos);
+  // 회사 칸은 복사본으로 넣는다 (역할을 정해도 탐지 결과에는 들어가지 않는다)
+  const allNames = [
+    ...hits.filter((h) => h.type === PII_TYPE.PERSON_NAME && h.fieldName),
+    ...corporateFields.map((c) => ({ ...c, corporate: true })),
+  ].sort(byPos);
   // 위쪽의 역할 없는 "확인자 성명 최작성"처럼, 다음 이름 전까지 역할 칸이 하나도 없는 이름은 당사자 칸이 아니라서 건너뛴다. (#207 리뷰)
   let first = 0;
   while (

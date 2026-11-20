@@ -640,6 +640,33 @@ export function findNameAfterFieldBlock(prevText, text, inheritedRole = null) {
     .map((p) => ({ ...p, start: p.start - offset, end: p.end - offset }));
 }
 
+/** 회사 이름 모양: "주식회사가상리츠", "가상건설(주)", "가상위탁관리부동산투자회사", "가상자산신탁" */
+const COMPANY_NAME =
+  /^(?:주식회사|유한회사|㈜|\(주\)|[가-힣A-Za-z0-9]{2,}(?:회사|법인|리츠|신탁|은행|조합|공사|재단|협회|금고|\(주\)|㈜))/;
+/** "성명(법인명)" 칸 이름 + 값 (같은 블록) */
+const NAME_FIELD_LEAD = new RegExp(
+  `^\\s*(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?\\s*`,
+);
+
+/**
+ * "성명(법인명)" 칸에 사람이 아니라 회사 이름이 적혔는지 (윗 블록 칸 이름 / 같은 블록 칸 이름 뒤)
+ *   "성명(법인명)" / "주식회사가상리츠 (서명 또는 인)", "성명(법인명) 가상위탁관리부동산투자회사"
+ * 회사 이름은 사람 이름이 아니라서 찾지 않지만, 역할 칸이 이름 뒤에 나오는 계약서인지 판단할 때는
+ * 이 칸도 "성명 칸 하나"로 세야 한다. (법인 임대사업자 민간임대 계약서, 실제 서류 모양)
+ * @param {string} prevText 윗 블록 글
+ * @param {string} text 이 블록 글
+ * @returns {number} 회사 이름이 시작하는 위치, 아니면 -1
+ */
+export function corporateNameInField(prevText, text) {
+  if (NAME_FIELD_ONLY.test(prevText ?? '')) {
+    const lead = text.length - text.trimStart().length;
+    return COMPANY_NAME.test(text.trimStart()) ? lead : -1;
+  }
+  const m = NAME_FIELD_LEAD.exec(text);
+  if (!m) return -1;
+  return COMPANY_NAME.test(text.slice(m[0].length)) ? m[0].length : -1;
+}
+
 /**
  * 주민·외국인등록번호의 앞 6자리 (6자리가 아니면 null)
  * @param {{ value: string }} id
