@@ -52,16 +52,17 @@ describe('PART 4 목적 기반 마스킹', () => {
     }
   });
 
-  it('주소는 시·구(동)까지만 남기고 번지·호수는 지운다', () => {
+  it('주소는 시·구까지만 남기고 동·번지·호수는 지운다 (지번 주소도 도로명 주소와 같게)', () => {
     expect(coarsenAddress('서울특별시 중구 필동로 00, 101호')).toBe('서울특별시 중구');
-    expect(coarsenAddress('경기도 성남시 분당구 정자동 178-1')).toBe('경기도 성남시 분당구 정자동');
-    expect(coarsenAddress('서울특별시 중구 필동2가 123')).toBe('서울특별시 중구 필동2가');
-    expect(coarsenAddress('경기도 화성시 봉담읍 와우리 12')).toBe('경기도 화성시 봉담읍');
+    expect(coarsenAddress('경기도 성남시 분당구 정자동 178-1')).toBe('경기도 성남시 분당구');
+    expect(coarsenAddress('서울특별시 중구 필동2가 123')).toBe('서울특별시 중구');
+    expect(coarsenAddress('서울특별시 중구 필동3가')).toBe('서울특별시 중구'); // 등기부 맨 윗줄
+    expect(coarsenAddress('경기도 화성시 봉담읍 와우리 12')).toBe('경기도 화성시');
   });
 
   it('시·도 줄임말도 인정한다 (person-labels.json addressRegions)', () => {
     expect(coarsenAddress('서울 중구 필동로 00')).toBe('서울 중구');
-    expect(coarsenAddress('경기 수원시 팔달구 인계동 1')).toBe('경기 수원시 팔달구 인계동');
+    expect(coarsenAddress('경기 수원시 팔달구 인계동 1')).toBe('경기 수원시 팔달구');
   });
 
   it('두 줄 주소(groupId)는 이어 붙여 한 번만 줄이고, 첫 조각에만 넣고 나머지는 가린다', () => {
@@ -73,7 +74,7 @@ describe('PART 4 목적 기반 마스킹', () => {
     ];
     const plan = createMaskingPlan(pieces, mockPersonGroups, MASKING_PURPOSE.FRAUD_CHECK).data;
     expect(plan.items.map((i) => [i.action, i.replacement])).toEqual([
-      [MASKING_ACTION.REPLACE, '경기도 성남시 분당구 정자동'],
+      [MASKING_ACTION.REPLACE, '경기도 성남시 분당구'],
       [MASKING_ACTION.REDACT, '[REDACTED]'],
       [MASKING_ACTION.REDACT, '[REDACTED]'],
     ]);
@@ -106,14 +107,15 @@ describe('PART 4 목적 기반 마스킹', () => {
     const leakedText = { [base.documentId]: `소재지 ${base.value}` };
     expect(validateMaskedText(leakedText, [base], plan).ok).toBe(false);
   });
-  it('도로명 주소 괄호 안의 동 이름도 살린다', () => {
-    expect(coarsenAddress('경기도 성남시 분당구 불정로 6 (정자동)')).toBe('경기도 성남시 분당구 정자동');
+
+  it('도로명 주소 괄호 안의 동 이름도 남기지 않는다', () => {
+    expect(coarsenAddress('경기도 성남시 분당구 불정로 6 (정자동)')).toBe('경기도 성남시 분당구');
   });
 
   it('아파트 동 번호(101동)는 남기지 않는다', () => {
     expect(coarsenAddress('서울특별시 중구 101동 202호')).toBe('서울특별시 중구');
     expect(coarsenAddress('서울특별시 강남구 래미안101동 1001호')).toBe('서울특별시 강남구');
-    expect(coarsenAddress('서울특별시 강남구 역삼1동 123')).toBe('서울특별시 강남구 역삼1동');
+    expect(coarsenAddress('서울특별시 강남구 역삼1동 123')).toBe('서울특별시 강남구');
   });
 
   it('시·도를 못 찾으면 빈 문자열 → 마스킹 계획에서 통째로 가림', () => {
