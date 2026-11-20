@@ -66,6 +66,35 @@ const compact = (/** @type {string} */ s) => s.replace(/\s+/g, '');
 const digitsOf = (/** @type {string} */ s) => s.replace(/[^0-9]/g, '');
 
 /**
+ * 한 줄에서 "이어진 숫자 덩어리"를 숫자만 남겨 돌려준다. (#239)
+ * - 숫자 사이에 기호·공백이 3글자 이하로만 있으면 한 덩어리다. ("010 0000.0000", "750315-1", "123|456")
+ *   OCR이 하이픈·점·표 선을 다른 기호로 읽어도 번호를 잡기 위해서다.
+ * - 한글 글자가 끼거나 사이가 4글자 이상 벌어지면 다른 덩어리다.
+ * 줄 전체의 숫자를 다 이어 붙이면 "…10년, 8) … 2010년 9월 1일" 같은 서로 관계없는 숫자가
+ * 가려진 주민번호 앞 7자리와 "거의 같다"가 되어 오탐이 났다. (실제 계약서 점검)
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function digitRunsOf(text) {
+  return (text.match(/\d(?:[^\d가-힣]{0,3}\d)*/g) ?? []).map(digitsOf);
+}
+
+/**
+ * 한 줄을 한글 글자에서 끊은 구간마다 숫자만 남겨 돌려준다. (#241 리뷰)
+ * "정확히 같은 번호"를 찾을 때 쓴다. 기호·공백이 아무리 벌어져도("750315  -  1234567", "750315 | - | 1234567")
+ * 한글이 끼지 않으면 이어서 본다. 정확히 같아야 하므로 관계없는 숫자가 우연히 맞을 일은 드물다.
+ * "거의 같은 번호"(1개 차이)는 우연히 맞기 쉬워서 digitRunsOf()의 좁은 덩어리로만 본다.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function digitSegmentsOf(text) {
+  return text
+    .split(/[가-힣]+/)
+    .map(digitsOf)
+    .filter((s) => s !== '');
+}
+
+/**
  * @typedef {Object} DoubleCheckResult
  * @property {'NOT_FOUND' | 'PARTLY_CHECKED' | 'MAYBE_VISIBLE' | 'UNVERIFIABLE'} status
  * @property {{ type: string, pageIndex: number }[]} hits  보일 수 있는 개인정보 (종류·페이지만)
@@ -123,7 +152,8 @@ export function findVisiblePii(ocrDocument, findings, plan) {
     page.blocks.map((b) => ({
       pageIndex: page.pageIndex,
       text: compact(b.text),
-      digits: digitsOf(b.text),
+      runs: digitRunsOf(b.text),
+      segments: digitSegmentsOf(b.text),
       unclear: isUnclear(b),
     })),
   );
@@ -140,9 +170,11 @@ export function findVisiblePii(ocrDocument, findings, plan) {
     for (const line of lines) {
       const seen =
         line.text.includes(value) ||
-        (longNumber && line.digits.includes(digits)) ||
+        // 정확히 같은 번호: 한글이 끼지 않은 구간이면 기호·공백이 벌어져도 이어서 본다 (#241 리뷰)
+        (longNumber && line.segments.some((segment) => segment.includes(digits))) ||
         // 흐린 줄은 OCR이 숫자를 틀렸을 수 있으므로 거의 같은 숫자열도 "보일 수 있음"으로 본다 (안전한 쪽)
-        (nearComparable && line.unclear && containsNearly(line.digits, digits));
+        // 단, 이어진 숫자 덩어리 안에서만 비교한다 (#239)
+        (nearComparable && line.unclear && line.runs.some((run) => containsNearly(run, digits)));
       if (seen) hits.set(`${f.type}@${line.pageIndex}`, { type: f.type, pageIndex: line.pageIndex });
     }
   }
