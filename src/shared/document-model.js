@@ -82,11 +82,17 @@ export const ERROR_CODE = Object.freeze({
  */
 
 /**
+ * 블록 내 개별 텍스트 조각 위치 (PDF 텍스트 추출 시 제공, OCR은 생략 가능)
+ * @typedef {{ start: number, end: number, bbox: BBox }} TextSpan
+ */
+
+/**
  * @typedef {Object} Block
  * @property {string} blockId
  * @property {string} text
  * @property {BBox} bbox
  * @property {number | null} confidence  PDF 텍스트 추출은 null
+ * @property {TextSpan[]} [spans]  선택. block.text 기준 [start, end) 오프셋과 조각별 정규화 bbox
  */
 
 /**

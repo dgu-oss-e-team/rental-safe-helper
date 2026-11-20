@@ -136,9 +136,56 @@ export async function renderPdfToImages(buffer, scale = 2.0) {
 }
 
 /**
- * Extracts text, dynamic page dimensions, and normalized grouped line bounding boxes from a PDF buffer.
+ * Normalizes a raw item bounding box into 0-1 coordinates clamped within the parent block bbox.
+ * @param {{ x: number, y: number, w: number, h: number }} item
+ * @param {number} pageWidth
+ * @param {number} pageHeight
+ * @param {{ x: number, y: number, width: number, height: number }} blockBbox
+ * @returns {{ x: number, y: number, width: number, height: number }}
+ */
+function buildClampedSpanBbox(item, pageWidth, pageHeight, blockBbox) {
+  const blockRight = Number((blockBbox.x + blockBbox.width).toFixed(4));
+  const blockBottom = Number((blockBbox.y + blockBbox.height).toFixed(4));
+
+  const rawNormX = Math.max(0, Math.min(1, item.x / pageWidth));
+  const rawNormY = Math.max(0, Math.min(1, item.y / pageHeight));
+  const rawNormW = Math.max(0, Math.min(1, item.w / pageWidth));
+  const rawNormH = Math.max(0, Math.min(1, item.h / pageHeight));
+
+  let x = Math.max(blockBbox.x, Math.min(blockRight, Number(rawNormX.toFixed(4))));
+  let y = Math.max(blockBbox.y, Math.min(blockBottom, Number(rawNormY.toFixed(4))));
+
+  const maxW = Math.max(0, Number((blockRight - x).toFixed(4)));
+  const maxH = Math.max(0, Number((blockBottom - y).toFixed(4)));
+
+  let width = Math.max(0, Math.min(maxW, Number(rawNormW.toFixed(4))));
+  let height = Math.max(0, Math.min(maxH, Number(rawNormH.toFixed(4))));
+
+  if (width === 0 && blockBbox.width > 0) {
+    if (maxW > 0) {
+      width = Math.min(0.0001, maxW);
+    } else {
+      x = Math.max(blockBbox.x, Number((blockRight - 0.0001).toFixed(4)));
+      width = Number((blockRight - x).toFixed(4));
+    }
+  }
+
+  if (height === 0 && blockBbox.height > 0) {
+    if (maxH > 0) {
+      height = Math.min(0.0001, maxH);
+    } else {
+      y = Math.max(blockBbox.y, Number((blockBottom - 0.0001).toFixed(4)));
+      height = Number((blockBottom - y).toFixed(4));
+    }
+  }
+
+  return { x, y, width, height };
+}
+
+/**
+ * Extracts text, dynamic page dimensions, and normalized grouped line bounding boxes (with item spans) from a PDF buffer.
  * @param {ArrayBuffer} buffer
- * @returns {Promise<{ pageCount: number, textPages: string[], pages: Array<{ pageIndex: number, width: number, height: number, blocks: Array<{ blockId: string, text: string, bbox: { x: number, y: number, width: number, height: number }, confidence: null }> }> }>}
+ * @returns {Promise<{ pageCount: number, textPages: string[], pages: Array<{ pageIndex: number, width: number, height: number, blocks: Array<{ blockId: string, text: string, bbox: { x: number, y: number, width: number, height: number }, confidence: null, spans: Array<{ start: number, end: number, bbox: { x: number, y: number, width: number, height: number } }> }> }> }>}
  */
 export async function readPdfText(buffer) {
   if (!buffer || buffer.byteLength === 0) {
@@ -207,34 +254,12 @@ export async function readPdfText(buffer) {
       }
 
       let pageText = '';
-      /** @type {Array<{ blockId: string, text: string, bbox: { x: number, y: number, width: number, height: number }, confidence: null }>} */
+      /** @type {Array<{ blockId: string, text: string, bbox: { x: number, y: number, width: number, height: number }, confidence: null, spans: Array<{ start: number, end: number, bbox: { x: number, y: number, width: number, height: number } }> }>} */
       const blocks = [];
 
       lineGroups.forEach((group, groupIdx) => {
         // Sort items left-to-right within the line
         group.sort((a, b) => a.x - b.x);
-
-        // Gap- and overlap-aware join:
-        // - Insert space when horizontal gap exceeds 20% of text height
-        // - Also insert space when items overlap or abut (gap <= 0) as separate fields,
-        //   while preserving minor glyph kerning between single characters
-        const joinedText = group
-          .reduce((acc, item, i) => {
-            if (i === 0) return item.text;
-            const prev = group[i - 1];
-            const minH = Math.min(prev.h, item.h);
-            const gap = item.x - (prev.x + prev.w);
-            const isSeparateOverlappingField =
-              item.x <= prev.x ||
-              (prev.w > 0 && item.x <= prev.x + prev.w * 0.5) ||
-              gap <= -minH * 0.25;
-            const needsSpace = gap > minH * 0.2 || isSeparateOverlappingField;
-            return acc + (needsSpace ? ' ' : '') + item.text;
-          }, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        pageText += joinedText + '\n';
 
         // Bounding box union [minX, minY, maxX, maxY]
         const minX = Math.min(...group.map((g) => g.x));
@@ -247,16 +272,64 @@ export async function readPdfText(buffer) {
         const normW = Math.max(0, Math.min(1, (maxX - minX) / pageWidth));
         const normH = Math.max(0, Math.min(1, (maxY - minY) / pageHeight));
 
+        const blockBbox = {
+          x: Number(normX.toFixed(4)),
+          y: Number(normY.toFixed(4)),
+          width: Number(normW.toFixed(4)),
+          height: Number(normH.toFixed(4)),
+        };
+
+        // Gap- and overlap-aware join with exact character span tracking:
+        // - Insert space when horizontal gap exceeds 20% of text height
+        // - Also insert space when items overlap or abut (gap <= 0) as separate fields,
+        //   while preserving minor glyph kerning between single characters
+        // - Inserted spaces and collapsed/trimmed whitespace belong to no span
+        let joinedText = '';
+        /** @type {Array<{ start: number, end: number, bbox: { x: number, y: number, width: number, height: number } }>} */
+        const spans = [];
+
+        group.forEach((item, idx) => {
+          const normalizedItemText = item.text.replace(/\s+/g, ' ').trim();
+          if (normalizedItemText.length === 0) return;
+
+          if (spans.length > 0) {
+            const prev = group[idx - 1];
+            const minH = Math.min(prev.h, item.h);
+            const gap = item.x - (prev.x + prev.w);
+            const isSeparateOverlappingField =
+              item.x <= prev.x ||
+              (prev.w > 0 && item.x <= prev.x + prev.w * 0.5) ||
+              gap <= -minH * 0.25;
+            const needsSpace =
+              gap > minH * 0.2 ||
+              isSeparateOverlappingField ||
+              /\s$/.test(prev.text) ||
+              /^\s/.test(item.text);
+
+            if (needsSpace) {
+              joinedText += ' ';
+            }
+          }
+
+          const start = joinedText.length;
+          joinedText += normalizedItemText;
+          const end = joinedText.length;
+
+          spans.push({
+            start,
+            end,
+            bbox: buildClampedSpanBbox(item, pageWidth, pageHeight, blockBbox),
+          });
+        });
+
+        pageText += joinedText + '\n';
+
         blocks.push({
           blockId: `p${i - 1}_b${groupIdx}`,
           text: joinedText,
-          bbox: {
-            x: Number(normX.toFixed(4)),
-            y: Number(normY.toFixed(4)),
-            width: Number(normW.toFixed(4)),
-            height: Number(normH.toFixed(4)),
-          },
+          bbox: blockBbox,
           confidence: null,
+          spans,
         });
       });
 
