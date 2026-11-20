@@ -67,7 +67,7 @@ describe('PART 2 빽빽한 등기부 (#141)', () => {
   it('주소에 표 옆 칸(면적·날짜·건물내역·사무소명칭)을 붙여 잡지 않는다 (#151)', () => {
     const addresses = analysis.findings.filter((f) => f.type === 'ADDRESS').map((f) => f.value);
     for (const a of addresses) expect(a, a).not.toMatch(/㎡|\d{4}년|등기|철근|사무소명칭/);
-    expect(addresses).toContain('서울특별시 중구 가상동 123 대');
+    expect(addresses).toContain('서울특별시 중구 가상동 123'); // 대지권 표의 지목 "대"는 주소가 아니다
     expect(addresses).toContain('서울특별시 중구 가상로 20, 1층');
   });
 

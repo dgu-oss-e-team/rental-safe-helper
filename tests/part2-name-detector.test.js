@@ -486,7 +486,7 @@ describe('PART 2 주소 뒤에 붙은 표 옆 칸 끊기 (#151)', () => {
   const valuesOf = (text) => findAddresses(text).map((a) => a.value);
 
   it('면적·날짜 앞에서 끊는다', () => {
-    expect(valuesOf('1 1. 서울특별시 중구 가상동 123 대 5321.4㎡ 2015년3월2일 등기')).toEqual(['서울특별시 중구 가상동 123 대']);
+    expect(valuesOf('1 1. 서울특별시 중구 가상동 123 대 5321.4㎡ 2015년3월2일 등기')).toEqual(['서울특별시 중구 가상동 123']); // 지목 "대"도 주소가 아니다
     expect(valuesOf('서울특별시 중구 가상로 1층 410.52㎡')).toEqual(['서울특별시 중구 가상로 1층']);
     expect(valuesOf('서울특별시 중구 가상로 5 2015.03.02 접수')).toEqual(['서울특별시 중구 가상로 5']);
   });
