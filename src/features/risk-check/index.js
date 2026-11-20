@@ -6,7 +6,7 @@
  * 공개 함수
  *   assessRisks(fields, personGroups)                          → Result<RiskResult[]>
  *   buildPrompt({ purpose, riskResults, maskedText, legend })  → Result<string>
- *   getRecommendedQuestions(purpose)                           → string[] | null
+ *   getRecommendedQuestions(purpose, riskResults?)             → string[] | null
  *   renderRiskResults(riskResults)                             → HTMLElement  (slots.js riskResults)
  *
  * 규칙: 프롬프트에는 PART 4가 만든 "마스킹 완료 텍스트"와 범례만 넣는다. 원본 개인정보를 다시 넣지 않는다.

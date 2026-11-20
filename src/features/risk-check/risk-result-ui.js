@@ -98,8 +98,7 @@ const cardList = (results) => el('ul', { class: 'risk-list' }, results.map(riskC
 export function renderRiskResults(riskResults, options = {}) {
   const groups = groupRiskResults(riskResults);
   const total = STATUS_ORDER.reduce((n, s) => n + groups[s].length, 0);
-  const questions = getRecommendedQuestions(options.purpose ?? MASKING_PURPOSE.FRAUD_CHECK) ?? [];
-
+  const questions = getRecommendedQuestions(options.purpose ?? MASKING_PURPOSE.FRAUD_CHECK, riskResults) ?? [];
   const summary = el('div', { class: 'risk-filter', role: 'group', 'aria-label': 'Show results by status' });
   const body = el('div', { class: 'risk-body', 'aria-live': 'polite' });
 
