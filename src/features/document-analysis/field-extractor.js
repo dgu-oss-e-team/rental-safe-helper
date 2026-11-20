@@ -197,7 +197,29 @@ const SPECIAL_TERMS_HEADING = new RegExp(
     '|[[【]\\s*[^\\]】\\n]{1,40}?특\\s*약\\s*(?:사\\s*항)?\\s*[\\]】]' +
     ')\\s*[:：]?\\s*',
 );
-const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:임\s*대\s*인|임\s*차\s*인|개업\s*공인\s*중개사)\s/;
+/**
+ * 특약 구간이 끝나는 서명란 줄. 서명란에 실제로 나오는 모양일 때만 멈춘다. (#219 후속 (3))
+ * - 계약 증명 문장: "본 계약을 증명하기 위하여 …", "이 계약을 증명…", "위 계약을 증명…"
+ * - 서명 칸 괄호: "(서명 또는 날인)", "(서명 또는 인)", "(서명 및 날인)", 줄 끝의 "(인)"
+ * - 줄 맨 앞의 서명 칸 이름: "서명:", "서명란", "날인:", "서명" 한 낱말 줄
+ * - 줄 맨 앞의 당사자 칸 + 칸 이름: "임차인 주소 …", "임차인 성명: …", "임대인 주민등록번호 …", "개업공인중개사 사무소소재지 …"
+ * 특약 문장 속 "서 명", "날 인"(예: "계약서 명의는 임차인으로 한다", "서명 날인한 후 전입신고")에서는 멈추지 않는다.
+ * 줄 맨 앞이 "임대인"이어도 뒤에 칸 이름이 없으면("임대인 사정으로 해지하면 …") 특약이다. (PR #237 리뷰)
+ * "(인)"도 줄 끝에 있을 때만 서명 칸이다. ("도장(인) 지참"은 특약, PR #237 리뷰)
+ * (줄 어디에서나 멈추면 그 뒤 특약이 모두 사라져 거짓 [](없음)이 된다)
+ */
+const SIGNATURE_FIELD =
+  '(?:성\\s*명|주\\s*소|주\\s*민\\s*(?:등\\s*록\\s*)?번\\s*호|전\\s*화|연\\s*락\\s*처|휴\\s*대\\s*전\\s*화)(?![가-힣])' +
+  '|주\\s*민\\s*등\\s*록|사\\s*무\\s*소|등\\s*록\\s*번\\s*호|대\\s*표\\s*자?(?![가-힣])';
+const SPECIAL_TERMS_STOP = new RegExp(
+  [
+    '(?:본|이|위)\\s*계약을\\s*증명',
+    '[(（]\\s*(?:서\\s*명|날\\s*인)\\s*(?:또는|및|·|/)\\s*(?:서\\s*명|날\\s*인|인)\\s*[)）]',
+    '[(（]\\s*인\\s*[)）]\\s*$',
+    '^\\s*(?:서\\s*명|날\\s*인)\\s*(?:란|[:：]|$)',
+    `^\\s*(?:임\\s*대\\s*인|임\\s*차\\s*인|개업\\s*공인\\s*중개사)\\s*(?:${SIGNATURE_FIELD})`,
+  ].join('|'),
+);
 
 /*
  * 특약 조항 제목 (민간임대주택 표준임대차계약서 본문, 실제 서류로 확인)
@@ -214,15 +236,24 @@ const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:
  */
 const SPECIAL_TERMS_CLAUSE = /^\s*제\s*\d{1,2}\s*조\s*[(（]\s*특\s*약\s*(?:사\s*항)?\s*[)）]\s*/;
 /**
- * 서식 문장 전체 (띄어쓰기를 지운 글자로 비교). 뒤의 "다만, …" 문장은 서식마다 있을 수도 없을 수도 있다.
+ * 서식 문장 전체 (한글·숫자만 남긴 글자로 비교). 뒤의 "다만, …" 문장은 서식마다 있을 수도 없을 수도 있다.
  * "임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대해서는 따로 특약으로 정할 수 있다.
  *  다만, 특약의 내용은 「약관의 규제에 관한 법률」을 위반해서는 안 된다."
+ * 띄어쓰기·문장부호를 지우고 비교한다. OCR이 「를 [나 <로, "된다."를 "된다,"로 읽어도 서식으로 본다. (#219 후속 (2))
  */
 const CLAUSE_FORM_TEXT = new RegExp(
   '^(?:임대사업자와|임대인과)임차인은제\\d+조부터제\\d+조까지에서규정한사항외에필요한사항에대(?:하여|해서)는' +
-    '따로특약으로정할수있다\\.(?:다만,?특약의내용은[「『"]?약관의규제에관한법률[」』"]?을위반해서는(?:안|아니)된다\\.)?$',
+    '따로특약으로정할수있다(?:다만특약의내용은약관의규제에관한법률을위반해서는(?:안|아니)된다)?$',
 );
+/** 서식 비교용 글자: 한글·숫자만 남긴다 */
+const formTextKey = (/** @type {string} */ s) => s.replace(/[^가-힣0-9]/g, '');
 const MAX_CLAUSE_FORM_TEXT_LINES = 4;
+/**
+ * 특약 조항 뒤에 오는 서식의 다음 구간 제목: "5. 개인정보의 제3자 제공 동의서" (#219 후속 (1))
+ * 사용자가 특약을 1~4번 적으면 "5."가 이어지는 번호처럼 보이므로, 번호와 상관없이 이 제목에서 멈춘다.
+ * 서식 제목은 "동의서"·"확인서"로 끝날 때만 본다. "2. 개인정보 제3자 제공 금지" 같은 짧은 특약은 제목이 아니다. (PR #237 리뷰)
+ */
+const FORM_SECTION_TITLE = /(?:동\s*의\s*서|확\s*인\s*서)\s*$/;
 /** 특약 조항 구간이 끝나는 줄: 서식 안내 줄, 다음 조항 */
 const CLAUSE_SECTION_STOP = /^\s*[◈■]|^\s*제\s*\d{1,3}\s*조\s*[(（]/;
 /** 번호 줄: "1. …", "2) …" → [1] 번호 */
@@ -318,11 +349,11 @@ function readSpecialTermClause(lines, start) {
   let headRest = lines[start].replace(SPECIAL_TERMS_CLAUSE, '').trim();
   let i = start + 1;
   // 서식 문장은 건너뛴다: 제목 줄 나머지부터 이어 붙인 글자가 서식 문장 전체와 맞는 마지막 줄까지 (최대 4줄)
-  let joined = headRest.replace(/\s+/g, '');
+  let joined = formTextKey(headRest);
   let formEnd = CLAUSE_FORM_TEXT.test(joined) ? start : -1;
   const last = Math.min(lines.length, start + 1 + MAX_CLAUSE_FORM_TEXT_LINES);
   for (let j = start + 1; j < last; j += 1) {
-    joined += lines[j].replace(/\s+/g, '');
+    joined += formTextKey(lines[j]);
     if (CLAUSE_FORM_TEXT.test(joined)) formEnd = j;
   }
   if (formEnd >= 0) {
@@ -339,9 +370,12 @@ function readSpecialTermClause(lines, start) {
     if (CLAUSE_SECTION_STOP.test(line) || SPECIAL_TERMS_STOP.test(line)) break;
     const numbered = NUMBERED_LINE.exec(line);
     if (numbered) {
-      // 번호가 이어지면 특약, 끊긴 짧은 제목("5. 개인정보의 제3자 제공 동의서")은 다음 서식 구간
+      const isTitle = !SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE;
+      // 서식의 다음 구간 제목은 번호가 이어져 보여도 멈춘다 (특약 1~4번 뒤의 "5. 개인정보의 제3자 제공 동의서")
+      if (isTitle && FORM_SECTION_TITLE.test(line)) break;
+      // 번호가 이어지면 특약, 끊긴 짧은 제목은 다음 서식 구간
       if (Number(numbered[1]) === nextNumber) nextNumber += 1;
-      else if (!SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE) break;
+      else if (isTitle) break;
     }
     if (PAGE_MARK_LINE.test(line)) continue;
     body.push(i);
