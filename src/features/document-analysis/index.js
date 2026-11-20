@@ -229,6 +229,7 @@ function scanDocument(document) {
     }
   }
 
+  markCorporateNumbers(hits, corporateFields);
   fixLateRoleLabels(hits, anchors, texts, corporateFields);
 
   // 2단계: 이미 찾은 이름이 라벨 없이 또 나오는 곳도 가린다. (#142)
@@ -266,6 +267,36 @@ function scanDocument(document) {
 
 /** 이름 뒤 역할 칸·주민번호를 찾는 범위 (블록 수) */
 const LATE_LABEL_WINDOW = 8;
+
+/**
+ * "성명(법인명)" 칸에 회사 이름이 있으면, 그 아래 당사자 칸의 첫 주민번호 모양 번호는 법인등록번호다.
+ * 민간임대 표준계약서는 회사 이름과 번호가 몇 칸 떨어져 있어서, 바로 앞 글자로 보는 isCorporateNumber()가 못 알아본다.
+ *   "성명(법인명)" / "주식회사가상리츠 (서명 또는 인)" / "주소" / … / "주민등록번호" / "110111-6000000 전화번호 …"
+ * 그러면 뒷자리 첫 숫자(5-8)에 따라 외국인등록번호로 분류돼, ④ 목록·AI 범례에 "외국인등록번호"로 나간다.
+ * 사람 번호를 법인 번호로 잘못 보면 생년월일이 빠지고 ④에서 가림을 풀 수 있게 되므로 좁게 본다. (#197 리뷰)
+ * - 회사 이름 칸 뒤 LATE_LABEL_WINDOW 블록 안의 첫 번호 하나만
+ * - 그 사이에 사람 이름이 없을 때만 (대표자 이름 뒤 번호는 대표자 번호일 수 있다)
+ * 가리는 건 같다(REDACT). 종류만 REGISTRY_ID("Other registration no.")로 바뀐다.
+ * @param {any[]} hits
+ * @param {{ order: number, start: number }[]} corporateFields
+ */
+function markCorporateNumbers(hits, corporateFields) {
+  /** @param {any} a @param {{ order: number, start: number }} b */
+  const after = (a, b) => a.order > b.order || (a.order === b.order && a.start > b.start);
+  for (const corp of corporateFields) {
+    const later = hits
+      .filter((h) => after(h, corp) && h.order - corp.order <= LATE_LABEL_WINDOW)
+      .sort((a, b) => a.order - b.order || a.start - b.start);
+    for (const h of later) {
+      if (h.type === PII_TYPE.PERSON_NAME) break;
+      if (h.type === PII_TYPE.RESIDENT_ID || h.type === PII_TYPE.FOREIGNER_ID) {
+        h.type = PII_TYPE.REGISTRY_ID;
+        delete h.uncertain;
+        break;
+      }
+    }
+  }
+}
 /** 이름 바로 앞 역할 칸으로 보는 범위 (블록 수). "임대인" / "성명 김철수" */
 const NEAR_BEFORE = 2;
 /** 번호 칸 이름: "임대사업자 등록번호", "임대사업자" / "2017-서울중구-…" / "등록번호" */
