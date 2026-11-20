@@ -188,7 +188,8 @@ export function findMonthlyRent(lines) {
  * - "[특약사항]", "특약사항:", "특약 …" (뒤에 한글이 붙은 "특약으로 정한다"는 문장이라 제목이 아니다)
  * - "4. 특약" (민간임대주택 표준임대차계약서처럼 번호가 붙은 제목, #192)
  * - "[표준임대차계약서 제17조에 대한 특약사항]" (괄호 안에 다른 글자가 앞에 있는 제목, #192)
- * "제17조(특약) 임대사업자와 임차인은 … 특약으로 정할 수 있다"처럼 조항 안의 "특약"은 제목이 아니다. (줄 맨 앞이 아니므로)
+ * "제17조(특약) 임대사업자와 임차인은 … 특약으로 정할 수 있다"처럼 조항 안의 "특약"은 이 정규식의 제목이 아니다.
+ * 이런 특약 조항 제목은 아래 SPECIAL_TERMS_CLAUSE로 따로 본다.
  */
 const SPECIAL_TERMS_HEADING = new RegExp(
   '^\\s*(?:' +
@@ -197,6 +198,35 @@ const SPECIAL_TERMS_HEADING = new RegExp(
     ')\\s*[:：]?\\s*',
 );
 const SPECIAL_TERMS_STOP = /본\s*계약을\s*증명|서\s*명|날\s*인|^\s*(?:임\s*대\s*인|임\s*차\s*인|개업\s*공인\s*중개사)\s/;
+
+/*
+ * 특약 조항 제목 (민간임대주택 표준임대차계약서 본문, 실제 서류로 확인)
+ *   "제17조(특약) 임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대"
+ *   "해서는 따로 특약으로 정할 수 있다. 다만, 특약의 내용은 「약관의 규제에 관한 법률」을 위반해서는"
+ *   "안 된다."
+ *   "◈ 주택월세 소득공제 안내"
+ * 특약 칸은 찾았으므로, 적은 특약이 없으면 null(못 찾음)이 아니라 [](없음)이다.
+ * 서식에 원래 적힌 문장은 특약이 아니라서 건너뛴다. 단, 서식 문구 전체가 글자 그대로(띄어쓰기 무시) 맞을 때만이다.
+ *   직접 쓴 특약 "임대사업자와 임차인은 … 해지할 수 있다."를 서식으로 오해해 지우면 거짓 [](없음)이 된다. (#219 리뷰)
+ * 그 뒤 서식 안내 줄("◈ …", "■ …"), 다음 조항("제18조(…)"), 번호가 끊긴 번호 제목("5. 개인정보 …")에서 멈춘다.
+ *   "※"는 사용자가 특약 앞에 쓰기도 해서 멈추지 않는다. (멈추면 특약이 사라진다, #219 리뷰)
+ *   번호 줄은 1, 2, 3…으로 이어지면 특약이다. ("1. 반려동물 금지"처럼 마침표가 없어도, #219 리뷰)
+ */
+const SPECIAL_TERMS_CLAUSE = /^\s*제\s*\d{1,2}\s*조\s*[(（]\s*특\s*약\s*(?:사\s*항)?\s*[)）]\s*/;
+/**
+ * 서식 문장 전체 (띄어쓰기를 지운 글자로 비교). 뒤의 "다만, …" 문장은 서식마다 있을 수도 없을 수도 있다.
+ * "임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대해서는 따로 특약으로 정할 수 있다.
+ *  다만, 특약의 내용은 「약관의 규제에 관한 법률」을 위반해서는 안 된다."
+ */
+const CLAUSE_FORM_TEXT = new RegExp(
+  '^(?:임대사업자와|임대인과)임차인은제\\d+조부터제\\d+조까지에서규정한사항외에필요한사항에대(?:하여|해서)는' +
+    '따로특약으로정할수있다\\.(?:다만,?특약의내용은[「『"]?약관의규제에관한법률[」』"]?을위반해서는(?:안|아니)된다\\.)?$',
+);
+const MAX_CLAUSE_FORM_TEXT_LINES = 4;
+/** 특약 조항 구간이 끝나는 줄: 서식 안내 줄, 다음 조항 */
+const CLAUSE_SECTION_STOP = /^\s*[◈■]|^\s*제\s*\d{1,3}\s*조\s*[(（]/;
+/** 번호 줄: "1. …", "2) …" → [1] 번호 */
+const NUMBERED_LINE = /^\s*(\d{1,2})\s*[.)]\s*\S/;
 const MAX_SPECIAL_TERM_LINES = 30;
 
 /*
@@ -232,6 +262,7 @@ const PAGE_MARK_LINE = /^\s*(?:\(?\s*\d+\s*쪽\s*\/\s*\d+\s*쪽\s*\)?|\d+\s*\/\s
  * @param {string} line
  */
 function isSpecialTermsHeading(line) {
+  if (SPECIAL_TERMS_CLAUSE.test(line)) return true;
   const m = SPECIAL_TERMS_HEADING.exec(line);
   if (!m) return false;
   if (!m[1]) return true;
@@ -247,9 +278,11 @@ const MAX_SECTION_TITLE = 30;
  * 특약 제목 하나부터 그 구간이 끝날 때까지 읽는다.
  * @param {string[]} lines
  * @param {number} start 제목 줄
- * @returns {{ start: number, body: number[], next: number }} next: 다음에 볼 줄
+ * @returns {{ start: number, body: number[], next: number, headRest: string }}
+ *   next: 다음에 볼 줄, headRest: 제목 줄에서 제목 뒤에 적힌 특약 (없으면 '')
  */
 function readSpecialTermSection(lines, start) {
+  if (SPECIAL_TERMS_CLAUSE.test(lines[start])) return readSpecialTermClause(lines, start);
   const headingNumber = SPECIAL_TERMS_HEADING.exec(lines[start])?.[1];
   // 다음 번호 제목: "5. 개인정보의 제3자 제공 동의서" (문장으로 끝나는 특약 "5. … 한다."는 제목이 아니다)
   const nextSection = headingNumber ? new RegExp(`^\\s*${Number(headingNumber) + 1}\\s*[.)]\\s*\\S`) : null;
@@ -272,7 +305,48 @@ function readSpecialTermSection(lines, start) {
     if (PAGE_MARK_LINE.test(line)) continue;
     body.push(i);
   }
-  return { start, body, next: i };
+  return { start, body, next: i, headRest: lines[start].replace(SPECIAL_TERMS_HEADING, '').trim() };
+}
+
+/**
+ * 특약 조항("제17조(특약) …") 구간을 읽는다. (위 SPECIAL_TERMS_CLAUSE 설명)
+ * @param {string[]} lines
+ * @param {number} start 조항 제목 줄
+ * @returns {{ start: number, body: number[], next: number, headRest: string }}
+ */
+function readSpecialTermClause(lines, start) {
+  let headRest = lines[start].replace(SPECIAL_TERMS_CLAUSE, '').trim();
+  let i = start + 1;
+  // 서식 문장은 건너뛴다: 제목 줄 나머지부터 이어 붙인 글자가 서식 문장 전체와 맞는 마지막 줄까지 (최대 4줄)
+  let joined = headRest.replace(/\s+/g, '');
+  let formEnd = CLAUSE_FORM_TEXT.test(joined) ? start : -1;
+  const last = Math.min(lines.length, start + 1 + MAX_CLAUSE_FORM_TEXT_LINES);
+  for (let j = start + 1; j < last; j += 1) {
+    joined += lines[j].replace(/\s+/g, '');
+    if (CLAUSE_FORM_TEXT.test(joined)) formEnd = j;
+  }
+  if (formEnd >= 0) {
+    headRest = '';
+    i = formEnd + 1;
+  }
+  const end = Math.min(lines.length, i + MAX_SPECIAL_TERM_LINES);
+  /** @type {number[]} */
+  const body = [];
+  let nextNumber = 1;
+  for (; i < end; i += 1) {
+    const line = lines[i];
+    if (isSpecialTermsHeading(line)) break;
+    if (CLAUSE_SECTION_STOP.test(line) || SPECIAL_TERMS_STOP.test(line)) break;
+    const numbered = NUMBERED_LINE.exec(line);
+    if (numbered) {
+      // 번호가 이어지면 특약, 끊긴 짧은 제목("5. 개인정보의 제3자 제공 동의서")은 다음 서식 구간
+      if (Number(numbered[1]) === nextNumber) nextNumber += 1;
+      else if (!SENTENCE_END.test(line) && line.trim().length <= MAX_SECTION_TITLE) break;
+    }
+    if (PAGE_MARK_LINE.test(line)) continue;
+    body.push(i);
+  }
+  return { start, body, next: i, headRest };
 }
 
 /**
@@ -320,9 +394,8 @@ export function findSpecialTerms(lines) {
   const sections = findSpecialTermSections(lines);
   if (sections.length === 0) return null;
   const terms = [];
-  for (const { start, body } of sections) {
-    const firstRest = lines[start].replace(SPECIAL_TERMS_HEADING, '').trim();
-    if (firstRest) terms.push(firstRest);
+  for (const { body, headRest } of sections) {
+    if (headRest) terms.push(headRest);
     for (const i of body) if (lines[i].trim()) terms.push(lines[i].trim());
   }
   return terms;
