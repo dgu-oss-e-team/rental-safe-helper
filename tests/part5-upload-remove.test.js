@@ -65,8 +65,11 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
     expect(hint).toContain('special terms page (특약사항 별지)');
     // 사진은 한 장만 올라가므로 여러 쪽이면 PDF로
     expect(hint).toContain('upload a PDF with all pages');
-    // 등기부 칸 설명은 그대로
-    expect(node.querySelector('#registry-file-hint')?.textContent).toBe('Shows who owns the home and any mortgage or seizure.');
+    // 등기부 칸도 모든 쪽을 올리라고 안내한다: 근저당·압류는 뒤쪽 갑구·을구에 있다 (#243 리뷰)
+    const registryHint = node.querySelector('#registry-file-hint')?.textContent ?? '';
+    expect(registryHint).toContain('Shows who owns the home and any mortgage or seizure.');
+    expect(registryHint).toContain('Include every page');
+    expect(registryHint).toContain('upload a PDF with all pages');
     // 칸 설명이 화면 낭독기 설명으로 연결된 대상이 실제로 있다
     for (const id of ['registry-file', 'lease-file']) {
       const ids = node.querySelector(`#${id}`)?.getAttribute('aria-describedby')?.split(' ') ?? [];

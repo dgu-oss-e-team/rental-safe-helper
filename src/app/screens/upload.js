@@ -109,7 +109,9 @@ export function uploadScreen(state, act) {
       filePicker(
         'registry-file',
         'Property register (등기부등본)',
-        'Shows who owns the home and any mortgage or seizure.',
+        // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다. 사진 한 장이면 그 쪽이 빠질 수 있다 (#243 리뷰)
+        'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
+          'A photo covers only one page, so for a register with several pages, upload a PDF with all pages.',
         registry,
         (f) => act.setFiles({ registry: f }),
         'Remove the property register file',
