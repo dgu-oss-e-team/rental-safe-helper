@@ -47,6 +47,7 @@ function photoTipsBox() {
  */
 function filePicker(id, label, hint, current, onChange, removeLabel) {
   const statusId = `${id}-status`;
+  const hintId = `${id}-hint`;
   // 브라우저 기본 파일 칸은 컴퓨터 언어로 "파일 선택 / 선택된 파일 없음"이 나와서 영어 화면과 섞인다.
   // 기본 칸은 보이지 않게 두고(키보드·화면 낭독기로는 그대로 쓸 수 있음), 영어 버튼과 상태 글을 따로 보여 준다. (#188)
   const input = /** @type {HTMLInputElement} */ (
@@ -55,7 +56,8 @@ function filePicker(id, label, hint, current, onChange, removeLabel) {
       id,
       class: 'file-input',
       accept: 'application/pdf,image/jpeg,image/png',
-      'aria-describedby': statusId,
+      // 화면 낭독기로도 칸 설명(특약 별지 안내 등)을 듣게 한다 (#234)
+      'aria-describedby': `${hintId} ${statusId}`,
     })
   );
   // 고르기 창에서 취소하면 브라우저에 따라 빈 change가 온다. 그때 고른 파일이 지워지지 않게 한다 (지우기는 Remove로)
@@ -78,7 +80,7 @@ function filePicker(id, label, hint, current, onChange, removeLabel) {
 
   return el('div', { class: 'picker' }, [
     el('label', { for: id }, [label]),
-    el('p', { class: 'hint' }, [hint]),
+    el('p', { class: 'hint', id: hintId }, [hint]),
     el('div', { class: 'file-row' }, [
       input,
       // 누르면 파일 고르기 창이 열린다 (label for). 고른 뒤에는 "Change file"로 바꿀 수 있다고 보인다.
@@ -107,7 +109,9 @@ export function uploadScreen(state, act) {
       filePicker(
         'registry-file',
         'Property register (등기부등본)',
-        'Shows who owns the home and any mortgage or seizure.',
+        // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다. 사진 한 장이면 그 쪽이 빠질 수 있다 (#243 리뷰)
+        'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
+          'A photo covers only one page, so for a register with several pages, upload a PDF with all pages.',
         registry,
         (f) => act.setFiles({ registry: f }),
         'Remove the property register file',
@@ -115,7 +119,10 @@ export function uploadScreen(state, act) {
       filePicker(
         'lease-file',
         'Lease contract (임대차계약서)',
-        'The contract you are about to sign.',
+        // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
+        // 사진은 한 장만 올라가므로 여러 쪽 계약서는 PDF로 올리라고 안내한다
+        'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
+          'A photo covers only one page, so for a contract with several pages, upload a PDF with all pages.',
         lease,
         (f) => act.setFiles({ lease: f }),
         'Remove the lease contract file',
