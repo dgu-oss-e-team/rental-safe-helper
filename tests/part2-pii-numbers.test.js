@@ -52,6 +52,8 @@ describe('PART 2 등기 고유번호 탐지', () => {
       ['한 줄', '임대사업자 등록번호 2017-서울중구-00999', '2017-서울중구-00999'],
       ['번호만 있는 줄', '2017-서울중구-00999', '2017-서울중구-00999'],
       ['하이픈 앞뒤 공백', '등록번호: 2020 - 경기수원 - 0123', '2020 - 경기수원 - 0123'],
+      ['앞에 "제", 뒤에 "호" (#220 리뷰)', '임대사업자 등록번호 제2017-서울중구-00999호', '2017-서울중구-00999'],
+      ['"제" 뒤 공백', '등록번호 제 2017-서울중구-00999 호', '2017-서울중구-00999'],
     ])('%s', (_name, text, value) => {
       const r = findRegistryIds(text);
       expect(r.map((x) => [x.type, x.value])).toEqual([[PII_TYPE.REGISTRY_ID, value]]);
@@ -62,6 +64,9 @@ describe('PART 2 등기 고유번호 탐지', () => {
       expect(findRegistryIds('가상동 246-8')).toEqual([]);
       expect(findRegistryIds('2017-서울중구')).toEqual([]);
       expect(findRegistryIds('12017-서울중구-00999')).toEqual([]);
+      // "제"가 아닌 한글, 또는 "제"가 낱말 끝인 경우("체제2017-…")는 다른 낱말의 일부다
+      expect(findRegistryIds('가2017-서울중구-00999')).toEqual([]);
+      expect(findRegistryIds('체제2017-서울중구-00999')).toEqual([]);
     });
 
     it('findPatternPII에서도 REGISTRY_ID 하나로 나오고, 일련번호가 계좌·전화로 따로 잡히지 않는다', () => {
