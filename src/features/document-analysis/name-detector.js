@@ -265,6 +265,26 @@ export function findKnownAddresses(text, values) {
   return results.sort((a, b) => a.start - b.start);
 }
 
+/**
+ * 주소 끝의 동·층·호수 (등기부 표기: "제3층 제304호", "제101동 제7층 제702호")
+ * 등기부 위쪽 주소 "…가상빌 제3층 제304호"를 한 덩어리로 찾으면, 전유부분 표 "1 2017년7월27일 제3층 제304호 철근…"
+ * 줄의 호수는 다시 찾기에 걸리지 않는다. 그래서 호수 부분을 따로 떼어 다시 찾을 조각으로 쓴다. (#221 후속, 실제 등기부)
+ * 등기부처럼 "제"가 붙은 호수일 때만 뗀다. ("301호"만으로는 너무 흔하다)
+ */
+const UNIT_TAIL = /(?:제\s*[0-9A-Za-z가-힣]{1,4}\s*동\s*)?(?:제\s*\d{1,3}\s*층\s*)?(제\s*\d{1,5}\s*호)\s*$/;
+
+/**
+ * 주소 값 끝의 동·층·호수 조각들: "…가상빌 제3층 제304호" → ["제3층 제304호", "제304호"]
+ * @param {string} value
+ * @returns {string[]}
+ */
+export function unitTailsOf(value) {
+  const m = UNIT_TAIL.exec(value.trim());
+  if (!m || m.index === 0) return []; // 호수만 있는 값은 이미 그대로 다시 찾는다
+  const tail = m[0].trim();
+  return tail === m[1] ? [tail] : [tail, m[1]];
+}
+
 /** 금액·면적 앞 표시: "금", "₩", "￦", "\" (원화 기호 대신 쓰는 경우) */
 const MONEY_BEFORE = /(?:금|₩|￦|\\)\s*$/;
 /** 금액·면적 뒤 표시: "원", "㎡", "m²" (소수점이 붙어도 된다: "1,740.5㎡") */

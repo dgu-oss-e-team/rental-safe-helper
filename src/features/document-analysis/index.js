@@ -20,6 +20,7 @@ import {
   findPeople,
   findKnownNames,
   findKnownAddresses,
+  unitTailsOf,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -227,7 +228,9 @@ function scanDocument(document) {
   // 역할은 모르므로 null이다. (위험 점검용 사람 목록에는 영향이 없다)
   // 주소 조각도 같다: 표제부에서 찾은 지번 "39-30"이 대지권 칸 둘째 줄에 혼자 또 나오는 곳 (실제 개인 등기부)
   const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME).map((h) => h.value);
-  const addresses = hits.filter((h) => h.type === PII_TYPE.ADDRESS).map((h) => h.value);
+  // 주소 끝의 "제3층 제304호"도 따로 다시 찾는다: 전유부분 표에는 호수만 나온다 (#221 후속)
+  const addressValues = hits.filter((h) => h.type === PII_TYPE.ADDRESS).map((h) => h.value);
+  const addresses = [...addressValues, ...addressValues.flatMap(unitTailsOf)];
   if (names.length > 0 || addresses.length > 0) {
     /** @type {Map<any, any[]>} 블록 → 그 블록에서 찾은 결과 */
     const byBlock = new Map();
