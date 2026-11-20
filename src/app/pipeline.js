@@ -30,6 +30,7 @@ import {
 import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 import { findVisiblePii, unverifiable } from './double-check.js';
+import { titledMaskedText } from './document-names.js';
 import { settlePersonAnswers } from './person-questions.js';
 
 /**
@@ -200,10 +201,11 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   if (!check.ok) return stoppedAt('validateMaskedText', check);
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
+  // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
   const prompt = buildPrompt({
     purpose,
     riskResults,
-    maskedText: masked.data.maskedText,
+    maskedText: titledMaskedText(masked.data.maskedText, documents),
     legend: masked.data.legend,
   });
   if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
