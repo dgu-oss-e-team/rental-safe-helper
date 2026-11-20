@@ -56,4 +56,18 @@ describe('PART 2 임대사업자 등록번호', () => {
       expect(shared).not.toContain('서울중구-');
     });
   }
+
+  it('"제2017-서울중구-00999호"처럼 "제…호"가 붙어도 가린다 (#220 리뷰)', () => {
+    const blocks = lease.pages[0].blocks.map((b) =>
+      b.text === '2017-서울중구-00999' ? { ...b, text: '제2017-서울중구-00999호' } : b,
+    );
+    const doc = { ...lease, pages: [{ ...lease.pages[0], blocks }] };
+    const a = analyzeReadDocuments({ files: [], documents: [doc] });
+    if (!a.ok) throw new Error(`stopped at ${a.step}`);
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const r = prepareForAi(a.data, purpose);
+      expect(r.ok, r.ok ? '' : `stopped at ${r.step}: ${r.error.message}`).toBe(true);
+      expect(Object.values(r.data.maskedText).join('\n')).not.toContain('00999');
+    }
+  });
 });
