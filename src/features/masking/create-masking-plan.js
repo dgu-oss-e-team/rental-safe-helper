@@ -99,32 +99,45 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
   // 역할 없는 이름(등기부 "채무자 김철수", 계약금 "영수자 김철수" 등, role: null)은 인물 묶음에 들어 있지 않다.
   // 글자가 똑같은 이름의 묶음이 딱 하나면 그 가명에 "?"를 붙여 쓰고([PrevOwner_E?]), 둘 이상(동명이인)이거나 없으면 가린다.
   // "?"는 이름만 같을 뿐 같은 사람인지 확인하지 않았다는 표시다. (범례에도 적는다, apply-masking-plan.js)
+  // 단, 그 묶음이 같은 서류에도 그 이름으로 나오면 "?" 없이 같은 가명을 쓴다. (계약서 동의서·서명란의 임차인, 등기부 부기 줄의 공유자 본인)
+  // 같은 서류에 같은 이름의 다른 사람이 있으면 묶음이 둘 이상이라 위에서 이미 가려진다.
   // 비슷한 이름(Fuse.js)은 연결하지 않는다. 자동으로 같은 사람이라고 정하지 않는 원칙과 같다.
   const findingById = new Map(findings.map((f) => [f.id, f]));
-  /** @type {Map<string, Set<string>>} 정리한 이름 → 그 이름을 가진 묶음의 가명들 */
+  /** @type {Map<string, Map<string, Set<string>>>} 정리한 이름 → (그 이름을 가진 묶음의 가명 → 그 이름이 나온 서류들) */
   const aliasesByName = new Map();
   for (const group of personGroups) {
     for (const id of group.findingIds) {
-      const value = findingById.get(id)?.value;
-      if (!value) continue;
-      const key = normalizeName(value);
-      const set = aliasesByName.get(key) ?? new Set();
-      set.add(group.alias);
-      aliasesByName.set(key, set);
+      const finding = findingById.get(id);
+      if (!finding?.value) continue;
+      const key = normalizeName(finding.value);
+      const byAlias = aliasesByName.get(key) ?? new Map();
+      const docs = byAlias.get(group.alias) ?? new Set();
+      docs.add(finding.documentId);
+      byAlias.set(group.alias, docs);
+      aliasesByName.set(key, byAlias);
     }
   }
+  /**
+   * 이름 하나에 묶음이 딱 하나면 그 가명 (같은 서류에 나왔으면 그대로, 아니면 "?"를 붙여서)
+   * @param {string} name  @param {string} documentId
+   */
+  const linkedAlias = (name, documentId) => {
+    const byAlias = aliasesByName.get(normalizeName(name));
+    if (!byAlias || byAlias.size !== 1) return undefined;
+    const [[alias, docs]] = byAlias;
+    return docs.has(documentId) ? alias : unconfirmedAlias(alias);
+  };
   /** @param {PiiFinding} f */
   const aliasFor = (f) => {
     const direct = aliasByFinding.get(f.id);
     if (direct) return direct;
-    const same = aliasesByName.get(normalizeName(f.value));
-    if (same) return same.size === 1 ? unconfirmedAlias([...same][0]) : undefined;
+    if (aliasesByName.has(normalizeName(f.value))) return linkedAlias(f.value, f.documentId);
     // 똑같은 이름이 없으면 끝의 조사를 떼고 다시 본다. ("김철수는" → "김철수" + "는" → "[Owner_A?]는")
     // 조사를 뗀 나머지가 이미 있는 사람 이름과 같을 때만 연결한다. "김지은"을 "김지" + "은"으로 쪼개 남의 가명을 붙이지 않게.
     const particle = NAME_PARTICLE.exec(f.value);
     if (!particle || particle.index === 0) return undefined;
-    const stem = aliasesByName.get(normalizeName(f.value.slice(0, particle.index)));
-    return stem && stem.size === 1 ? unconfirmedAlias([...stem][0]) + particle[0] : undefined;
+    const stem = linkedAlias(f.value.slice(0, particle.index), f.documentId);
+    return stem ? stem + particle[0] : undefined;
   };
 
   // 두 줄 주소: 같은 groupId 조각들의 값을 순서대로 이어 붙여 둔다. (INTERFACES.md 4번 groupId)

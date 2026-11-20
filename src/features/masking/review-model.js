@@ -4,8 +4,9 @@
  *
  * 화면은 "해제 단위"마다 한 줄을 보여 준다.
  *   - 이름: 같은 사람(personGroup)의 이름 전체가 한 줄 (한 곳만 풀면 가명이 누구인지 드러남)
+ *     역할 없는 이름도 그 사람과 같은 가명("?" 없음)으로 바뀌면 그 줄에 넣는다.
  *   - 두 줄 주소: 같은 groupId 조각 전체가 한 줄
- *   - 나머지: 탐지 결과 하나가 한 줄
+ *   - 나머지: 종류·원본 글자·처리 방식이 모두 같으면 한 줄 ("N places"로 보여 줌. 같은 주소가 서류마다 나와도 한 줄)
  * 줄마다 "AI에게 보여 주기" 체크를 켜고 끄면 edits.remove를 새로 만든다. (docs/INTERFACES.md 8번)
  * 
  * 미리보기에서 글자를 골라 "더 가리기"를 하면 edits.add에 넣는다. (addSelection / removeAdd)
@@ -50,11 +51,18 @@ export function buildReviewRows({ findings, personGroups, plan }) {
   const personByFinding = new Map();
   for (const p of personGroups) for (const id of p.findingIds) personByFinding.set(id, p);
 
+  const personByAlias = new Map(personGroups.map((p) => [p.alias, p]));
+
   /** @type {Map<string, PiiFinding[]>} 줄 key → 그 줄의 탐지 결과 (나온 순서대로) */
   const units = new Map();
   for (const f of findings) {
-    let key = f.id;
-    if (f.type === PII_TYPE.PERSON_NAME && personByFinding.has(f.id)) key = `person:${personByFinding.get(f.id).personId}`;
+    const item = itemById.get(f.id);
+    // 역할 없는 이름이 그 사람과 같은 가명으로 바뀌었으면 그 사람의 줄로 (같은 서류에 나온 같은 이름, create-masking-plan.js)
+    const person =
+      personByFinding.get(f.id) ??
+      (item?.action === MASKING_ACTION.REPLACE ? personByAlias.get(item.replacement) : undefined);
+    let key = `same:${f.type}:${item?.action}:${item?.replacement}:${f.value}`;
+    if (f.type === PII_TYPE.PERSON_NAME && person) key = `person:${person.personId}`;
     else if (f.type === PII_TYPE.ADDRESS && f.groupId) key = `address:${f.groupId}`;
     if (!units.has(key)) units.set(key, []);
     units.get(key)?.push(f);
