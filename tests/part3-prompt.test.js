@@ -70,6 +70,24 @@ describe('PART 3 프롬프트: 가림 해제된 가명 처리', () => {
     );
   });
 
+  it('이전 소유자 가명 [PrevOwner_E]는 "the previous owner"로 바꾼다', () => {
+    expect(replaceUnlistedAliases('[PrevOwner_E] sold the home recently.', {})).toBe(
+      'The previous owner sold the home recently.',
+    );
+    expect(replaceUnlistedAliases('Ownership moved from [PrevOwner_E] to [Owner_A].', {})).toBe(
+      'Ownership moved from the previous owner to the owner.',
+    );
+  });
+
+  it('범례에 있는 [PrevOwner_E]는 그대로 두고, 둘 이어지면 복수로 합친다', () => {
+    expect(replaceUnlistedAliases('[PrevOwner_E] sold it.', { '[PrevOwner_E]': 'previous owner' })).toBe(
+      '[PrevOwner_E] sold it.',
+    );
+    expect(replaceUnlistedAliases('[PrevOwner_E] and [PrevOwner_F] sold it.', {})).toBe(
+      'The previous owners sold it.',
+    );
+  });
+
   it('알 수 없는 역할이면 "a person"', () => {
     expect(replaceUnlistedAliases('See [Person_C].', {})).toBe('See a person.');
   });
