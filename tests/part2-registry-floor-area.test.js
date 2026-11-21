@@ -52,9 +52,18 @@ describe('PART 2 층별 면적 칸이 붙은 도로명주소', () => {
     ]);
   });
 
-  it('층만 있고 면적이 없거나, 띄어 쓴 "1층 410.52㎡"는 지금처럼 층까지 주소로 둔다', () => {
+  it('층만 있고 면적이 없거나, 건물번호 뒤에 띄어 쓴 "1층 410.52㎡"는 지금처럼 층까지 주소로 둔다', () => {
     expect(findAddresses('서울특별시 중구 가상로 7, 2층').map((x) => x.value)).toEqual(['서울특별시 중구 가상로 7, 2층']);
-    expect(findAddresses('서울특별시 중구 가상로 1층 410.52㎡').map((x) => x.value)).toEqual(['서울특별시 중구 가상로 1층']);
+    expect(findAddresses('서울특별시 중구 가상로 7, 1층 410.52㎡').map((x) => x.value)).toEqual(['서울특별시 중구 가상로 7, 1층']);
+    expect(findAddresses('서울특별시 중구 가상로 2층').map((x) => x.value)).toEqual(['서울특별시 중구 가상로 2층']); // 면적이 없으면 그대로
+  });
+
+  it('도로명 바로 뒤(건물번호 없이) 띄어 쓴 "2층 142.35㎡"는 옆 건물내역 칸이라 끊는다 (가짜 등기부 사이트 점검)', () => {
+    const r = findAddresses('서울특별시 중구 가상로3길 2층 142.35㎡');
+    expect(r.map((x) => x.value)).toEqual(['서울특별시 중구 가상로3길']);
+    expect(r[0]).toMatchObject({ tableCut: true });
+    expect(findAddresses('서울특별시 중구 가상대로 지하1층 96.18㎡').map((x) => x.value)).toEqual(['서울특별시 중구 가상대로']);
+    expect(findAddresses('서울특별시 중구 가상로12번길 3층 128.6㎡').map((x) => x.value)).toEqual(['서울특별시 중구 가상로12번길']);
   });
 
   it('층별 면적은 주소가 아니고, 다음 줄의 짧은 건물번호("57")는 잇지 않는다 (보내기 전 검사가 다른 "57"에서 멈추지 않게)', () => {
