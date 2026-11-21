@@ -35,6 +35,9 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
  *   표 칸이 붙어 있어도 옆 줄·옆 칸 글자를 덮지 않는다. (공개 양식을 따른 빽빽한 가짜 서류 tests/fixtures/dense-*.pdf로 확인)
  * - 단, 옆 글자 때문에 줄이더라도 가장 작은 여유(페이지의 0.2%, 이 기능 전과 같은 값)는 항상 지킨다.
  *   OCR 좌표가 몇 px 어긋나면 개인정보 글자 끝이 보일 수 있어서, 옆 줄 끝을 1~2px 덮는 쪽이 새는 쪽보다 안전하다.
+ * - 같은 줄의 옆 칸 글자 조각(span, #252)은 글자 상자가 가릴 글자와 1~2px 겹칠 때가 있다 (#256).
+ *   겹친 글자도 대부분이 바깥쪽에 있으면 옆 칸으로 보고, 그 글자 끝에서 가장 작은 여유까지만 넘어간다.
+ *   가릴 글자는 언제나 다 덮는다 (상자가 가릴 글자 안쪽으로 줄어들지는 않는다).
  */
 export const PAD_Y_RATIO = 0.2;
 export const PAD_X_RATIO = 0.25;
@@ -87,14 +90,26 @@ export function toPixelRect(bbox, pageWidth, pageHeight, neighbors = []) {
   const right = (bbox.x + bbox.width) * pageWidth;
   const bottom = (bbox.y + bbox.height) * pageHeight;
   const pad = { top: padY, bottom: padY, left: padX, right: padX };
+  const minX = PAD_MIN * pageWidth;
+  const minY = PAD_MIN * pageHeight;
+  // 살짝 겹친 옆 글자가 있을 때 상자가 넘어가도 되는 끝 (가릴 글자 끝보다 안쪽으로는 오지 않는다)
+  const cap = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
 
   for (const n of neighbors) {
     const nl = n.x * pageWidth;
     const nt = n.y * pageHeight;
     const nr = (n.x + n.width) * pageWidth;
     const nb = (n.y + n.height) * pageHeight;
-    // 가릴 글자와 이미 겹치는 글자는 피할 수 없다 (같은 줄 안)
-    if (nr > left && nl < right && nb > top && nt < bottom) continue;
+    if (nr > left && nl < right && nb > top && nt < bottom) {
+      // 가릴 글자와 겹치는 글자: 가운데가 가릴 글자 바깥이면 살짝 겹친 옆 글자 (#256), 아니면 피할 수 없다
+      const cx = (nl + nr) / 2;
+      const cy = (nt + nb) / 2;
+      if (cx < left) cap.left = Math.max(cap.left, Math.min(left, nr - minX));
+      else if (cx > right) cap.right = Math.min(cap.right, Math.max(right, nl + minX));
+      else if (cy < top) cap.top = Math.max(cap.top, Math.min(top, nb - minY));
+      else if (cy > bottom) cap.bottom = Math.min(cap.bottom, Math.max(bottom, nt + minY));
+      continue;
+    }
     const sideBySide = nb > top - padY && nt < bottom + padY; // 같은 높이 (옆 칸)
     const stacked = nr > left - padX && nl < right + padX; // 같은 열 (위·아래 줄)
     if (stacked && nb <= top) pad.top = Math.min(pad.top, (top - nb) / 2);
@@ -103,18 +118,29 @@ export function toPixelRect(bbox, pageWidth, pageHeight, neighbors = []) {
     if (sideBySide && nl >= right) pad.right = Math.min(pad.right, (nl - right) / 2);
   }
   // 옆 글자 때문에 줄였어도 가장 작은 여유는 지킨다 (덜 가려서 새는 것보다 옆 줄 끝을 조금 덮는 쪽이 안전)
-  const minX = PAD_MIN * pageWidth;
-  const minY = PAD_MIN * pageHeight;
   pad.top = Math.max(pad.top, minY);
   pad.bottom = Math.max(pad.bottom, minY);
   pad.left = Math.max(pad.left, minX);
   pad.right = Math.max(pad.right, minX);
 
-  const x = Math.max(0, Math.floor(left - pad.left));
-  const y = Math.max(0, Math.floor(top - pad.top));
-  const x1 = Math.min(pageWidth, Math.ceil(right + pad.right));
-  const y1 = Math.min(pageHeight, Math.ceil(bottom + pad.bottom));
+  const x = Math.max(0, Math.floor(Math.max(left - pad.left, cap.left)));
+  const y = Math.max(0, Math.floor(Math.max(top - pad.top, cap.top)));
+  const x1 = Math.min(pageWidth, Math.ceil(Math.min(right + pad.right, cap.right)));
+  const y1 = Math.min(pageHeight, Math.ceil(Math.min(bottom + pad.bottom, cap.bottom)));
   return { x, y, width: x1 - x, height: y1 - y };
+}
+
+/**
+ * 한 페이지에서 글자가 있는 자리 목록 (planRedactions의 textBoxes)
+ * 글자 PDF 블록은 글자 조각(spans, #252) 단위로 넘겨서, 같은 줄의 옆 칸 글자도 피할 수 있게 한다 (#256).
+ * spans가 없는 블록(OCR 등)은 블록 전체 위치를 쓴다.
+ * @param {{ blocks?: { bbox: BBox, spans?: { bbox: BBox }[] }[] } | undefined} page
+ * @returns {BBox[]}
+ */
+export function textBoxesOf(page) {
+  return (page?.blocks ?? []).flatMap((b) =>
+    Array.isArray(b.spans) && b.spans.length > 0 ? b.spans.map((sp) => sp.bbox) : [b.bbox],
+  );
 }
 
 /**
@@ -133,7 +159,7 @@ function coverOf(a, b) {
  * 한 페이지에 그릴 목록을 만든다.
  * @param {MaskingPlan} plan
  * @param {{ documentId: string, pageIndex: number, width: number, height: number, textBoxes?: BBox[] }} page
- *   width/height는 픽셀. textBoxes는 이 페이지의 모든 글자 줄 위치(0~1)로, 가리지 않는 줄을 덮지 않게 쓴다 (#139)
+ *   width/height는 픽셀. textBoxes는 이 페이지의 글자 위치(0~1, textBoxesOf())로, 가리지 않는 줄·칸을 덮지 않게 쓴다 (#139, #256)
  * @returns {DrawItem[]}
  */
 export function planRedactions(plan, page) {
