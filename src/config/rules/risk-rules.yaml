@@ -80,7 +80,7 @@ rules:
           with a company. A deposit for a company normally goes to an account in the
           company's own name.
         action: >-
-          Confirm that the account holder is not the landlord. Ask for an account in the
+          This account is in a person's name, not the company's. Ask for an account in the
           company's own name, or ask the company for written proof that this person may
           receive the deposit for it.
       NO_FLAG:
