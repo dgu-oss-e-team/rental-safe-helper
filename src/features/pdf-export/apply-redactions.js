@@ -163,9 +163,10 @@ function coverOf(a, b) {
  * @param {DrawItem['rect']} rect  픽셀
  * @param {DrawItem['rect'][]} obstacles  픽셀 (옆 글자, 다른 상자)
  * @param {number} pageWidth  픽셀
+ * @param {DrawItem['rect'][]} [sharers]  픽셀. 같이 넓어질 수 있는 다른 가명 상자: 사이 빈 공간을 반씩 나눈다 (#262 리뷰)
  * @returns {{ left: number, right: number }}
  */
-export function labelRoom(rect, obstacles, pageWidth) {
+export function labelRoom(rect, obstacles, pageWidth, sharers = []) {
   const gap = PAD_MIN * pageWidth;
   const right0 = rect.x + rect.width;
   let left = 0;
@@ -175,6 +176,13 @@ export function labelRoom(rect, obstacles, pageWidth) {
     if (!sameRow || o === rect) continue;
     if (o.x >= right0) right = Math.min(right, o.x - gap);
     else if (o.x + o.width <= rect.x) left = Math.max(left, o.x + o.width + gap);
+  }
+  // 다른 가명 상자도 넓어질 수 있으므로, 사이 빈 공간의 가운데까지만 쓴다 (서로 덮지 않게)
+  for (const o of sharers) {
+    const sameRow = o.y < rect.y + rect.height && o.y + o.height > rect.y;
+    if (!sameRow || o === rect) continue;
+    if (o.x >= right0) right = Math.min(right, (right0 + o.x) / 2 - gap / 2);
+    else if (o.x + o.width <= rect.x) left = Math.max(left, (o.x + o.width + rect.x) / 2 + gap / 2);
   }
   return { left: Math.min(rect.x, Math.ceil(left)), right: Math.max(right0, Math.floor(right)) };
 }
@@ -227,8 +235,9 @@ export function planRedactions(plan, page) {
   const W = page.width;
   const H = page.height;
   const textRects = neighbors.map((b) => ({ x: b.x * W, y: b.y * H, width: b.width * W, height: b.height * H }));
-  const drawn = [...boxes, ...labels].map((d) => d.rect);
-  for (const label of labels) label.room = labelRoom(label.rect, [...textRects, ...drawn], W);
+  const boxRects = boxes.map((d) => d.rect);
+  const labelRects = labels.map((d) => d.rect);
+  for (const label of labels) label.room = labelRoom(label.rect, [...textRects, ...boxRects], W, labelRects);
   return [...boxes, ...labels];
 }
 

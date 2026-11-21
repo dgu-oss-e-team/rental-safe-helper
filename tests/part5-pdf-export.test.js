@@ -443,6 +443,17 @@ describe('PART 5 짧은 이름 칸의 가명 글씨 (#261)', () => {
     expect(labelRoom(rect, [], W)).toEqual({ left: 0, right: 1000 });
   });
 
+  it('labelRoom(): 같은 줄의 다른 가명 상자와는 사이 빈 공간을 반씩 나눈다 (서로 덮지 않게, #262 리뷰)', () => {
+    const W = 1000; // 가장 작은 여유 = 2px
+    const a = { x: 100, y: 0, width: 20, height: 40 };
+    const b = { x: 200, y: 0, width: 20, height: 40 };
+    const ra = labelRoom(a, [], W, [a, b]);
+    const rb = labelRoom(b, [], W, [a, b]);
+    expect(ra.right).toBeLessThanOrEqual(rb.left); // 넓혀도 겹치지 않는다
+    expect(ra.right).toBe(159);
+    expect(rb.left).toBe(161);
+  });
+
   it('planRedactions(): 가명 상자에 옆 빈 공간(room)을 붙인다 (가리지 않는 글자와 다른 상자 앞까지)', () => {
     const pg = { documentId: 'DOC_A', pageIndex: 0, width: 1000, height: 2000 };
     const name = { x: 0.1, y: 0.2, width: 0.06, height: 0.02 };
