@@ -133,9 +133,17 @@ describe('PART 5 빽빽한 가짜 서류: 마스킹 상자가 옆 글자를 덮�
   }
 
   it('좁힌 상자가 실제로 줄보다 작다 (이 검사가 의미가 있다는 확인)', () => {
+    // 줄(블록) 넓이와 비교한다. PART 2가 이미 좁혀 둔 탐지 결과여도 같은 결과가 나온다
     const plan = createMaskingPlan(analysis.findings, analysis.personGroups, MASKING_PURPOSE.CONTRACT_EXPLANATION).data;
-    const narrowed = narrowedPlan(plan);
-    const shrunk = narrowed.items.filter((it, k) => it.bbox.width < plan.items[k].bbox.width - 1e-6);
+    const blockOf = (i) => {
+      const f = analysis.findings.find((x) => x.id === i.findingId);
+      const d = analysis.documents.find((x) => x.documentId === i.documentId);
+      return d?.pages.find((pg) => pg.pageIndex === i.pageIndex)?.blocks.find((x) => x.blockId === f?.blockId);
+    };
+    const shrunk = narrowedPlan(plan).items.filter((i) => {
+      const b = blockOf(i);
+      return b && i.bbox.width < b.bbox.width - 1e-6;
+    });
     expect(shrunk.length).toBeGreaterThan(10);
   });
 });
