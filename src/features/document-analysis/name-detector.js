@@ -402,6 +402,13 @@ const BUILDING_USE_NAMES =
   '(?:제\\s*[12]\\s*종\\s*)?(?:근린생활|문화및집회|종교|판매|운수|의료|교육연구|노유자|수련|운동|업무|숙박|위락|창고|' +
   '위험물저장및처리|자동차관련|동물및식물관련|자원순환관련|교정|국방군사|방송통신|발전|묘지관련|관광휴게|장례|야영장)';
 const BUILDING_USE_COLUMN = `[^\\s(]*\\)|${BUILDING_USE_NAMES}\\s*시\\s*설(?=\\s*(?:,|$))`;
+/**
+ * 옆 건물내역 칸의 "층수 + 건물 종류": "[도로명주소] 서울특별시 성동구 22층 공동주택(아파트) 및" (평가 세트 신탁 등기부, #253)
+ * 주소의 층 뒤에는 호수나 끝이 오지, 건물 종류(주택 종류·건물 용도 시설)가 오지 않는다.
+ */
+const FLOOR_BUILDING_KIND =
+  '(?:지하|지상)?\\d+층\\s*(?:단독주택|공동주택|아파트|연립주택|다세대주택|다가구주택|다중주택|기숙사|' +
+  `${BUILDING_USE_NAMES}\\s*시\\s*설)`;
 /** @param {string} word */
 const stopWord = (word) =>
   word.length >= MIN_PREFIX_STOP_WORD ? spaced(word) : `${spaced(word)}(?=[\\s:：]|$)`;
@@ -412,6 +419,7 @@ const ADDRESS_STOP = new RegExp(
       FLOOR_AREA, // 층별 면적 "2층138.48㎡" (등기부 표제부 건물내역 칸)
       LAND_CATEGORY_AREA, // 지목 + 면적 "주차장 812㎡" (등기부 대지권 표)
       BUILDING_USE_COLUMN, // 옆 건물내역 칸 "활주택), 판매시설," (등기부 1동 표제부)
+      FLOOR_BUILDING_KIND, // 옆 건물내역 칸 "22층 공동주택(아파트)" (등기부 1동 표제부)
       '\\d{4}\\s*년', // 날짜 "2015년3월2일"
       '\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}', // 날짜 "2015.03.02"
       ...rules.addressStopWords.map(stopWord), // 항목 이름
@@ -573,7 +581,7 @@ export function reachesLineEnd(value, rest) {
 /** 등기부 건물내역 칸의 시작 (이 앞에서 끊긴 주소는 표 안의 주소다) */
 const BUILDING_COLUMN_STOP = new RegExp(
   '\\s(?:철\\s*근\\s*콘\\s*크\\s*리\\s*트|\\(?\\s*철\\s*근\\s*\\)|[가-힣]*구\\s*조|\\d[\\d,.]*\\s*(?:㎡|m²|m2)|' +
-    `${FLOOR_AREA}|\\d{4}\\s*년|도\\s*면\\s*편\\s*철\\s*장|지\\s*목|대(?=\\s+\\d))`,
+    `${FLOOR_AREA}|${FLOOR_BUILDING_KIND}|\\d{4}\\s*년|도\\s*면\\s*편\\s*철\\s*장|지\\s*목|대(?=\\s+\\d))`,
 );
 const MIXED_ROAD = /^[ \t]*([가-힣0-9]+(?:로|길)[ \t]*\d+(?:-\d+)?)(?![\d가-힣])/;
 const MIXED_LOT_NUMBER = /^[ \t]*(\d{1,5}(?:-\d{1,5})?)(?![\d.,/]|\s*(?:층|호|동|㎡|년|분의))/;
