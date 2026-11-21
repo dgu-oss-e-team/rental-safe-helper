@@ -671,3 +671,78 @@ describe('지번 등기부 ↔ 도로명 계약서 (#177)', () => {
     });
   });
 });
+
+describe('PART 3 법인 임대인 (#250)', () => {
+  const holder = { findingId: 'PII_L08', name: '최가상', birthDate: null, role: 'ACCOUNT_HOLDER' };
+  const companyContract = () => {
+    const f = fields();
+    f.contract.landlords = [];
+    f.contract.landlordCompanies = ['주식회사가상리츠'];
+    f.contract.accountHolders = [holder];
+    return f;
+  };
+
+    it('법인 임차인(사택) + 개인 임대인 + 예금주가 임대인 본인이면 CHECK가 아니다 (#250 리뷰)', () => {
+    const f = fields();
+    f.contract.landlords = [{ findingId: 'PII_L02', name: '김가상', birthDate: '800101', role: 'LANDLORD' }];
+    f.contract.landlordCompanies = ['주식회사사택법인']; // 임차인 칸의 회사
+    f.contract.accountHolders = [{ findingId: 'PII_L08', name: '김가상', birthDate: '800101', role: 'ACCOUNT_HOLDER' }];
+    const r = compareAccountHolderAndLandlord(f, groups());
+    expect(r.data.status).not.toBe(RISK_STATUS.CHECK);
+    expect(r.data.explanation).not.toContain('landlord on this contract is a company');
+  });
+
+  it('② 카드: 사람 임대인이 있으면 임차인 칸 회사를 Contract landlord 칸에 보이지 않는다', () => {
+    const f = fields();
+    f.contract.landlordCompanies = ['주식회사사택법인'];
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.evidence.right.value).not.toContain('주식회사사택법인');
+  });
+
+  it('법인 임대인 + 개인 예금주 → CHECK, 문구에 이름·법인명이 없다', () => {
+    const r = compareAccountHolderAndLandlord(companyContract(), groups());
+    expect(r.data.status).toBe(RISK_STATUS.CHECK);
+    expect(r.data.action).toContain("company's own name");
+    expect(`${r.data.explanation} ${r.data.action}`).not.toMatch(/최가상|주식회사가상리츠/);
+    expect(r.data.evidence.right.value).toBe('주식회사가상리츠'); // 화면 전용
+  });
+
+  it('법인명 필드 없이 임대인 이름이 회사 이름이어도 CHECK', () => {
+    const f = companyContract();
+    delete f.contract.landlordCompanies;
+    f.contract.landlords = [{ findingId: 'PII_L02', name: '가상주택리츠 주식회사', birthDate: null, role: 'LANDLORD' }];
+    expect(compareAccountHolderAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.CHECK);
+  });
+
+  it('법인 임대인이라도 예금주 정보가 없으면(null, []) UNVERIFIABLE', () => {
+    for (const none of [null, []]) {
+      const f = companyContract();
+      f.contract.accountHolders = none;
+      expect(compareAccountHolderAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    }
+  });
+
+  it('예금주도 회사 이름이면 CHECK로 바꾸지 않는다', () => {
+    const f = companyContract();
+    f.contract.accountHolders = [{ ...holder, name: '가상리츠 주식회사' }];
+    expect(compareAccountHolderAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('개인 임대인 + 개인 예금주는 기존 동작 (다른 사람으로 확정되면 STOP)', () => {
+    const g = groups();
+    g.find((x) => x.personId === 'P4').status = 'CONFIRMED';
+    expect(compareAccountHolderAndLandlord(fields(), g).data.status).toBe(RISK_STATUS.STOP);
+  });
+
+  it('② 카드: 법인명은 근거 칸에만 보이고 판정은 그대로', () => {
+    const f = fields();
+    f.registry.owners = [];
+    f.registry.ownerCompanies = ['가상신탁 주식회사'];
+    f.contract.landlords = [];
+    f.contract.landlordCompanies = ['주식회사가상리츠'];
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(r.data.evidence.left.value).toBe('가상신탁 주식회사');
+    expect(r.data.evidence.right.value).toBe('주식회사가상리츠');
+  });
+});
