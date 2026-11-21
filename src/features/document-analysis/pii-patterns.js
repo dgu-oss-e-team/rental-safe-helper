@@ -127,6 +127,19 @@ const CORPORATE_LOOKBACK = 40;
 const CORPORATE_NUMBER_REGEX = /(?<!\d)\d{6}\s?-\s?\d{7}(?!\d)/g;
 
 /**
+ * 뒷자리 별표 개수가 7개가 아닌 가려진 번호 (사진·스캔 OCR, 상욱님 점검)
+ * OCR은 별표 개수를 자주 틀리게 읽는다: "760423-******"(6개), "690812-*****"(5개), "680918-***져"(뒤에 엉뚱한 글자)
+ * 위 정규식은 뒷자리가 정확히 7글자여야 해서 못 찾고, 생년월일이 AI 글에 남는다.
+ * 생년월일 6자리 + 구분 기호 + 별표가 1개 이상 섞인 뒷자리(1~12글자)면 주민·외국인등록번호로 본다.
+ * - 별표가 있으면 이미 가려진 번호라는 뜻이라 넓게 가리는 쪽이 안전하다. (숫자만 짧게 있는 "760423-12"는 다른 번호일 수 있어 잡지 않는다)
+ * - 뒤의 엉뚱한 글자("져")는 개인정보가 아니라 값에 넣지 않는다. 생년월일과 별표까지 가린다.
+ * - 별표 개수가 이상하므로 uncertain(사용자 확인 필요)이다.
+ * OCR이 하이픈을 "–", "—", "~"로 읽는 것도 받는다. 전각 별표 "＊"도 받는다.
+ */
+const MASKED_ID_LOOSE_REGEX =
+  /(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\s?[-./–—~]\s?(?=[\d*＊]*[*＊])([1-8*＊])[\d*＊]{0,11}(?![\d*＊])/g;
+
+/**
  * 주민번호 모양의 번호가 법인등록번호인지 (바로 앞 글자로 판단)
  * @param {string} text
  * @param {number} start 번호가 시작하는 위치
@@ -172,6 +185,18 @@ export function findIdNumbers(text) {
     if (results.some((r) => start < r.end && r.start < end)) continue;
     if (!isCorporateNumber(text, start)) continue;
     results.push({ type: PII_TYPE.REGISTRY_ID, value: match[0], start, end });
+  }
+  // 별표 개수가 7개가 아닌 가려진 번호 (OCR, 위 두 정규식이 못 찾는 것만)
+  for (const match of text.matchAll(MASKED_ID_LOOSE_REGEX)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (results.some((r) => start < r.end && r.start < end)) continue;
+    const type = isCorporateNumber(text, start)
+      ? PII_TYPE.REGISTRY_ID
+      : '5678'.includes(match[1])
+        ? PII_TYPE.FOREIGNER_ID
+        : PII_TYPE.RESIDENT_ID;
+    results.push({ type, value: match[0], start, end, uncertain: true });
   }
   return results.sort((a, b) => a.start - b.start);
 }
