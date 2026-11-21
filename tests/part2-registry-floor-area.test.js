@@ -91,13 +91,54 @@ describe('PART 2 층별 면적 칸이 붙은 도로명주소', () => {
 describe('PART 2 옆 건물내역 칸의 "층수 + 건물 종류" (#253 평가 세트 과잉 마스킹)', () => {
   const cut = (/** @type {string} */ t) => findAddresses(t).map((x) => x.value);
 
-  it('"22층 공동주택(아파트)", "5층 다세대주택", "지하1층 제2종근린생활시설" 앞에서 주소를 끊는다', () => {
+  it('건물번호·번지 없이 시·구·동 바로 뒤의 "22층 공동주택(아파트)", "5층 다세대주택"은 층 앞에서 끊는다', () => {
     expect(cut('[도로명주소] 서울특별시 성동구 22층 공동주택(아파트) 및')).toEqual(['서울특별시 성동구']);
     expect(cut('서울특별시 중구 가상동2가 5층 다세대주택')).toEqual(['서울특별시 중구 가상동2가']);
-    expect(cut('서울특별시 중구 가상로 7 지하1층 제2종근린생활시설')).toEqual(['서울특별시 중구 가상로 7']);
+  });
+
+  it('건물번호 뒤의 층은 주소의 층이라 남기고, 건물 종류 앞에서만 끊는다 (#260 정연님 리뷰)', () => {
+    expect(cut('소재지 서울특별시 중구 가상로 7, 2층 다세대주택')).toEqual(['서울특별시 중구 가상로 7, 2층']);
+    expect(cut('서울특별시 중구 가상로 7 지하1층 제2종근린생활시설')).toEqual(['서울특별시 중구 가상로 7 지하1층']);
   });
 
   it('주소의 층 뒤에 호수가 오면 그대로 (건물 종류가 아니다)', () => {
     expect(cut('서울특별시 중구 가상로 7, 3층 301호')).toEqual(['서울특별시 중구 가상로 7, 3층 301호']);
+  });
+
+  it('계약서에서 다음 줄 첫 낱말("임대할")을 건물 이름으로 이어 가리지 않는다 (#260 정연님 리뷰)', () => {
+    const lines = [
+      '주택임대차표준계약서',
+      '소재지 서울특별시 중구 가상로 7, 2층 다세대주택',
+      '임대할 부분 전부',
+      '보증금 금10,000,000원',
+      '임대인 성명 김가상 주민등록번호 720303-1******',
+    ];
+    const lease = {
+      documentId: 'LEASE',
+      fileName: 'LEASE.pdf',
+      sourceType: 'TEXT_PDF',
+      pages: [
+        {
+          pageIndex: 0,
+          width: 595,
+          height: 842,
+          blocks: lines.map((text, i) => ({
+            blockId: `p0_b${i}`,
+            text,
+            bbox: { x: 0.05, y: (i + 1) / (lines.length + 2), width: 0.9, height: 0.01 },
+            confidence: null,
+          })),
+        },
+      ],
+    };
+    const a = analyzeReadDocuments({ files: [], documents: [lease] });
+    if (!a.ok) throw new Error(`stopped at ${a.step}`);
+    const addresses = a.data.findings.filter((f) => f.type === PII_TYPE.ADDRESS).map((f) => f.value);
+    expect(addresses).toEqual(['서울특별시 중구 가상로 7, 2층']);
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const r = prepareForAi(a.data, purpose);
+      expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+      if (r.ok) expect(Object.values(r.data.maskedText).join('\n')).toContain('임대할 부분 전부');
+    }
   });
 });
