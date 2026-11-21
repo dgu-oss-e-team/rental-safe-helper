@@ -540,22 +540,39 @@ function linesOf(document) {
   return document.pages.flatMap((p) => p.blocks.flatMap((b) => b.text.split('\n')));
 }
 
+/** 블록 끝이 집 주소 라벨인지: 사진(OCR)에서 "주택 소재지"가 주소와 따로 한 줄로 읽힌 경우 */
+const PROPERTY_ADDRESS_LABEL_END = new RegExp(`(?:${PROPERTY_ADDRESS_LABEL.source})\\s*[:：]?\\s*$`);
+
 /**
  * 계약·등기 대상 집의 주소를 고른다.
  * 1순위: 등기부 맨 위 "[집합건물]", "[건물]", "[토지]" 바로 뒤의 주소
- * 2순위: 같은 블록에서 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
- * 3순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우)
+ * 2순위: 주소 앞에 "소재지", "도로명주소", "지번주소" 라벨이 있는 주소
+ *   - 같은 블록에서 주소 앞에 라벨이 있거나, 바로 윗블록이 라벨로 끝나는 경우 (사진에서 라벨이 따로 읽힘)
+ * 3순위: 문서에 처음 나오는 주소 (등기부 표제부처럼 라벨 없이 주소만 있는 경우). 등기부에서만 쓴다.
+ *   계약서에서 처음 나오는 주소는 보통 1쪽 당사자 칸의 임대인 주소다. 집 주소 줄을 못 읽었을 때(사진 OCR)
+ *   임대인 주소를 집 주소로 쓰면 소재지 비교가 "주소 다름"으로 잘못 나온다. 그래서 계약서는 null(확인 불가)로 둔다. (상욱님 OCR 점검)
  * 두 줄에 걸친 주소면 같은 groupId 조각을 순서대로 이어 붙인다. (PART 3이 동·호수까지 비교하므로)
  * 시·도 이름은 정식 이름으로 바꾼다. ("서울 중구" → "서울특별시 중구", PART 3이 글자 그대로 비교하므로)
  * 바꿀 수 없는 주소는 원문 그대로 둔다. 탐지 결과(findings)의 주소 값은 마스킹용이라 원문 그대로 둔다.
  * 주소가 하나도 없으면 null (못 읽음)
  * @param {any[]} hits scanDocument() 결과
+ * @param {{ firstAddressFallback: boolean }} options 3순위를 쓸지 (등기부 true, 계약서 false)
  */
-function pickPropertyAddress(hits) {
+function pickPropertyAddress(hits, { firstAddressFallback }) {
   const addresses = hits.filter((h) => h.type === PII_TYPE.ADDRESS);
   /** @param {RegExp} label */
   const after = (label) => addresses.find((h) => label.test((h.block.text ?? '').slice(0, h.start)));
-  const picked = after(REGISTRY_HEADER_LABEL) ?? after(PROPERTY_ADDRESS_LABEL) ?? addresses[0];
+  const afterLabelBlock = () =>
+    addresses.find((h) => {
+      const blocks = h.page?.blocks ?? [];
+      const i = blocks.indexOf(h.block);
+      return i > 0 && h.start === 0 && PROPERTY_ADDRESS_LABEL_END.test(blocks[i - 1].text ?? '');
+    });
+  const picked =
+    after(REGISTRY_HEADER_LABEL) ??
+    after(PROPERTY_ADDRESS_LABEL) ??
+    afterLabelBlock() ??
+    (firstAddressFallback ? addresses[0] : undefined);
   if (!picked) return null;
   if (!picked.groupId) return toFormalAddress(picked.value);
   return toFormalAddress(
@@ -717,7 +734,7 @@ export function extractFields(documents, findings) {
     const owners = splitOwners(byRole(people, 'OWNER'), registryDoc, hits, lines);
     registry = {
       documentId: registryDoc.documentId,
-      address: pickPropertyAddress(hits),
+      address: pickPropertyAddress(hits, { firstAddressFallback: true }),
       roadAddress: findRegistryRoadAddress(lines),
       owners: owners.current,
       previousOwners: owners.previous,
@@ -751,7 +768,7 @@ export function extractFields(documents, findings) {
     const lines = linesOf(leaseDoc);
     contract = {
       documentId: leaseDoc.documentId,
-      address: pickPropertyAddress(hits),
+      address: pickPropertyAddress(hits, { firstAddressFallback: false }),
       landlords: byRole(people, 'LANDLORD'),
       tenants: byRole(people, 'TENANT'),
       accountHolders: byRole(people, 'ACCOUNT_HOLDER'),
