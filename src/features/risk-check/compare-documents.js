@@ -66,10 +66,10 @@ const joinAliases = (groups) => [...new Set(groups.map((g) => g.alias))].join(' 
   * @param {{ left: any[] | null | undefined, right: any[] | null | undefined }} p.display  근거 칸 (왼쪽, 오른쪽)
  * @param {boolean} [p.coOwnerCheck]  true면 allowed가 2명 이상인데 members가 일부뿐일 때 CHECK (소유자 비교용)
  */
-function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, personGroups, display, coOwnerCheck = false }) {
+function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, personGroups, display, displayValues, coOwnerCheck = false }) {
   const memberGroups = resolveGroups(members, personGroups);
   const allowedGroups = resolveGroups(allowed, personGroups);
-  const values = { left: describePeople(display.left), right: describePeople(display.right) };
+  const values = displayValues ?? { left: describePeople(display.left), right: describePeople(display.right) };
 
   if (!memberGroups || !allowedGroups) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values });
@@ -94,6 +94,59 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
 
 /** 회사 이름으로 보는 글자 (법인은 생년월일이 없어서 이름·생년월일로 사람을 비교할 수 없다) */
 const COMPANY_NAME = /주식회사|\(주\)|㈜|유한회사|유한책임회사|합자회사|리츠|법인/;
+
+/** 법인명 목록(PART 2가 넘겨 주는 문자열 배열)을 깨끗한 배열로 */
+function companyNamesOf(list) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter((n) => typeof n === 'string' && n.trim() !== '').map((n) => n.trim()))];
+}
+
+/**
+ * 화면 근거 칸용: 사람 정보 + 법인명. (화면 전용: 프롬프트에 넣지 않는다, #250)
+ * @param {any[] | null | undefined} people
+ * @param {unknown} companies
+ */
+function describeParties(people, companies) {
+  const parts = [];
+  const persons = describePeople(people);
+  if (persons) parts.push(persons);
+  const known = new Set((Array.isArray(people) ? people : []).map((p) => p?.name));
+  parts.push(...companyNamesOf(companies).filter((c) => !known.has(c)));
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
+const isCompanyName = (/** @type {unknown} */ name) => typeof name === 'string' && COMPANY_NAME.test(name);
+const isPersonName = (/** @type {unknown} */ name) =>
+  typeof name === 'string' && name.trim() !== '' && !COMPANY_NAME.test(name);
+
+/**
+ * 임대인 칸의 법인명만 (화면 전용).
+ * 계약서의 "성명(법인명)" 칸 회사는 임차인 칸(사택 등)의 것일 수도 있다.
+ * 사람 임대인이 읽혔으면 그 회사는 임대인이 아니라고 보고 쓰지 않는다. (#250 리뷰)
+ * @param {any[] | null | undefined} landlords
+ * @param {unknown} companies
+ */
+function landlordCompaniesOf(landlords, companies) {
+  const names = companyNamesOf(companies);
+  const hasPersonLandlord = Array.isArray(landlords) && landlords.some((p) => isPersonName(p?.name));
+  return hasPersonLandlord ? [] : names;
+}
+
+/** 임대인이 법인인지: 임대인 칸 법인명이 있거나, 임대인 이름이 회사 이름 */
+function isCompanyLandlord(landlords, landlordCompanies) {
+  return (
+    landlordCompanies.length > 0 || (Array.isArray(landlords) && landlords.some((p) => isCompanyName(p?.name)))
+  );
+}
+
+/** 예금주가 모두 이름이 있는 개인인지 (없음·빈 배열·회사 이름이면 false) */
+function hasPersonHolder(holders) {
+  return (
+    Array.isArray(holders) &&
+    holders.length > 0 &&
+    holders.every((p) => typeof p?.name === 'string' && p.name.trim() !== '' && !isCompanyName(p.name))
+  );
+}
 
 /**
  * 소유자·임대인 비교를 사람 비교로 못 하는 경우인지.
@@ -122,6 +175,10 @@ function involvesCompanyOrUnreadOwner(fields) {
 export function compareOwnerAndLandlord(fields, personGroups) {
   const owners = fields?.registry?.owners;
   const landlords = fields?.contract?.landlords;
+  const displayValues = {
+    left: describeParties(owners, fields?.registry?.ownerCompanies),
+    right: describeParties(landlords, landlordCompaniesOf(landlords, fields?.contract?.landlordCompanies)),
+  };
   const result = comparePeople({
     ruleId: 'OWNER_MISMATCH',
     members: landlords,
@@ -130,6 +187,7 @@ export function compareOwnerAndLandlord(fields, personGroups) {
     allowedKey: 'owner',
     personGroups,
     display: { left: owners, right: landlords },
+    displayValues,
     coOwnerCheck: true,
   });
   if (!result.ok || !involvesCompanyOrUnreadOwner(fields)) return result;
@@ -137,15 +195,22 @@ export function compareOwnerAndLandlord(fields, personGroups) {
   const { status } = result.data;
   if (status === RISK_STATUS.NO_FLAG || status === RISK_STATUS.CHECK) return result;
 
-  const values = { left: describePeople(owners), right: describePeople(landlords) };
   const entityStatus = status === RISK_STATUS.STOP ? RISK_STATUS.CHECK : RISK_STATUS.UNVERIFIABLE;
-  return buildRiskResult('OWNER_MISMATCH', entityStatus, { variant: 'entity', values });
+  return buildRiskResult('OWNER_MISMATCH', entityStatus, { variant: 'entity', values: displayValues });
 }
 
 /** 계약서 예금주 ↔ 계약서 임대인 */
 export function compareAccountHolderAndLandlord(fields, personGroups) {
   const holders = fields?.contract?.accountHolders;
   const landlords = fields?.contract?.landlords;
+  const landlordCompanies = landlordCompaniesOf(landlords, fields?.contract?.landlordCompanies);
+
+  if (isCompanyLandlord(landlords, landlordCompanies) && hasPersonHolder(holders)) {
+    return buildRiskResult('ACCOUNT_HOLDER_MISMATCH', RISK_STATUS.CHECK, {
+      variant: 'company_landlord',
+      values: { left: describePeople(holders), right: describeParties(landlords, landlordCompanies) },
+    });
+  }
   return comparePeople({
     ruleId: 'ACCOUNT_HOLDER_MISMATCH',
     members: holders,

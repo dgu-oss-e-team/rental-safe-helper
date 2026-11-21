@@ -854,6 +854,35 @@ export function findPreviousOwnerLines(lines) {
   return r.previous.flatMap((row) => row.lineIndexes);
 }
 
+/** 회사 이름에 들어 있는 낱말 (사람 이름과 구분한다) */
+const COMPANY_WORD = /주식회사|유한회사|유한책임회사|합자회사|㈜|\(주\)|리츠|투자회사|신탁|법인/;
+/** 등기부 소유권 기록의 소유자 칸 라벨 뒤 이름: "수탁자 가상신탁주식회사", "소유자 주식회사 가상리츠", "소유자 가상리츠 주식회사" */
+const OWNER_LABEL_NAME = /(?:수\s*탁\s*자|소\s*유\s*자|공\s*유\s*자)\s+((?:주식회사|유한회사|㈜|\(주\))\s*\S+|\S+(?:\s+(?:주식회사|유한회사))?)/g;
+
+/**
+ * 등기부 "지금 소유자" 기록에 적힌 회사 이름들. (②카드 법인명 표시용 · 개인정보 아님 · 사람 명단 registry.owners와 별개)
+ * 신탁이면 수탁자(신탁회사), 법인 소유면 그 법인이다. 예전 소유자 기록의 회사는 넣지 않는다.
+ * - 지금 소유자를 정할 수 없으면(일부 이전 등) null. 회사가 없으면 [].
+ * - 순위번호 있는 소유권 기록이 없어 줄일 근거가 없으면('ALL') 모든 줄에서 찾는다.
+ * - 법인등록번호(110111-…)는 이름에 넣지 않는다.
+ * @param {string[]} lines
+ * @returns {string[] | null}
+ */
+export function findCurrentOwnerCompanies(lines) {
+  const current = findCurrentOwnerLines(lines);
+  if (current === null) return null;
+  const target = current === 'ALL' ? lines : current.map((i) => lines[i] ?? '');
+  /** @type {string[]} */
+  const names = [];
+  for (const line of target) {
+    for (const m of line.matchAll(OWNER_LABEL_NAME)) {
+      const name = m[1].replace(/[,.;:)]+$/, (tail) => (m[1].includes('(') ? tail : '')).trim();
+      if (COMPANY_WORD.test(name) && !names.includes(name)) names.push(name);
+    }
+  }
+  return names;
+}
+
 /**
  * 갑구의 소유권 기록을 지금 소유자 기록과 예전 소유자 기록으로 나눈다.
  * @param {string[]} lines

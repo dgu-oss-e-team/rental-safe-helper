@@ -20,7 +20,7 @@
  */
 
 import { fail, ok, ERROR_CODE, isValidBBox } from '../../shared/document-model.js';
-import { planRedactions, drawRedactions } from './apply-redactions.js';
+import { planRedactions, drawRedactions, textBoxesOf } from './apply-redactions.js';
 
 // pdf.js·pdf-lib는 크기가 커서(약 1MB) 첫 화면에서 불러오지 않고, PDF를 만들 때만 불러온다.
 // (중간발표 피드백: 휴대폰에서 무겁지 않게)
@@ -105,8 +105,8 @@ async function renderMaskedPages(document, plan, file) {
       pageIndex: page.pageIndex,
       width: page.canvas.width,
       height: page.canvas.height,
-      // 가리지 않는 옆 줄·옆 칸을 덮지 않게 이 페이지의 글자 줄 위치도 넘긴다 (#139)
-      textBoxes: document.pages.find((p) => p.pageIndex === page.pageIndex)?.blocks?.map((b) => b.bbox) ?? [],
+      // 가리지 않는 옆 줄·옆 칸을 덮지 않게 이 페이지의 글자 위치도 넘긴다 (#139). 글자 PDF는 글자 조각 단위 (#256)
+      textBoxes: textBoxesOf(document.pages.find((p) => p.pageIndex === page.pageIndex)),
     });
     drawRedactions(ctx, drawItems);
   }

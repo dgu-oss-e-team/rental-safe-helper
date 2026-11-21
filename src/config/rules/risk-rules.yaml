@@ -73,6 +73,16 @@ rules:
           The account holder ({accountHolder}) is not the landlord ({landlord}).
           Money sent to someone else's account may not count as paid to the landlord.
         action: Send money only to an account in the landlord's own name.
+      CHECK.company_landlord:
+        explanation: >-
+          The landlord on this contract is a company, but the deposit account holder is a
+          person. We did not compare the two names, because a person cannot be compared
+          with a company. A deposit for a company normally goes to an account in the
+          company's own name.
+        action: >-
+          Confirm that the account holder is not the landlord. Ask for an account in the
+          company's own name, or ask the company for written proof that this person may
+          receive the deposit for it.
       NO_FLAG:
         explanation: >-
           The account holder and the landlord appear to be the same person ({landlord}).

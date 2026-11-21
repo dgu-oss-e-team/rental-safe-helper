@@ -361,3 +361,118 @@ describe('PART 1 local CMap, standard font, wasm, and ICC options', () => {
     expect(res.pageCount).toBe(1);
   });
 });
+
+describe('PART 1 block spans for granular PDF redaction', () => {
+  it('builds sorted, non-overlapping spans for multi-column table rows where each slice matches its item text', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, -1, 0, 842] }),
+          getTextContent: async () => ({
+            items: [
+              { str: '소유권이전(신탁)', width: 90, height: 12, transform: [12, 0, 0, 12, 50, 700] },
+              { str: '2024년 5월 10일', width: 85, height: 12, transform: [12, 0, 0, 12, 200, 700] },
+              { str: '수탁자 한국자산신탁(주)', width: 130, height: 12, transform: [12, 0, 0, 12, 340, 700] },
+            ],
+          }),
+        }),
+      }),
+      destroy: async () => {},
+    }));
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+    const block = res.pages[0].blocks[0];
+
+    expect(block.text).toBe('소유권이전(신탁) 2024년 5월 10일 수탁자 한국자산신탁(주)');
+    expect(block.spans).toHaveLength(3);
+
+    const expectedTexts = ['소유권이전(신탁)', '2024년 5월 10일', '수탁자 한국자산신탁(주)'];
+    block.spans.forEach((span, idx) => {
+      expect(block.text.slice(span.start, span.end)).toBe(expectedTexts[idx]);
+      if (idx > 0) {
+        expect(span.start).toBeGreaterThan(block.spans[idx - 1].end);
+      }
+      expect(span.bbox.x).toBeGreaterThanOrEqual(block.bbox.x);
+      expect(span.bbox.y).toBeGreaterThanOrEqual(block.bbox.y);
+      expect(Number((span.bbox.x + span.bbox.width).toFixed(4))).toBeLessThanOrEqual(Number((block.bbox.x + block.bbox.width).toFixed(4)));
+      expect(Number((span.bbox.y + span.bbox.height).toFixed(4))).toBeLessThanOrEqual(Number((block.bbox.y + block.bbox.height).toFixed(4)));
+    });
+
+    // Separate columns have distinct horizontal ranges narrower than the full row
+    expect(block.spans[0].bbox.x + block.spans[0].bbox.width).toBeLessThan(block.spans[2].bbox.x);
+  });
+
+  it('excludes overlap-inserted spaces from spans so adjacent overlapping fields remain separate spans', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, -1, 0, 842] }),
+          getTextContent: async () => ({
+            items: [
+              { str: 'FIELD-ALPHA-01', width: 90, height: 12, transform: [12, 0, 0, 12, 100, 660] },
+              { str: 'FIELD-BRAVO-02', width: 90, height: 12, transform: [12, 0, 0, 12, 140, 660] },
+            ],
+          }),
+        }),
+      }),
+      destroy: async () => {},
+    }));
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+    const block = res.pages[0].blocks[0];
+
+    expect(block.text).toBe('FIELD-ALPHA-01 FIELD-BRAVO-02');
+    expect(block.spans).toHaveLength(2);
+    expect(block.spans[0].start).toBe(0);
+    expect(block.spans[0].end).toBe(14);
+    expect(block.text.slice(block.spans[0].start, block.spans[0].end)).toBe('FIELD-ALPHA-01');
+
+    // Index 14 is the inserted space and belongs to no span
+    expect(block.text[14]).toBe(' ');
+    expect(block.spans[1].start).toBe(15);
+    expect(block.spans[1].end).toBe(29);
+    expect(block.text.slice(block.spans[1].start, block.spans[1].end)).toBe('FIELD-BRAVO-02');
+  });
+
+  it('keeps span offsets aligned after control-character replacement and whitespace collapsing', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, 1, 0, 0] }),
+          getTextContent: async () => ({
+            items: [
+              {
+                str: '  임대인    홍길동  ',
+                transform: [1, 0, 0, 12, 72, 120],
+                width: 110,
+                height: 12,
+              },
+              {
+                str: '  REG-2026-9999   ',
+                transform: [1, 0, 0, 12, 220, 120],
+                width: 120,
+                height: 12,
+              },
+            ],
+          }),
+        }),
+      }),
+      destroy: async () => {},
+    }));
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+    const block = res.pages[0].blocks[0];
+
+    expect(block.text).toBe('임대인 홍길동 REG-2026-9999');
+    expect(block.spans).toHaveLength(2);
+    expect(block.text.slice(block.spans[0].start, block.spans[0].end)).toBe('임대인 홍길동');
+    expect(block.text.slice(block.spans[1].start, block.spans[1].end)).toBe('REG-2026-9999');
+    expect(block.spans[0].end + 1).toBe(block.spans[1].start);
+  });
+});

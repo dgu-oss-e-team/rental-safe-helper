@@ -38,7 +38,10 @@
       blockId: 'BLOCK_001',
       text: '김철수',
       bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 },
-      confidence: 0.98          // PDF 텍스트 추출은 null
+      confidence: 0.98,         // PDF 텍스트 추출은 null
+      spans: [                  // 선택. 텍스트 PDF에서 조각별 [start, end) 오프셋과 bbox 제공 (OCR은 생략)
+        { start: 0, end: 3, bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 } }
+      ]
     }]
   }]
 }
@@ -181,6 +184,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER' }], // 갑구의 예전 소유자 (이미 판 사람)
     rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
     lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
+    ownerCompanies: ['가상신탁주식회사']  // 지금 소유자 기록의 회사 이름 (신탁이면 수탁자). 화면 전용, 프롬프트에 넣지 않음. 없으면 [], 못 정하면 null
   },
   contract: {
     documentId, address,
@@ -188,6 +192,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     tenants: [...], accountHolders: [...],
     deposit, monthlyRent, specialTerms: ['...'],
     contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
+    landlordCompanies: ['주식회사가상리츠']  // "성명(법인명)" 칸의 회사 이름 (임대사업자). 화면 전용, 프롬프트에 넣지 않음. 계약서가 없으면 null
   }
 }
 ```

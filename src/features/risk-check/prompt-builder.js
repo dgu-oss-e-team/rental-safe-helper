@@ -11,6 +11,7 @@
 
 import { ok, fail, ERROR_CODE, MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
 import { getRecommendedQuestions } from './recommended-questions.js';
+import { groupRiskResults, STATUS_ORDER } from './risk-result-model.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
 
@@ -84,7 +85,9 @@ export function buildPrompt({ purpose, riskResults, maskedText, legend }) {
 
   if (isFraudCheck && riskResults?.length) {
     lines.push('## Automatic check results');
-    for (const r of riskResults) {
+    // STOP → CHECK → UNVERIFIABLE → NO_FLAG 순서. 같은 상태 안에서는 규칙 순서 그대로 (#250)
+    const groups = groupRiskResults(riskResults);
+    for (const r of STATUS_ORDER.flatMap((s) => groups[s])) {
       const title = replaceUnlistedAliases(r.title, legend);
       const explanation = replaceUnlistedAliases(r.explanation, legend);
       lines.push(`- [${STATUS_LABEL[r.status] ?? r.status}] ${title}: ${explanation}`);
