@@ -471,8 +471,36 @@ describe('PART 2 extractFields 주소 정식 이름', () => {
   });
 
   it('조사가 붙은 주소도 찾아서 조사 앞까지 정식 이름으로 만든다', () => {
-    const r = extractFields([leaseDoc([HEAD, '임차인은 서울 강남구에서 산다'])], []);
+    const r = extractFields([leaseDoc([HEAD, '이 집의 소재지는 서울 강남구에 있다'])], []);
     expect(r.data.contract.address).toBe('서울특별시 강남구');
+  });
+
+  // 상욱님 OCR 점검: 사진에서 "주택 소재지" 줄을 못 읽으면 1쪽 임대인 주소가 집 주소가 되어 "주소 다름 STOP"이 잘못 나왔다
+  it('계약서에서 집 주소 라벨("소재지")이 붙은 주소를 못 찾으면, 임대인·임차인 주소를 쓰지 않고 null이다', () => {
+    const r = extractFields(
+      [leaseDoc([HEAD, '임대인 성명 김가상 주소 서울특별시 강서구 가상로 118, 3층', '임차인 주소 서울특별시 중구 가상로 30, 204호'])],
+      [],
+    );
+    expect(r.data.contract.address).toBeNull();
+  });
+
+  it('사진에서 "주택 소재지" 라벨이 주소와 따로 한 줄로 읽혀도 그 아래 주소를 집 주소로 고른다', () => {
+    const r = extractFields(
+      [leaseDoc([HEAD, '임대인 주소 서울특별시 강서구 가상로 118, 3층', '주택 소재지', '서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호'])],
+      [],
+    );
+    expect(r.data.contract.address).toBe('서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호');
+  });
+
+  it('"(대표 사무소 소재지)" 칸 아래의 임대사업자 사무실 주소는 집 주소가 아니다', () => {
+    const r = extractFields([leaseDoc([HEAD, '(대표 사무소 소재지)', '서울특별시 강서구 가상로 118, 3층'])], []);
+    expect(r.data.contract.address).toBeNull();
+  });
+
+  it('등기부는 지금처럼 라벨이 없어도 처음 나오는 주소를 쓴다 (표제부 소재지 칸)', () => {
+    const registryHead = '등기사항전부증명서 고유번호 0000-0000-000000';
+    const r = extractFields([leaseDoc([registryHead, '1 2018년3월14일 서울특별시 중구 가상동2가 47-12'])], []);
+    expect(r.data.registry.address).toBe('서울특별시 중구 가상동2가 47-12');
   });
 
   it('시·군·구가 없는 광주 주소는 주소로 잡지 않으므로 null이다 (추측해서 바꾸지 않는다)', () => {
