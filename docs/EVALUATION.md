@@ -1,7 +1,7 @@
 # 평가 결과 (Evaluation)
 
 > 이 파일은 `npm run eval`이 만든다. 직접 고치지 말고 다시 실행한다. (#251, 지도 교수님 피드백 ②)
-> 커밋 `643cc8a` · 서류 10장 · 정답 개인정보 123개 · 모든 서류와 값은 가짜다.
+> 커밋 `1c659bc` · 서류 10장 · 정답 개인정보 123개 · 모든 서류와 값은 가짜다.
 
 ## 평가 세트
 
@@ -31,14 +31,9 @@
 | FOREIGNER_ID | 4 | 0 | 0.0% |
 | PHONE_NUMBER | 12 | 0 | 0.0% |
 | BANK_ACCOUNT | 5 | 0 | 0.0% |
-| ADDRESS | 48 | 2 | 4.2% |
-| REGISTRY_ID | 14 | 1 | 7.1% |
-| **전체** | **123** | **3** | **2.4%** |
-
-미탐지 항목 (가짜 값):
-- dense-registry · REGISTRY_ID · `110111-0000001`
-- dense-registry · ADDRESS · `제7층 제702호`
-- form-coowner-registry · ADDRESS · `제6층 제602호`
+| ADDRESS | 48 | 0 | 0.0% |
+| REGISTRY_ID | 14 | 0 | 0.0% |
+| **전체** | **123** | **0** | **0.0%** |
 
 ## 2. 과잉 마스킹 비율
 
@@ -48,15 +43,15 @@
 |---|---|---|---|
 | sample-registry | 17 | 0 | 0.0% |
 | sample-lease | 11 | 0 | 0.0% |
-| dense-registry | 24 | 0 | 0.0% |
+| dense-registry | 26 | 0 | 0.0% |
 | dense-lease | 19 | 0 | 0.0% |
 | form-trust-registry | 14 | 1 | 7.1% |
 | form-private-lease | 15 | 0 | 0.0% |
-| form-coowner-registry | 21 | 0 | 0.0% |
+| form-coowner-registry | 22 | 0 | 0.0% |
 | form-individual-registry | 26 | 0 | 0.0% |
 | form-individual-lease | 14 | 0 | 0.0% |
 | form-individual-lease-risky | 14 | 0 | 0.0% |
-| **전체** | **175** | **1** | **0.6%** |
+| **전체** | **178** | **1** | **0.6%** |
 
 과잉 마스킹 항목 (가짜 값):
 - `form-trust-registry · ADDRESS:서울특별시 성동구 22층 공동주택(아파트)`
@@ -67,19 +62,9 @@
 
 | 목적 | 서류 묶음 | 남은 개인정보 | 멈춤 |
 |---|---|---|---|
-| CLAUSE_EXPLANATION | 6 | 3 / 138 | 0 |
-| FRAUD_CHECK | 6 | 3 / 138 | 0 |
-| CONTRACT_EXPLANATION | 6 | 3 / 138 | 0 |
-
-- CLAUSE_EXPLANATION · dense-registry · REGISTRY_ID
-- CLAUSE_EXPLANATION · dense-registry · ADDRESS
-- FRAUD_CHECK · dense-registry · REGISTRY_ID
-- FRAUD_CHECK · dense-registry · ADDRESS
-- CONTRACT_EXPLANATION · dense-registry · REGISTRY_ID
-- CONTRACT_EXPLANATION · dense-registry · ADDRESS
-- CLAUSE_EXPLANATION · form-coowner-registry · ADDRESS
-- FRAUD_CHECK · form-coowner-registry · ADDRESS
-- CONTRACT_EXPLANATION · form-coowner-registry · ADDRESS
+| CLAUSE_EXPLANATION | 6 | 0 / 138 | 0 |
+| FRAUD_CHECK | 6 | 0 / 138 | 0 |
+| CONTRACT_EXPLANATION | 6 | 0 / 138 | 0 |
 
 ## 4. 양식별 "확인 불가" 비율
 
