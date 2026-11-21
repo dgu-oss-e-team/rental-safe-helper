@@ -82,6 +82,12 @@ describe('PART 5 ① 화면: 사진 여러 장 (#268)', () => {
     expect(shown.querySelector('#registry-file-notice')).toBeNull();
   });
 
+  it('사진 팁 상자에 휴대폰 문서 스캔을 권하는 선택 팁이 있다 (그냥 사진도 된다고 함께 알림, #272)', () => {
+    const tip = screenWith({}).node.querySelector('.photo-tips #scan-tip')?.textContent ?? '';
+    expect(tip).toContain('document scan feature');
+    expect(tip).toContain('Plain photos work too');
+  });
+
   it('PDF는 이름과 "View" 버튼을 보여 준다 (미리 보기 목록은 없음)', () => {
     const { node } = screenWith({ registry: pdf('가상_등기부.pdf') });
     expect(node.querySelector('#registry-file-status')?.textContent).toBe('가상_등기부.pdf');

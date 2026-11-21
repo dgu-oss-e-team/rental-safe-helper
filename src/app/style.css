@@ -701,3 +701,9 @@ a.ai-link {
   flex-direction: column;
   gap: 2px;
 }
+
+/* 문서 스캔 선택 팁 (#272) */
+.photo-tips .scan-tip {
+  margin: 6px 0 0;
+  color: var(--ink);
+}
