@@ -98,6 +98,13 @@ export function applyPersonAnswers(personGroups, personAnswers) {
       status: 'CONFIRMED',
     });
   }
+  // 합쳐서 사람이 줄었으면 가명 글자를 A, B, C … 순서로 다시 매긴다. ([AccountHolder_C]가 합쳐져 C가 비지 않게)
+  // 역할 이름(Owner, PrevOwner …)과 personId는 그대로라, 같은 사람 = 같은 가명 규칙은 그대로다.
+  if (result.length < personGroups.length) {
+    result.forEach((g, i) => {
+      g.alias = g.alias.replace(/_[A-Z]\]$/, `_${String.fromCharCode(65 + i)}]`);
+    });
+  }
   return ok(result);
 }
 
