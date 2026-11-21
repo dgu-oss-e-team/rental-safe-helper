@@ -22,6 +22,7 @@ import {
   findKnownAddresses,
   unitTailsOf,
   corporateNameInField,
+  findCorporateNames,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -43,6 +44,7 @@ import {
   findContractDate,
   findCurrentOwnerLines,
   findPreviousOwnerLines,
+  findCurrentOwnerCompanies,
 } from './field-extractor.js';
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
@@ -706,6 +708,7 @@ export function extractFields(documents, findings) {
     previousOwners: null,
     rights: null,
     lastTransferDate: null,
+    ownerCompanies: null,
   };
   if (registryDoc) {
     const hits = scanDocument(registryDoc);
@@ -720,6 +723,7 @@ export function extractFields(documents, findings) {
       previousOwners: owners.previous,
       rights: findRegistryRights(lines),
       lastTransferDate: findLastTransferDate(lines),
+      ownerCompanies: findCurrentOwnerCompanies(lines),
     };
   }
 
@@ -739,6 +743,7 @@ export function extractFields(documents, findings) {
     monthlyRent: null,
     specialTerms: null,
     contractDate: null,
+    landlordCompanies: null,
   };
   if (leaseDoc) {
     const hits = scanDocument(leaseDoc);
@@ -754,6 +759,7 @@ export function extractFields(documents, findings) {
       monthlyRent: findMonthlyRent(lines),
       specialTerms: findSpecialTerms(lines),
       contractDate: findContractDate(lines),
+      landlordCompanies: findCorporateNames(lines),
     };
   }
 

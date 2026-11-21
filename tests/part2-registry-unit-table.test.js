@@ -56,7 +56,11 @@ const analyze = () => {
 describe('PART 2 주소 끝 동·층·호수 조각 (unitTailsOf)', () => {
   it('등기부 표기 호수를 층·동과 함께 뗀다', () => {
     expect(unitTailsOf('서울특별시 중구 가상동3가 12-34 가상빌 제3층 제304호')).toEqual(['제3층 제304호']);
-    expect(unitTailsOf('서울특별시 중구 가상로 12 가상아파트 제101동 제7층 제702호')).toEqual(['제101동 제7층 제702호']);
+    // 동이 있으면 동을 뺀 층·호수도 준다 (전유부분 표에는 동 없이 나온다, PR #253 평가)
+    expect(unitTailsOf('서울특별시 중구 가상로 12 가상아파트 제101동 제7층 제702호')).toEqual([
+      '제101동 제7층 제702호',
+      '제7층 제702호',
+    ]);
   });
 
   it('호수만("제301호"), "제"가 없는 호수, 호수가 없는 주소는 떼지 않는다 (#233 리뷰)', () => {
@@ -97,6 +101,28 @@ describe('PART 2 떼어 낸 호수 조각이 다른 서류와 부딪히지 않�
     for (const r of prepAll(reg, lease)) {
       expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
       expect(Object.values(r.data.maskedText).join('\n')).not.toContain('제1층 제1호');
+    }
+  });
+});
+
+describe('PART 2 위 주소에 "제N동"이 있는 등기부의 전유부분 호수 (PR #253 평가)', () => {
+  const DONG_REGISTRY = [
+    '등기사항전부증명서(말소사항 포함)',
+    '[집합건물] 서울특별시 중구 가상로 12, 가상아파트 제3동 제7층 제702호',
+    '【 표 제 부 】 ( 전유부분의 건물의 표시 )',
+    '1 2015년3월2일 제7층 제702호 철근콘크리트구조 59.94㎡',
+    '【 갑 구 】 ( 소유권에 관한 사항 )',
+    '1 소유권보존 2015년3월2일 제10021호 소유자 김가상 720303-*******',
+  ];
+
+  it('전유부분 줄의 "제7층 제702호"(동 없음)를 찾고, AI 글에 남지 않는다', () => {
+    const r = analyzeReadDocuments({ files: [], documents: [doc('REG', DONG_REGISTRY), doc('LEASE', LEASE)] });
+    if (!r.ok) throw new Error(`stopped at ${r.step}`);
+    expect(r.data.findings.filter((f) => f.documentId === 'REG').map((f) => f.value)).toContain('제7층 제702호');
+    for (const purpose of Object.values(MASKING_PURPOSE)) {
+      const p = prepareForAi(r.data, purpose);
+      expect(p.ok, p.ok ? '' : `stopped at ${p.step}: ${p.error.message}`).toBe(true);
+      if (p.ok) expect(Object.values(p.data.maskedText).join('\n')).not.toContain('702호');
     }
   });
 });

@@ -7,6 +7,7 @@ import { mockLeaseDocument } from '../src/shared/mock-data.js';
 import {
   toPixelRect,
   planRedactions,
+  textBoxesOf,
   fitFontSize,
   drawRedactions,
   PAD_X_RATIO,
@@ -143,6 +144,73 @@ describe('PART 5 상자 여유: 옆에 가리지 않는 글자가 있으면 간�
     // 가릴 줄 자신만 있으면 기본 여유 그대로
     const [alone] = planRedactions(plan, { ...pg, textBoxes: [masked] });
     expect(alone.rect).toEqual(toPixelRect(masked, ...A4));
+  });
+});
+
+describe('PART 5 같은 줄의 옆 칸 글자 조각 피하기 (#256)', () => {
+  const A4 = [2480, 3508];
+  const minX = PAD_MIN * 2480; // 약 5px
+  // 줄 하나 = [번호 칸][개인정보][다음 칸]. 글자 상자는 2px씩 겹친다 (글자 PDF의 글자 폭 때문에 생김)
+  const lineY = { y: 0.3, height: 0.02 };
+  const pii = { x: 0.3, width: 0.2, ...lineY };
+  const leftCell = { x: 0.2, width: 0.1 + 2 / 2480, ...lineY };
+  const rightCell = { x: 0.5 - 2 / 2480, width: 0.1, ...lineY };
+  const px = (b) => ({ l: b.x * 2480, r: (b.x + b.width) * 2480 });
+
+  it('textBoxesOf(): 글자 PDF 블록은 spans 위치, spans가 없는 블록(OCR)은 블록 위치', () => {
+    const page = {
+      blocks: [
+        {
+          bbox: { x: 0.1, y: 0.1, width: 0.5, height: 0.02 },
+          spans: [
+            { start: 0, end: 2, bbox: leftCell },
+            { start: 3, end: 5, bbox: pii },
+          ],
+        },
+        { bbox: rightCell },
+        { bbox: rightCell, spans: [] },
+      ],
+    };
+    expect(textBoxesOf(page)).toEqual([leftCell, pii, rightCell, rightCell]);
+    expect(textBoxesOf(undefined)).toEqual([]);
+  });
+
+  it('살짝 겹친 옆 칸은 그 글자 끝에서 가장 작은 여유까지만 넘어가고, 개인정보 글자는 다 덮는다', () => {
+    const r = toPixelRect(pii, ...A4, [leftCell, rightCell]);
+    // 개인정보 글자는 다 덮는다
+    expect(r.x).toBeLessThanOrEqual(px(pii).l);
+    expect(r.x + r.width).toBeGreaterThanOrEqual(px(pii).r);
+    // 옆 칸 안으로는 가장 작은 여유(+반올림 1px)보다 깊게 들어가지 않는다
+    expect(px(leftCell).r - r.x).toBeLessThanOrEqual(minX + 1);
+    expect(r.x + r.width - px(rightCell).l).toBeLessThanOrEqual(minX + 1);
+    // 옆 칸을 보지 않으면 더 깊게 들어간다 (이 검사가 의미가 있다는 확인)
+    const loose = toPixelRect(pii, ...A4);
+    expect(px(leftCell).r - loose.x).toBeGreaterThan(minX + 1);
+  });
+
+  it('겹친 양이 가장 작은 여유보다 커도 상자는 개인정보 글자 안쪽으로 줄지 않는다', () => {
+    const deep = { x: 0.2, width: 0.1 + 30 / 2480, ...lineY }; // 30px 겹침, 가운데는 바깥
+    const r = toPixelRect(pii, ...A4, [deep]);
+    expect(r.x).toBeLessThanOrEqual(px(pii).l);
+  });
+
+  it('가운데가 개인정보 글자 안에 있는 글자는 피할 수 없으니 여유를 바꾸지 않는다', () => {
+    const inside = { x: 0.35, width: 0.05, ...lineY };
+    expect(toPixelRect(pii, ...A4, [inside])).toEqual(toPixelRect(pii, ...A4));
+  });
+
+  it('planRedactions: 같은 블록의 다른 span은 옆 칸으로 보고, 가릴 span은 이웃으로 보지 않는다', () => {
+    const plan = { purpose: 'FRAUD_CHECK', items: [item({ bbox: pii })] };
+    const pg = { documentId: 'DOC_A', pageIndex: 0, width: 2480, height: 3508 };
+    const block = {
+      bbox: { x: 0.2, width: 0.4, ...lineY },
+      spans: [{ bbox: leftCell }, { bbox: pii }, { bbox: rightCell }],
+    };
+    const [box] = planRedactions(plan, { ...pg, textBoxes: textBoxesOf({ blocks: [block] }) });
+    expect(box.rect).toEqual(toPixelRect(pii, ...A4, [leftCell, rightCell]));
+    // 블록 전체만 넘기면(이전) 자기 블록이라 옆 칸을 모른다
+    const [old] = planRedactions(plan, { ...pg, textBoxes: [block.bbox] });
+    expect(old.rect).toEqual(toPixelRect(pii, ...A4));
   });
 });
 

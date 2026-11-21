@@ -275,8 +275,13 @@ export function findKnownAddresses(text, values) {
  */
 const UNIT_TAIL = /(?:제\s*[0-9A-Za-z가-힣]{1,4}\s*동\s*)?(?:제\s*\d{1,3}\s*층\s*)?제\s*\d{1,5}\s*호\s*$/;
 
+/** 동을 뺀 층·호수: 전유부분 표에는 동 없이 "제7층 제702호"만 나온다 */
+const FLOOR_UNIT_TAIL = /제\s*\d{1,3}\s*층\s*제\s*\d{1,5}\s*호\s*$/;
+
 /**
  * 주소 값 끝의 동·층·호수 조각: "…가상빌 제3층 제304호" → ["제3층 제304호"]
+ * 동까지 있으면 동을 뺀 층·호수도 준다: "…가상아파트 제3동 제7층 제702호" → ["제3동 제7층 제702호", "제7층 제702호"]
+ *   (전유부분 표에는 동 없이 "제7층 제702호"만 나와서 동이 붙은 조각으로는 다시 찾지 못했다, PR #253 평가)
  * 층·동 없이 호수만 있으면 []
  * @param {string} value
  * @returns {string[]}
@@ -285,7 +290,9 @@ export function unitTailsOf(value) {
   const m = UNIT_TAIL.exec(value.trim());
   if (!m || m.index === 0) return []; // 주소 전체가 호수뿐이면 이미 그대로 다시 찾는다
   const tail = m[0].trim();
-  return /[동층]/.test(tail) ? [tail] : [];
+  if (!/[동층]/.test(tail)) return [];
+  const floorUnit = FLOOR_UNIT_TAIL.exec(tail)?.[0].trim();
+  return floorUnit && floorUnit !== tail ? [tail, floorUnit] : [tail];
 }
 
 /** 금액·면적 앞 표시: "금", "₩", "￦", "\" (원화 기호 대신 쓰는 경우) */
@@ -691,6 +698,29 @@ export function corporateNameInField(prevText, text) {
   const m = NAME_FIELD_LEAD.exec(text);
   if (!m) return -1;
   return COMPANY_NAME.test(text.slice(m[0].length)) ? m[0].length : -1;
+}
+
+/**
+ * "성명(법인명)" 칸에 적힌 회사 이름들. (계약서 법인명 표시용, 개인정보 아님)
+ * 이 칸은 임대사업자(임대인)뿐 아니라 임차인 칸에도 있을 수 있어서, 임대인인지는 쓰는 쪽(PART 3)이 사람 임대인 유무로 거른다.
+ * 뒤에 붙은 "(서명 또는 인)"(OCR "(서 명")과 "대표이사 김대표" 같은 대표자 글자는 잘라 낸다.
+ * @param {string[]} texts 줄(또는 블록) 글
+ * @returns {string[]}
+ */
+export function findCorporateNames(texts) {
+  /** @type {string[]} */
+  const names = [];
+  texts.forEach((text, i) => {
+    const at = corporateNameInField(texts[i - 1] ?? '', text);
+    if (at < 0) return;
+    const name = text
+      .slice(at)
+      .replace(/\s*[(（]\s*서\s*명.*$/, '')
+      .replace(/\s+대\s*표\s*(?:이\s*사|자)?(?=[\s:：]|$).*$/, '')
+      .trim();
+    if (name && COMPANY_NAME.test(name) && !names.includes(name)) names.push(name);
+  });
+  return names;
 }
 
 /**
