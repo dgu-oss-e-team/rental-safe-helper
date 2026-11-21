@@ -13,7 +13,7 @@
  *           extractFields()는 사람 정보·주소(탐지 결과)와 보증금·월세·특약·권리(field-extractor.js)를 실제 문서에서 만든다.
  */
 
-import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS, isValidBBox } from '../../shared/document-model.js';
 import { findPatternPII } from './pii-patterns.js';
 import { toFormalAddress } from './address-normalizer.js';
 import {
@@ -410,6 +410,50 @@ function fixLateRoleLabels(hits, allAnchors, texts, corporateFields = []) {
 }
 
 /**
+ * 개인정보를 가릴 상자: 개인정보 글자 [start, end)와 겹치는 글자 조각(block.spans)의 상자를 합친다. (PR #252)
+ * 등기부 표 한 줄에 법인번호 하나가 있어도 블록 전체(접수일·등기원인까지)가 가려지던 문제를 줄인다.
+ * - 조각이 일부만 겹쳐도 그 조각 전체를 가린다. (넓게 가리는 쪽)
+ * - 아래 경우는 지금처럼 블록 전체를 가린다. 상자가 개인정보를 다 덮는지 확신할 수 없으면 좁히지 않는다.
+ *   spans가 없음(OCR, 예전 데이터) / 조각 위치가 글 길이를 넘음 / 좌표가 이상함 /
+ *   그 위치의 글자가 탐지한 값과 다름 / 개인정보 글자 중 어느 조각에도 속하지 않는 글자가 있음(띄어쓰기 제외)
+ * @param {any} block
+ * @param {number | undefined} start
+ * @param {number | undefined} end
+ * @param {string} value 탐지한 값 (block.text.slice(start, end)와 같아야 좁힌다)
+ * @returns {{ x: number, y: number, width: number, height: number }}
+ */
+export function maskBoxFor(block, start, end, value) {
+  const whole = { ...block.bbox };
+  /** @type {unknown} */
+  const spans = block.spans;
+  const text = typeof block.text === 'string' ? block.text : '';
+  if (!Array.isArray(spans) || spans.length === 0) return whole;
+  if (typeof start !== 'number' || typeof end !== 'number' || start < 0 || end > text.length || start >= end) return whole;
+  if (text.slice(start, end) !== value) return whole;
+  /** @type {{ start: number, end: number, bbox: { x: number, y: number, width: number, height: number } }[]} */
+  const valid = [];
+  for (const s of spans) {
+    const ok =
+      s && Number.isInteger(s.start) && Number.isInteger(s.end) && s.start >= 0 && s.start < s.end && s.end <= text.length;
+    if (!ok || !isValidBBox(s.bbox)) return whole; // 조각 하나라도 이상하면 글과 조각이 안 맞는 것이다
+    valid.push(s);
+  }
+  const overlapping = valid.filter((s) => s.start < end && start < s.end);
+  // 개인정보의 모든 글자(띄어쓰기 제외)가 겹친 조각 안에 있어야 한다
+  for (let i = start; i < end; i += 1) {
+    if (/\s/.test(text[i])) continue;
+    if (!overlapping.some((s) => s.start <= i && i < s.end)) return whole;
+  }
+  const x1 = Math.min(...overlapping.map((s) => s.bbox.x));
+  const y1 = Math.min(...overlapping.map((s) => s.bbox.y));
+  const x2 = Math.max(...overlapping.map((s) => s.bbox.x + s.bbox.width));
+  const y2 = Math.max(...overlapping.map((s) => s.bbox.y + s.bbox.height));
+  /** @param {number} n */
+  const round = (n) => Number(n.toFixed(4));
+  return { x: round(x1), y: round(y1), width: round(x2 - x1), height: round(y2 - y1) };
+}
+
+/**
  * 문서에서 개인정보를 찾는다.
  * @param {DocumentModel} document
  */
@@ -427,9 +471,8 @@ export function detectPII(document) {
       documentId: document.documentId,
       pageIndex: page.pageIndex,
       blockId: block.blockId,
-      // TODO(PART 2): PART 1이 단어 단위 좌표(words)를 주면 개인정보 부분만 가리도록 좁힌다.
-      // 지금은 블록 전체 좌표를 쓴다. 더 넓게 가리는 쪽이라 개인정보가 새지 않는다.
-      bbox: { ...block.bbox },
+      // 글자 조각 좌표(spans)가 있으면 개인정보 부분만, 없으면 블록 전체를 가린다 (maskBoxFor)
+      bbox: maskBoxFor(block, hit.start, hit.end, hit.value),
       confidence: block.confidence,
       reviewStatus:
         hit.uncertain || lowConfidence ? REVIEW_STATUS.NEEDS_REVIEW : REVIEW_STATUS.DETECTED,
