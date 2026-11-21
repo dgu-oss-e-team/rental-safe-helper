@@ -21,6 +21,8 @@ import { MASKING_ACTION, isValidBBox } from '../../shared/document-model.js';
  * @property {'box' | 'label'} kind  box = 검은 상자, label = 흰 상자 + 글자
  * @property {{ x: number, y: number, width: number, height: number }} rect  픽셀 좌표
  * @property {string} [text]  label일 때 그릴 글자 (가명 등)
+ * @property {{ left: number, right: number }} [room]  label일 때 흰 상자를 넓혀도 되는 왼쪽·오른쪽 끝 (픽셀, #261)
+ *   같은 높이에 있는 옆 글자·다른 가림 상자 앞까지다. 가명이 상자에 안 들어갈 때만 이 안에서 넓힌다.
  */
 
 /*
@@ -156,6 +158,36 @@ function coverOf(a, b) {
 }
 
 /**
+ * 가명 상자 옆의 빈 공간: 같은 높이의 옆 글자·다른 상자 앞까지 (#261)
+ * 가장 작은 여유(PAD_MIN)만큼 떨어뜨린다. 페이지 밖으로는 나가지 않는다.
+ * @param {DrawItem['rect']} rect  픽셀
+ * @param {DrawItem['rect'][]} obstacles  픽셀 (옆 글자, 다른 상자)
+ * @param {number} pageWidth  픽셀
+ * @param {DrawItem['rect'][]} [sharers]  픽셀. 같이 넓어질 수 있는 다른 가명 상자: 사이 빈 공간을 반씩 나눈다 (#262 리뷰)
+ * @returns {{ left: number, right: number }}
+ */
+export function labelRoom(rect, obstacles, pageWidth, sharers = []) {
+  const gap = PAD_MIN * pageWidth;
+  const right0 = rect.x + rect.width;
+  let left = 0;
+  let right = pageWidth;
+  for (const o of obstacles) {
+    const sameRow = o.y < rect.y + rect.height && o.y + o.height > rect.y;
+    if (!sameRow || o === rect) continue;
+    if (o.x >= right0) right = Math.min(right, o.x - gap);
+    else if (o.x + o.width <= rect.x) left = Math.max(left, o.x + o.width + gap);
+  }
+  // 다른 가명 상자도 넓어질 수 있으므로, 사이 빈 공간의 가운데까지만 쓴다 (서로 덮지 않게)
+  for (const o of sharers) {
+    const sameRow = o.y < rect.y + rect.height && o.y + o.height > rect.y;
+    if (!sameRow || o === rect) continue;
+    if (o.x >= right0) right = Math.min(right, (right0 + o.x) / 2 - gap / 2);
+    else if (o.x + o.width <= rect.x) left = Math.max(left, (o.x + o.width + rect.x) / 2 + gap / 2);
+  }
+  return { left: Math.min(rect.x, Math.ceil(left)), right: Math.max(right0, Math.floor(right)) };
+}
+
+/**
  * 한 페이지에 그릴 목록을 만든다.
  * @param {MaskingPlan} plan
  * @param {{ documentId: string, pageIndex: number, width: number, height: number, textBoxes?: BBox[] }} page
@@ -199,7 +231,78 @@ export function planRedactions(plan, page) {
     rect,
     text: texts.join(LABEL_SEPARATOR),
   }));
+  // 가명이 안 들어갈 때 넓혀도 되는 빈 공간 (#261): 옆 글자, 다른 상자를 넘지 않는다
+  const W = page.width;
+  const H = page.height;
+  const textRects = neighbors.map((b) => ({ x: b.x * W, y: b.y * H, width: b.width * W, height: b.height * H }));
+  const boxRects = boxes.map((d) => d.rect);
+  const labelRects = labels.map((d) => d.rect);
+  for (const label of labels) label.room = labelRoom(label.rect, [...textRects, ...boxRects], W, labelRects);
   return [...boxes, ...labels];
+}
+
+/** 가명 글자가 이 크기(상자 높이 대비)보다 작으면 옆 빈 공간으로 넓혀 본다 (#261) */
+const LABEL_TARGET = 0.7;
+/** 넓혀도 이 크기(상자 높이 대비)보다 작으면 괄호를 뺀 가명도 그려 보고 큰 쪽을 쓴다 */
+const LABEL_READABLE = 0.5;
+
+/**
+ * 표 칸 선이나 검은 상자처럼 위아래로 길게 어두운 세로줄이 있으면 그 앞에서 멈춘다 (#261)
+ * 캔버스의 픽셀을 읽을 수 없는 환경(테스트)에서는 그대로 둔다.
+ * @param {any} ctx
+ * @param {DrawItem['rect']} rect
+ * @param {number} from  넓히기 시작하는 x (상자 끝)
+ * @param {number} to  넓히고 싶은 x
+ * @returns {number} 실제로 넓혀도 되는 x
+ */
+function stopAtDarkColumn(ctx, rect, from, to) {
+  if (typeof ctx.getImageData !== 'function' || from === to) return to;
+  const x0 = Math.floor(Math.min(from, to));
+  const w = Math.ceil(Math.abs(to - from));
+  const y0 = Math.max(0, Math.floor(rect.y));
+  const h = Math.max(1, Math.floor(rect.height));
+  if (w <= 0) return to;
+  let data;
+  try {
+    data = ctx.getImageData(x0, y0, w, h).data;
+  } catch {
+    return from; // 읽을 수 없으면 넓히지 않는다
+  }
+  const dark = (col) => {
+    let n = 0;
+    for (let row = 0; row < h; row += 1) {
+      const k = (row * w + col) * 4;
+      if (data[k] * 0.299 + data[k + 1] * 0.587 + data[k + 2] * 0.114 < 128) n += 1;
+    }
+    return n >= h * 0.7;
+  };
+  if (to > from) {
+    for (let col = 0; col < w; col += 1) if (dark(col)) return Math.max(from, x0 + col - 1);
+  } else {
+    for (let col = w - 1; col >= 0; col -= 1) if (dark(col)) return Math.min(from, x0 + col + 2);
+  }
+  return to;
+}
+
+/**
+ * 가명이 상자에 안 들어가면 옆 빈 공간(room) 안에서 오른쪽, 다음 왼쪽으로 넓힌다 (#261)
+ * @param {any} ctx
+ * @param {DrawItem} item
+ * @param {number} widthPer1px
+ * @returns {DrawItem['rect']}
+ */
+function widenedRect(ctx, item, widthPer1px) {
+  const { rect, room } = item;
+  if (!room) return rect;
+  const side = rect.height * 0.15;
+  const need = widthPer1px * Math.floor(rect.height * LABEL_TARGET) + side * 2 + 1;
+  let extra = need - rect.width;
+  if (extra <= 0) return rect;
+  const right0 = rect.x + rect.width;
+  const right = stopAtDarkColumn(ctx, rect, right0, Math.min(room.right, right0 + extra));
+  extra -= right - right0;
+  const left = extra > 0 ? stopAtDarkColumn(ctx, rect, rect.x, Math.max(room.left, rect.x - extra)) : rect.x;
+  return { x: left, y: rect.y, width: right - left, height: rect.height };
 }
 
 /**
@@ -209,16 +312,37 @@ export function planRedactions(plan, page) {
  */
 export function drawRedactions(ctx, drawItems) {
   for (const item of drawItems) {
-    const { x, y, width, height } = item.rect;
+    const { y, height } = item.rect;
     if (item.kind === 'box') {
       ctx.fillStyle = '#000000';
-      ctx.fillRect(x, y, width, height);
+      ctx.fillRect(item.rect.x, y, item.rect.width, height);
       continue;
     }
     // 100px로 길이를 재서 1px당 길이를 구하고, 상자에 맞는 크기를 계산한다
-    const text = item.text ?? '';
+    let text = item.text ?? '';
     ctx.font = 'bold 100px sans-serif';
-    const fontSize = fitFontSize(ctx.measureText(text).width / 100, item.rect);
+    const per = ctx.measureText(text).width / 100;
+    let fontSize = fitFontSize(per, item.rect);
+    let { x, width } = item.rect;
+    // 짧은 이름 칸처럼 가명이 작아지면 옆 빈 공간으로 넓힌다 (#261). 원래 자리는 그대로 다 덮는다
+    if (fontSize < Math.floor(height * LABEL_TARGET)) {
+      const wide = widenedRect(ctx, item, per);
+      const wideSize = fitFontSize(per, wide);
+      if (wideSize > fontSize) {
+        ({ x, width } = wide);
+        fontSize = wideSize;
+      }
+    }
+    // 그래도 작으면 괄호를 뺀 가명 ("[Owner_A]" → "Owner_A")
+    if (fontSize < height * LABEL_READABLE && /[[\]]/.test(text)) {
+      const plain = text.replace(/[[\]]/g, '');
+      const plainPer = ctx.measureText(plain).width / 100;
+      const plainSize = fitFontSize(plainPer, { width, height });
+      if (plainSize > fontSize) {
+        text = plain;
+        fontSize = plainSize;
+      }
+    }
     if (fontSize === 0) {
       // 가명이 들어가지 않는 작은 상자: 흰 상자만 남으면 가린 곳인지 모르므로 REDACT처럼 검은 상자로 그린다
       ctx.fillStyle = '#000000';
