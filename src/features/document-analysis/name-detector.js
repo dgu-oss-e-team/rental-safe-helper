@@ -695,16 +695,23 @@ export function corporateNameInField(prevText, text) {
 
 /**
  * "성명(법인명)" 칸에 적힌 회사 이름들. (계약서 법인명 표시용, 개인정보 아님)
- * 임차인은 개인이라는 전제로, 이 칸의 회사는 임대사업자(임대인)로 본다.
+ * 이 칸은 임대사업자(임대인)뿐 아니라 임차인 칸에도 있을 수 있어서, 임대인인지는 쓰는 쪽(PART 3)이 사람 임대인 유무로 거른다.
+ * 뒤에 붙은 "(서명 또는 인)"(OCR "(서 명")과 "대표이사 김대표" 같은 대표자 글자는 잘라 낸다.
  * @param {string[]} texts 줄(또는 블록) 글
+ * @returns {string[]}
  */
 export function findCorporateNames(texts) {
+  /** @type {string[]} */
   const names = [];
   texts.forEach((text, i) => {
     const at = corporateNameInField(texts[i - 1] ?? '', text);
     if (at < 0) return;
-    const name = text.slice(at).replace(/\s*[(（]\s*서명.*$/, '').trim();
-    if (name && !names.includes(name)) names.push(name);
+    const name = text
+      .slice(at)
+      .replace(/\s*[(（]\s*서\s*명.*$/, '')
+      .replace(/\s+대\s*표\s*(?:이\s*사|자)?(?=[\s:：]|$).*$/, '')
+      .trim();
+    if (name && COMPANY_NAME.test(name) && !names.includes(name)) names.push(name);
   });
   return names;
 }

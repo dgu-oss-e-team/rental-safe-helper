@@ -116,10 +116,27 @@ function describeParties(people, companies) {
 }
 
 const isCompanyName = (/** @type {unknown} */ name) => typeof name === 'string' && COMPANY_NAME.test(name);
+const isPersonName = (/** @type {unknown} */ name) =>
+  typeof name === 'string' && name.trim() !== '' && !COMPANY_NAME.test(name);
 
-/** 임대인이 법인인지: 법인명이 따로 넘어왔거나, 임대인 이름이 회사 이름 */
-function isCompanyLandlord(landlords, companies) {
-  return companies.length > 0 || (Array.isArray(landlords) && landlords.some((p) => isCompanyName(p?.name)));
+/**
+ * 임대인 칸의 법인명만 (화면 전용).
+ * 계약서의 "성명(법인명)" 칸 회사는 임차인 칸(사택 등)의 것일 수도 있다.
+ * 사람 임대인이 읽혔으면 그 회사는 임대인이 아니라고 보고 쓰지 않는다. (#250 리뷰)
+ * @param {any[] | null | undefined} landlords
+ * @param {unknown} companies
+ */
+function landlordCompaniesOf(landlords, companies) {
+  const names = companyNamesOf(companies);
+  const hasPersonLandlord = Array.isArray(landlords) && landlords.some((p) => isPersonName(p?.name));
+  return hasPersonLandlord ? [] : names;
+}
+
+/** 임대인이 법인인지: 임대인 칸 법인명이 있거나, 임대인 이름이 회사 이름 */
+function isCompanyLandlord(landlords, landlordCompanies) {
+  return (
+    landlordCompanies.length > 0 || (Array.isArray(landlords) && landlords.some((p) => isCompanyName(p?.name)))
+  );
 }
 
 /** 예금주가 모두 이름이 있는 개인인지 (없음·빈 배열·회사 이름이면 false) */
@@ -160,7 +177,7 @@ export function compareOwnerAndLandlord(fields, personGroups) {
   const landlords = fields?.contract?.landlords;
   const displayValues = {
     left: describeParties(owners, fields?.registry?.ownerCompanies),
-    right: describeParties(landlords, fields?.contract?.landlordCompanies),
+    right: describeParties(landlords, landlordCompaniesOf(landlords, fields?.contract?.landlordCompanies)),
   };
   const result = comparePeople({
     ruleId: 'OWNER_MISMATCH',
@@ -186,7 +203,7 @@ export function compareOwnerAndLandlord(fields, personGroups) {
 export function compareAccountHolderAndLandlord(fields, personGroups) {
   const holders = fields?.contract?.accountHolders;
   const landlords = fields?.contract?.landlords;
-  const landlordCompanies = companyNamesOf(fields?.contract?.landlordCompanies);
+  const landlordCompanies = landlordCompaniesOf(landlords, fields?.contract?.landlordCompanies);
 
   if (isCompanyLandlord(landlords, landlordCompanies) && hasPersonHolder(holders)) {
     return buildRiskResult('ACCOUNT_HOLDER_MISMATCH', RISK_STATUS.CHECK, {

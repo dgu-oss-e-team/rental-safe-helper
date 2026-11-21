@@ -682,6 +682,23 @@ describe('PART 3 법인 임대인 (#250)', () => {
     return f;
   };
 
+    it('법인 임차인(사택) + 개인 임대인 + 예금주가 임대인 본인이면 CHECK가 아니다 (#250 리뷰)', () => {
+    const f = fields();
+    f.contract.landlords = [{ findingId: 'PII_L02', name: '김가상', birthDate: '800101', role: 'LANDLORD' }];
+    f.contract.landlordCompanies = ['주식회사사택법인']; // 임차인 칸의 회사
+    f.contract.accountHolders = [{ findingId: 'PII_L08', name: '김가상', birthDate: '800101', role: 'ACCOUNT_HOLDER' }];
+    const r = compareAccountHolderAndLandlord(f, groups());
+    expect(r.data.status).not.toBe(RISK_STATUS.CHECK);
+    expect(r.data.explanation).not.toContain('landlord on this contract is a company');
+  });
+
+  it('② 카드: 사람 임대인이 있으면 임차인 칸 회사를 Contract landlord 칸에 보이지 않는다', () => {
+    const f = fields();
+    f.contract.landlordCompanies = ['주식회사사택법인'];
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.evidence.right.value).not.toContain('주식회사사택법인');
+  });
+
   it('법인 임대인 + 개인 예금주 → CHECK, 문구에 이름·법인명이 없다', () => {
     const r = compareAccountHolderAndLandlord(companyContract(), groups());
     expect(r.data.status).toBe(RISK_STATUS.CHECK);
