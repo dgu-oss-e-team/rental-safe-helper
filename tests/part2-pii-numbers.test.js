@@ -145,6 +145,19 @@ describe('PART 2 법인등록번호 (#192, 팀 합의: 등기 고유번호 종�
     expect(typeOf('임차인 김은행 900101-1234567')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
   });
 
+  it('뒷자리가 0·9로 시작하는 법인등록번호도 회사 이름·라벨 뒤면 REGISTRY_ID다 (PR #253 평가)', () => {
+    expect(typeOf('1 소유권보존 2015년3월2일 소유자 주식회사가상건설 110111-0000001')).toEqual([
+      [PII_TYPE.REGISTRY_ID, '110111-0000001'],
+    ]);
+    // 전에는 계좌번호로 잡혔다 (가려지긴 했지만 종류가 틀림)
+    expect(typeOf('근저당권자 주식회사가상은행 110111-0000002')).toEqual([[PII_TYPE.REGISTRY_ID, '110111-0000002']]);
+    expect(typeOf('법인등록번호 110111-9000003')).toEqual([[PII_TYPE.REGISTRY_ID, '110111-9000003']]);
+  });
+
+  it('회사 이름·라벨이 없는 6-7자리(뒷자리 0)는 지금처럼 다른 규칙(계좌번호 등)에 맡긴다', () => {
+    expect(typeOf('계좌번호 110111-0000001').map(([t]) => t)).not.toContain(PII_TYPE.REGISTRY_ID);
+  });
+
   it('회사 이름이 없으면 지금처럼 주민·외국인등록번호로 본다 (애매하면 넓게 가리기)', () => {
     expect(typeOf('소유자 김철수 800101-1******')[0][0]).toBe(PII_TYPE.RESIDENT_ID);
     expect(typeOf('110111-3579246')[0][0]).toBe(PII_TYPE.RESIDENT_ID);

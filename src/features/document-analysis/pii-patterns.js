@@ -120,6 +120,13 @@ const COMPANY_WORD_BEFORE =
 const CORPORATE_LOOKBACK = 40;
 
 /**
+ * 법인등록번호 모양: 6자리-7자리. 법인번호는 뒷자리가 0·9로 시작할 수 있어서 주민번호 정규식에 안 걸린다.
+ * ("소유자 주식회사가상건설 110111-0000001" → 놓침, "근저당권자 주식회사가상은행 110111-0000002" → 계좌번호로 잡힘)
+ * 그래서 바로 앞이 "법인등록번호" 칸이나 회사 이름일 때(isCorporateNumber)만 따로 찾는다. (PR #253 평가)
+ */
+const CORPORATE_NUMBER_REGEX = /(?<!\d)\d{6}\s?-\s?\d{7}(?!\d)/g;
+
+/**
  * 주민번호 모양의 번호가 법인등록번호인지 (바로 앞 글자로 판단)
  * @param {string} text
  * @param {number} start 번호가 시작하는 위치
@@ -158,7 +165,15 @@ export function findIdNumbers(text) {
       uncertain,
     });
   }
-  return results;
+  // 뒷자리가 0·9로 시작하는 법인등록번호 (위 정규식이 못 찾는 것만)
+  for (const match of text.matchAll(CORPORATE_NUMBER_REGEX)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (results.some((r) => start < r.end && r.start < end)) continue;
+    if (!isCorporateNumber(text, start)) continue;
+    results.push({ type: PII_TYPE.REGISTRY_ID, value: match[0], start, end });
+  }
+  return results.sort((a, b) => a.start - b.start);
 }
 
 /**

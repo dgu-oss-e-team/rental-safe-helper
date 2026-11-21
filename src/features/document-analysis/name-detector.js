@@ -275,8 +275,13 @@ export function findKnownAddresses(text, values) {
  */
 const UNIT_TAIL = /(?:제\s*[0-9A-Za-z가-힣]{1,4}\s*동\s*)?(?:제\s*\d{1,3}\s*층\s*)?제\s*\d{1,5}\s*호\s*$/;
 
+/** 동을 뺀 층·호수: 전유부분 표에는 동 없이 "제7층 제702호"만 나온다 */
+const FLOOR_UNIT_TAIL = /제\s*\d{1,3}\s*층\s*제\s*\d{1,5}\s*호\s*$/;
+
 /**
  * 주소 값 끝의 동·층·호수 조각: "…가상빌 제3층 제304호" → ["제3층 제304호"]
+ * 동까지 있으면 동을 뺀 층·호수도 준다: "…가상아파트 제3동 제7층 제702호" → ["제3동 제7층 제702호", "제7층 제702호"]
+ *   (전유부분 표에는 동 없이 "제7층 제702호"만 나와서 동이 붙은 조각으로는 다시 찾지 못했다, PR #253 평가)
  * 층·동 없이 호수만 있으면 []
  * @param {string} value
  * @returns {string[]}
@@ -285,7 +290,9 @@ export function unitTailsOf(value) {
   const m = UNIT_TAIL.exec(value.trim());
   if (!m || m.index === 0) return []; // 주소 전체가 호수뿐이면 이미 그대로 다시 찾는다
   const tail = m[0].trim();
-  return /[동층]/.test(tail) ? [tail] : [];
+  if (!/[동층]/.test(tail)) return [];
+  const floorUnit = FLOOR_UNIT_TAIL.exec(tail)?.[0].trim();
+  return floorUnit && floorUnit !== tail ? [tail, floorUnit] : [tail];
 }
 
 /** 금액·면적 앞 표시: "금", "₩", "￦", "\" (원화 기호 대신 쓰는 경우) */
