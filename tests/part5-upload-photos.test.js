@@ -88,6 +88,12 @@ describe('PART 5 ① 화면: 사진 여러 장 (#268)', () => {
     expect(tip).toContain('Plain photos work too');
   });
 
+  it('여러 쪽은 카메라로 먼저 다 찍고 사진 보관함에서 한꺼번에 고르라고 안내한다 (#272)', () => {
+    const tip = screenWith({}).node.querySelector('.photo-tips #many-pages-tip')?.textContent ?? '';
+    expect(tip).toContain('take photos of all pages with your camera first');
+    expect(tip).toContain('select them all from your photo library');
+  });
+
   it('PDF는 이름과 "View" 버튼을 보여 준다 (미리 보기 목록은 없음)', () => {
     const { node } = screenWith({ registry: pdf('가상_등기부.pdf') });
     expect(node.querySelector('#registry-file-status')?.textContent).toBe('가상_등기부.pdf');
