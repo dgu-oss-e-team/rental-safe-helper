@@ -1,0 +1,17 @@
+{
+  "document": "form-trust-registry",
+  "file": "tests/fixtures/form-trust-registry.pdf",
+  "documentType": "REGISTRY",
+  "form": "법인 소유·신탁 집합건물 등기부 (열람본 구조)",
+  "pii": [
+    { "type": "REGISTRY_ID", "value": "0000-2023-357924" },
+    { "type": "REGISTRY_ID", "value": "110111-3579246" },
+    { "type": "REGISTRY_ID", "value": "110111-6802467" },
+    { "type": "ADDRESS", "value": "서울특별시 성동구 가상동 246-8 가상타운 제3층 제301호", "secret": "246-8 가상타운 제3층 제301호" },
+    { "type": "ADDRESS", "value": "서울특별시 성동구 가상동 246-8 가상타운", "secret": "246-8" },
+    { "type": "ADDRESS", "value": "서울특별시 성동구 가상로 00", "secret": "가상로 00" },
+    { "type": "ADDRESS", "value": "제3층 제301호" },
+    { "type": "ADDRESS", "value": "서울특별시 강남구 가상대로 00, 12층(가상동)", "secret": "가상대로 00, 12층" },
+    { "type": "ADDRESS", "value": "서울특별시 영등포구 가상로 77, 23층(가상동)", "secret": "가상로 77," }
+  ]
+}

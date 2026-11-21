@@ -1,0 +1,19 @@
+{
+  "document": "sample-registry",
+  "file": "public/samples/sample-registry.pdf",
+  "documentType": "REGISTRY",
+  "form": "집합건물 등기부 견본 (시연 샘플)",
+  "pii": [
+    { "type": "REGISTRY_ID", "value": "0000-2019-013579" },
+    { "type": "REGISTRY_ID", "value": "110111-2468013" },
+    { "type": "PERSON_NAME", "value": "박영수" },
+    { "type": "PERSON_NAME", "value": "김철수" },
+    { "type": "RESIDENT_ID", "value": "700101-*******", "secret": "700101" },
+    { "type": "RESIDENT_ID", "value": "800101-*******", "secret": "800101" },
+    { "type": "ADDRESS", "value": "서울특별시 중구 필동로 00, 제1층 제101호", "secret": "필동로 00, 제1층 제101호" },
+    { "type": "ADDRESS", "value": "서울특별시 중구 필동 123", "secret": "필동 123" },
+    { "type": "ADDRESS", "value": "서울특별시 중구 필동로 00", "secret": "필동로 00" },
+    { "type": "ADDRESS", "value": "제1층 제101호" },
+    { "type": "ADDRESS", "value": "서울특별시 중구 을지로 99 (필동지점)", "secret": "을지로 99" }
+  ]
+}
