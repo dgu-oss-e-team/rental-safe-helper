@@ -10,6 +10,7 @@ import {
   textBoxesOf,
   fitFontSize,
   drawRedactions,
+  labelRoom,
   PAD_X_RATIO,
   PAD_Y_RATIO,
   PAD_MIN,
@@ -408,5 +409,102 @@ describe('PART 5 마스킹 그리기 (drawRedactions)', () => {
     const { ctx, calls } = fakeContext();
     drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 40, height: 8 }, text: '[AccountHolder_D]' }]);
     expect(calls).toEqual([['fillRect', '#000000', 0, 0, 40, 8]]);
+  });
+});
+
+describe('PART 5 짧은 이름 칸의 가명 글씨 (#261)', () => {
+  /** fakeContext와 같지만, 그린 상자 위치와 글자 크기도 기록한다 */
+  function recorder(getImageData) {
+    const calls = [];
+    const ctx = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      font: '',
+      textBaseline: '',
+      measureText: (text) => ({ width: text.length * 60 }), // 100px일 때 글자당 60px
+      fillRect: (...r) => calls.push({ op: 'fillRect', color: ctx.fillStyle, r }),
+      strokeRect: () => {},
+      fillText: (text) => calls.push({ op: 'fillText', text, font: ctx.font }),
+      ...(getImageData ? { getImageData } : {}),
+    };
+    return { ctx, calls };
+  }
+  const sizeOf = (font) => Number(/(\d+)px/.exec(font)[1]);
+  // 이름 세 글자 넓이(60px)에 "[Owner_A]"(9글자) → 그대로면 8px
+  const rect = { x: 100, y: 0, width: 60, height: 40 };
+
+  it('labelRoom(): 같은 높이의 옆 글자·상자 앞까지, 다른 줄은 보지 않는다', () => {
+    const W = 1000; // 가장 작은 여유 = 2px
+    const right = { x: 300, y: 5, width: 50, height: 30 };
+    const left = { x: 20, y: 0, width: 30, height: 40 };
+    const otherRow = { x: 170, y: 100, width: 50, height: 30 };
+    expect(labelRoom(rect, [right, left, otherRow], W)).toEqual({ left: 52, right: 298 });
+    expect(labelRoom(rect, [], W)).toEqual({ left: 0, right: 1000 });
+  });
+
+  it('planRedactions(): 가명 상자에 옆 빈 공간(room)을 붙인다 (가리지 않는 글자와 다른 상자 앞까지)', () => {
+    const pg = { documentId: 'DOC_A', pageIndex: 0, width: 1000, height: 2000 };
+    const name = { x: 0.1, y: 0.2, width: 0.06, height: 0.02 };
+    const sign = { x: 0.3, y: 0.2, width: 0.1, height: 0.02 }; // "(서명 또는 인)"
+    const plan = { purpose: 'FRAUD_CHECK', items: [item({ action: 'REPLACE', replacement: '[Owner_A]', bbox: name })] };
+    const [label] = planRedactions(plan, { ...pg, textBoxes: [name, sign] });
+    expect(label.room.left).toBe(0);
+    expect(label.room.right).toBeLessThanOrEqual(300 - 2);
+    expect(label.room.right).toBeGreaterThan(label.rect.x + label.rect.width);
+  });
+
+  it('옆이 비어 있으면 흰 상자를 넓혀서 가명을 상자 높이에 맞는 크기로 그린다 (원래 자리는 다 덮는다)', () => {
+    const { ctx, calls } = recorder();
+    drawRedactions(ctx, [{ kind: 'label', rect, text: '[Owner_A]', room: { left: 0, right: 1000 } }]);
+    const white = calls.find((c) => c.op === 'fillRect');
+    const [x, , w] = white.r;
+    expect(white.color).toBe('#ffffff');
+    expect(x).toBeLessThanOrEqual(rect.x);
+    expect(x + w).toBeGreaterThanOrEqual(rect.x + rect.width);
+    expect(w).toBeGreaterThan(rect.width);
+    const text = calls.find((c) => c.op === 'fillText');
+    expect(text.text).toBe('[Owner_A]');
+    expect(sizeOf(text.font)).toBe(28); // 높이 40의 70%
+  });
+
+  it('넓힐 때 room(옆 글자 앞)을 넘지 않는다: 오른쪽이 막히면 왼쪽으로', () => {
+    const { ctx, calls } = recorder();
+    drawRedactions(ctx, [{ kind: 'label', rect, text: '[Owner_A]', room: { left: 0, right: 180 } }]);
+    const [x, , w] = calls.find((c) => c.op === 'fillRect').r;
+    expect(x + w).toBeLessThanOrEqual(180);
+    expect(x).toBeLessThan(rect.x); // 모자란 만큼 왼쪽으로
+  });
+
+  it('표 칸 선(위아래로 긴 어두운 세로줄) 앞에서 멈춘다', () => {
+    const LINE_X = 200;
+    const getImageData = (x0, y0, w, h) => {
+      const data = new Uint8ClampedArray(w * h * 4).fill(255);
+      for (let row = 0; row < h; row += 1) {
+        const col = LINE_X - x0;
+        if (col >= 0 && col < w) data.fill(0, (row * w + col) * 4, (row * w + col) * 4 + 3);
+      }
+      return { data };
+    };
+    const { ctx, calls } = recorder(getImageData);
+    drawRedactions(ctx, [{ kind: 'label', rect, text: '[Owner_A]', room: { left: 100, right: 1000 } }]);
+    const [x, , w] = calls.find((c) => c.op === 'fillRect').r;
+    expect(x + w).toBeLessThanOrEqual(LINE_X);
+    expect(x).toBe(rect.x);
+  });
+
+  it('넓힐 공간이 없으면 괄호를 뺀 가명이 더 크면 그것을 쓴다', () => {
+    const { ctx, calls } = recorder();
+    drawRedactions(ctx, [{ kind: 'label', rect, text: '[Owner_A]', room: { left: 100, right: 160 } }]);
+    const text = calls.find((c) => c.op === 'fillText');
+    expect(text.text).toBe('Owner_A');
+    expect(calls.find((c) => c.op === 'fillRect').r).toEqual([100, 0, 60, 40]);
+  });
+
+  it('room이 없는 예전 목록은 지금처럼 그린다 (넓히지 않음)', () => {
+    const { ctx, calls } = recorder();
+    drawRedactions(ctx, [{ kind: 'label', rect: { x: 0, y: 0, width: 600, height: 40 }, text: '[Landlord_A]' }]);
+    expect(calls.find((c) => c.op === 'fillRect').r).toEqual([0, 0, 600, 40]);
+    expect(calls.find((c) => c.op === 'fillText').text).toBe('[Landlord_A]');
   });
 });
