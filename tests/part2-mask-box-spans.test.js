@@ -79,6 +79,19 @@ describe('PART 2 maskBoxFor(): 개인정보 글자와 겹치는 조각만 합친
     expect(maskBoxFor(b, s, s + 3, '김가상')).toEqual(block.bbox);
   });
 
+  it('소수점 넷째 자리로 맞출 때 상자가 줄어들지 않는다 (시작은 내림, 끝은 올림, #257 리뷰)', () => {
+    const block = blockOf(['소유자', '김가상']);
+    block.spans[1].bbox = { x: 0.123456, y: 0.300049, width: 0.030001, height: 0.012001 };
+    const s = block.text.indexOf('김가상');
+    const box = maskBoxFor(block, s, s + 3, '김가상');
+    const b = block.spans[1].bbox;
+    expect(box).toEqual({ x: 0.1234, y: 0.3, width: 0.0301, height: 0.0121 });
+    expect(box.x).toBeLessThanOrEqual(b.x);
+    expect(box.y).toBeLessThanOrEqual(b.y);
+    expect(box.x + box.width).toBeGreaterThanOrEqual(b.x + b.width);
+    expect(box.y + box.height).toBeGreaterThanOrEqual(b.y + b.height);
+  });
+
   it('위치의 글자가 탐지한 값과 다르면 블록 전체 (글과 위치가 어긋난 경우)', () => {
     const s = at('김가상');
     expect(maskBoxFor(block, s, s + 3, '이가상')).toEqual(block.bbox);

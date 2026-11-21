@@ -448,9 +448,16 @@ export function maskBoxFor(block, start, end, value) {
   const y1 = Math.min(...overlapping.map((s) => s.bbox.y));
   const x2 = Math.max(...overlapping.map((s) => s.bbox.x + s.bbox.width));
   const y2 = Math.max(...overlapping.map((s) => s.bbox.y + s.bbox.height));
+  // 0.0001 단위로 맞출 때 시작(왼쪽·위)은 내림, 끝(오른쪽·아래)은 올림: 상자가 줄어들지 않게 한다 (#257 상욱님 리뷰)
+  // 1e-9는 0.3 * 10000 = 3000.0000000000005 같은 소수 오차로 한 칸 더 커지는 것을 막는다
   /** @param {number} n */
-  const round = (n) => Number(n.toFixed(4));
-  return { x: round(x1), y: round(y1), width: round(x2 - x1), height: round(y2 - y1) };
+  const down = (n) => Math.max(0, Math.floor(n * 1e4 + 1e-9) / 1e4);
+  /** @param {number} n */
+  const up = (n) => Math.min(1, Math.ceil(n * 1e4 - 1e-9) / 1e4);
+  /** @param {number} n */
+  const clean = (n) => Number(n.toFixed(4));
+  const [left, top, right, bottom] = [down(x1), down(y1), up(x2), up(y2)];
+  return { x: left, y: top, width: clean(right - left), height: clean(bottom - top) };
 }
 
 /**
