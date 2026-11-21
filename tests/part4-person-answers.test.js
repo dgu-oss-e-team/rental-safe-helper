@@ -28,6 +28,39 @@ describe('PART 4 applyPersonAnswers', () => {
     });
   });
 
+  it('합쳐서 사람이 줄면 가명 글자를 A, B, C … 순서로 다시 매긴다 (빈 글자가 없게)', () => {
+    // 예금주 [AccountHolder_C]를 소유자로 답하면 C가 비지 않고 뒤의 사람이 당겨진다
+    const g = (personId, alias, roles, status = 'CONFIRMED') => ({ personId, alias, roles, findingIds: [`F_${personId}`], status });
+    const before = [
+      g('P1', '[Owner_A]', ['OWNER']),
+      g('P2', '[Tenant_B]', ['TENANT']),
+      g('P3', '[AccountHolder_C]', ['ACCOUNT_HOLDER'], 'AMBIGUOUS'),
+      g('P4', '[PrevOwner_D]', ['PREVIOUS_OWNER']),
+      g('P5', '[PrevOwner_E]', ['PREVIOUS_OWNER']),
+    ];
+    const r = applyPersonAnswers(before, { P3: 'P1' });
+    expect(r.data.map((x) => [x.personId, x.alias])).toEqual([
+      ['P1', '[Owner_A]'],
+      ['P2', '[Tenant_B]'],
+      ['P4', '[PrevOwner_C]'],
+      ['P5', '[PrevOwner_D]'],
+    ]);
+    // 합쳐진 예금주 이름은 소유자 가명
+    expect(r.data[0].findingIds).toEqual(['F_P1', 'F_P3']);
+    // "다른 사람"으로 답하면 줄지 않으니 글자도 그대로
+    expect(applyPersonAnswers(before, { P3: null }).data.map((x) => x.alias)).toEqual(before.map((x) => x.alias));
+  });
+
+  it('다시 매긴 가명으로 마스킹된다', () => {
+    const unsure = groups.map((g) => (g.personId === 'P2' ? { ...g, status: 'AMBIGUOUS' } : g));
+    const merged = applyPersonAnswers(unsure, { P2: 'P1' }).data;
+    expect(merged.map((g) => g.alias)).toEqual(['[Owner_A]', '[Tenant_B]', '[AccountHolder_C]']);
+    const findings = [...mockRegistryFindings, ...mockLeaseFindings];
+    const plan = createMaskingPlan(findings, merged, MASKING_PURPOSE.FRAUD_CHECK).data;
+    const used = new Set(plan.items.map((i) => i.replacement).filter((x) => /^\[[A-Za-z]+_[A-Z]\]$/.test(x)));
+    expect([...used].sort()).toEqual(['[AccountHolder_C]', '[Owner_A]', '[Tenant_B]']);
+  });
+
   it('다른 사람이면 그 그룹만 CONFIRMED로 바뀐다', () => {
     const r = applyPersonAnswers(groups, { P4: null });
     expect(r.data).toHaveLength(groups.length);
