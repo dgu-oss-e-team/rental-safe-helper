@@ -182,3 +182,32 @@ describe('PART 3 추천 질문', () => {
     }
   });
 });
+
+describe('PART 3 프롬프트 (#250)', () => {
+  it('Automatic check results는 STOP → CHECK → UNVERIFIABLE → NO_FLAG 순, 같은 상태는 규칙 순서', () => {
+    const mk = (ruleId, status) => ({ ruleId, status, title: `T_${ruleId}`, explanation: 'e', action: 'a' });
+    const results = [
+      mk('A', RISK_STATUS.NO_FLAG), mk('B', RISK_STATUS.UNVERIFIABLE), mk('C', RISK_STATUS.CHECK),
+      mk('D', RISK_STATUS.STOP), mk('E', RISK_STATUS.CHECK), mk('F', RISK_STATUS.STOP),
+    ];
+    const text = prompt({ results }).data;
+    const positions = ['T_D', 'T_F', 'T_C', 'T_E', 'T_B', 'T_A'].map((t) => text.indexOf(t));
+    expect(positions.every((i) => i >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it('법인명·예금주 이름은 화면 칸에만 있고 프롬프트에는 없다', () => {
+    const f = structuredClone(mockExtractedFields);
+    f.registry.owners = [];
+    f.registry.ownerCompanies = ['가상신탁 주식회사'];
+    f.contract.landlords = [];
+    f.contract.landlordCompanies = ['주식회사가상리츠'];
+    f.contract.accountHolders = [{ findingId: 'PII_L08', name: '최가상', birthDate: null, role: 'ACCOUNT_HOLDER' }];
+    const risks = assessRisks(f, structuredClone(mockPersonGroups));
+    expect(risks.ok).toBe(true);
+    const owner = risks.data.find((r) => r.ruleId === 'OWNER_MISMATCH');
+    expect(owner.evidence.right.value).toContain('주식회사가상리츠'); // 화면에는 있다
+    const p = buildPrompt({ purpose: FRAUD_CHECK, riskResults: risks.data, maskedText: { DOC_LEASE: 'masked' }, legend: {} });
+    for (const secret of ['주식회사가상리츠', '가상신탁 주식회사', '최가상']) expect(p.data).not.toContain(secret);
+  });
+});
