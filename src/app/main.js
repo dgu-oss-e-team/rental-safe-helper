@@ -11,6 +11,7 @@ import './style.css';
 import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
 import { filesWithSlots } from './upload-check.js';
+import { slotToFile } from './photo-pages.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -45,7 +46,8 @@ const STEP_TEXT = {
 /**
  * 화면에서 부르는 동작 모음
  * @typedef {Object} Actions
- * @property {(patch: Partial<{ registry: File | null, lease: File | null }>) => void} setFiles
+ * @property {(patch: Partial<{ registry: import('./photo-pages.js').SlotValue, lease: import('./photo-pages.js').SlotValue }>, notice?: { slot: 'registry' | 'lease', text: string } | null) => void} setFiles
+ *   칸 값을 바꾼다. notice는 그 칸 아래 안내 (#268)
  * @property {() => Promise<void>} analyze
  * @property {() => Promise<void>} analyzeSample
  * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
@@ -235,15 +237,30 @@ async function finishAnalysis(p, read, slots) {
 
 /** @type {Actions} */
 const act = {
-  setFiles(patch) {
-    appState.setState({ files: { ...appState.getState().files, ...patch }, error: null });
+  setFiles(patch, notice = null) {
+    appState.setState({ files: { ...appState.getState().files, ...patch }, uploadNotice: notice, error: null });
     // 분석 버튼을 누르기 전에 처리 코드를 미리 받아 둔다 (실패는 분석할 때 다시 처리)
     loadPipeline().catch(() => {});
   },
   async analyze() {
+    const chosen = appState.getState().files;
+    // 사진 여러 장은 칸마다 PDF 하나로 합친다 (#268). 브라우저 안에서만 한다.
+    const manyPhotos = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 1);
+    if (manyPhotos) appState.setState({ busy: 'Preparing your photos…', error: null, uploadNotice: null });
+    /** @type {{ registry: File | null, lease: File | null }} */
+    let files;
+    try {
+      files = {
+        registry: await slotToFile(chosen.registry, 'registry-photos.pdf'),
+        lease: await slotToFile(chosen.lease, 'lease-photos.pdf'),
+      };
+    } catch {
+      appState.setState({ busy: null, error: { step: 'input', code: 'PHOTO_READ_FAILED', message: 'A photo could not be prepared.' } });
+      return;
+    }
     // 파일마다 올린 칸을 같이 넘긴다. ②에서 판별 결과와 다르면 안내한다 (#186)
-    const { files, slots } = filesWithSlots(appState.getState().files);
-    await runAnalysis(files, slots);
+    const { files: list, slots } = filesWithSlots(files);
+    await runAnalysis(list, slots);
   },
   async analyzeSample() {
     // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.

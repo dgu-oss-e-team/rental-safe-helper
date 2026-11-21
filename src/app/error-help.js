@@ -46,6 +46,11 @@ const BY_CODE = {
     title: 'We could not create the masked PDF.',
     help: 'You can still copy the AI prompt. Try again later, or use a computer browser.',
   },
+  // 사진 여러 장을 PDF 하나로 합치다가 실패 (#268)
+  PHOTO_READ_FAILED: {
+    title: 'We could not prepare one of your photos.',
+    help: 'Remove that photo and take it again, or upload one PDF with all pages.',
+  },
   LOAD_FAILED: {
     title: 'We could not load what we need.',
     help: 'Please check your internet connection and try again.',

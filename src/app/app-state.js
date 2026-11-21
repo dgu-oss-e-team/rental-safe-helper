@@ -50,8 +50,16 @@ export function initialState() {
     busy: null,
     /** @type {{ step?: string, code: string, message: string } | null} */
     error: null,
-    /** @type {{ registry: File | null, lease: File | null }} */
+    /**
+     * 칸마다 올린 파일: PDF 한 개(File) 또는 사진 여러 장(File[], #268) 또는 null
+     * @type {{ registry: import('./photo-pages.js').SlotValue, lease: import('./photo-pages.js').SlotValue }}
+     */
     files: { registry: null, lease: null },
+    /**
+     * ① 칸 아래 안내 (PDF와 사진을 섞어 골랐을 때 등, #268). 정해진 문구만 넣는다.
+     * @type {{ slot: 'registry' | 'lease', text: string } | null}
+     */
+    uploadNotice: null,
     /**
      * "Confirm text" 단계 (#54): 읽은 서류 전체와, 확인할 사진·스캔 서류의 원본 파일.
      * 사용자가 고친 글자는 화면을 다시 그리지 않으려고 main.js의 ocrDraft에 따로 둔다.
