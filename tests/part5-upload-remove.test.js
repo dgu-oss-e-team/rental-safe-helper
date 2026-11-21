@@ -32,7 +32,7 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
     const { node, act } = screenWith({ registry: file('가상_등기부.pdf'), lease: file('가상_계약서.pdf') });
     /** @type {HTMLButtonElement} */ (node.querySelector('#registry-file-remove')).click();
     expect(act.setFiles).toHaveBeenCalledTimes(1);
-    expect(act.setFiles).toHaveBeenCalledWith({ registry: null });
+    expect(act.setFiles).toHaveBeenCalledWith({ registry: null }, null);
   });
 
   it('지운 뒤 같은 칸의 파일 선택으로 포커스를 옮긴다 (키보드 사용자)', () => {
@@ -63,13 +63,13 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
     const hint = node.querySelector('#lease-file-hint')?.textContent ?? '';
     expect(hint).toContain('Include every page');
     expect(hint).toContain('special terms page (특약사항 별지)');
-    // 사진은 한 장만 올라가므로 여러 쪽이면 PDF로
-    expect(hint).toContain('upload a PDF with all pages');
+    // 여러 쪽이면 PDF 하나로, 또는 쪽마다 사진을 찍어 덧붙인다 (#268)
+    expect(hint).toContain('Upload one PDF with all pages, or take a photo of each page');
     // 등기부 칸도 모든 쪽을 올리라고 안내한다: 근저당·압류는 뒤쪽 갑구·을구에 있다 (#243 리뷰)
     const registryHint = node.querySelector('#registry-file-hint')?.textContent ?? '';
     expect(registryHint).toContain('Shows who owns the home and any mortgage or seizure.');
     expect(registryHint).toContain('Include every page');
-    expect(registryHint).toContain('upload a PDF with all pages');
+    expect(registryHint).toContain('Upload one PDF with all pages, or take a photo of each page');
     // 칸 설명이 화면 낭독기 설명으로 연결된 대상이 실제로 있다
     for (const id of ['registry-file', 'lease-file']) {
       const ids = node.querySelector(`#${id}`)?.getAttribute('aria-describedby')?.split(' ') ?? [];
@@ -100,7 +100,7 @@ describe('PART 5 ① 화면: 파일 바꾸기 (#188)', () => {
   it('다른 파일을 고르면 그 칸이 새 파일로 바뀐다', () => {
     const { node, act } = screenWith({ lease: file('old.pdf') });
     choose(/** @type {HTMLInputElement} */ (node.querySelector('#lease-file')), [file('new.pdf')]);
-    expect(act.setFiles).toHaveBeenCalledWith({ lease: expect.objectContaining({ name: 'new.pdf' }) });
+    expect(act.setFiles).toHaveBeenCalledWith({ lease: expect.objectContaining({ name: 'new.pdf' }) }, null);
   });
 
   it('고르기 창에서 취소해서 빈 change가 와도 고른 파일을 지우지 않는다 (지우기는 Remove로만)', () => {

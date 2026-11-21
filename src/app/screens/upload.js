@@ -3,6 +3,7 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { resumeStep } from '../step-history.js';
+import { addPicked, removePhoto } from '../photo-pages.js';
 
 /**
  * 이전 결과가 남아 있으면 ① 위쪽에 보여 주는 안내 (#124)
@@ -36,18 +37,86 @@ function photoTipsBox() {
   ]);
 }
 
+/*
+ * 올린 파일 미리 보기 (#268)
+ * 사진·PDF를 이 브라우저 안에서만 보여 준다 (object URL). 칸에서 빠진 파일의 주소는 화면을 그릴 때마다 정리한다.
+ */
+/** @type {Map<File, string>} */
+const previewUrls = new Map();
+
+/** @param {File} file */
+function urlOf(file) {
+  let url = previewUrls.get(file);
+  if (!url && typeof URL.createObjectURL === 'function') {
+    url = URL.createObjectURL(file);
+    previewUrls.set(file, url);
+  }
+  return url ?? '';
+}
+
+/**
+ * 지금 칸에 없는 파일의 미리 보기 주소를 정리한다
+ * @param {Set<File>} keep
+ */
+function releaseUnused(keep) {
+  for (const [file, url] of previewUrls) {
+    if (keep.has(file)) continue;
+    if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
+    previewUrls.delete(file);
+  }
+}
+
+/**
+ * 크게 보기 창 (사진 한 장). 닫기 버튼과 Esc로 닫는다.
+ * @returns {{ node: HTMLDialogElement, open: (url: string, caption: string) => void }}
+ */
+function photoViewer() {
+  const img = /** @type {HTMLImageElement} */ (el('img', { class: 'viewer-image', alt: '' }));
+  const caption = el('p', { class: 'viewer-caption', id: 'file-viewer-caption' }, []);
+  const node = /** @type {HTMLDialogElement} */ (
+    el('dialog', { id: 'file-viewer', class: 'file-viewer', 'aria-labelledby': 'file-viewer-caption' }, [
+      caption,
+      img,
+      actions([button('Close', () => close(), { id: 'file-viewer-close', variant: 'secondary' })]),
+    ])
+  );
+  const close = () => {
+    if (typeof node.close === 'function' && node.open) node.close();
+    else node.removeAttribute('open');
+  };
+  return {
+    node,
+    open(url, text) {
+      img.src = url;
+      img.alt = text;
+      caption.textContent = text;
+      if (typeof node.showModal === 'function') node.showModal();
+      else node.setAttribute('open', '');
+      document.getElementById('file-viewer-close')?.focus();
+    },
+  };
+}
+
 /**
  * 파일 고르는 칸 하나
- * @param {string} id
- * @param {string} label
- * @param {string} hint
- * @param {File | null} current
- * @param {(file: File | null) => void} onChange
- * @param {string} removeLabel  지우기 버튼의 화면 낭독기용 이름 (어느 칸인지 알 수 있게)
+ * 칸에는 PDF 한 개 또는 사진 여러 장이 들어간다 (#268). 사진은 고를 때마다 뒤에 덧붙는다.
+ * @param {{
+ *   id: string,
+ *   label: string,
+ *   hint: string,
+ *   docName: string,
+ *   current: import('../photo-pages.js').SlotValue,
+ *   notice: string | null,
+ *   onChange: (value: import('../photo-pages.js').SlotValue, notice?: string | null) => void,
+ *   viewer: ReturnType<typeof photoViewer>,
+ * }} opts
+ *   docName: 화면 낭독기용 서류 이름 ("property register")
  */
-function filePicker(id, label, hint, current, onChange, removeLabel) {
+function filePicker({ id, label, hint, docName, current, notice, onChange, viewer }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
+  const photos = Array.isArray(current) ? current : null;
+  const pdf = current && !Array.isArray(current) ? current : null;
   // 브라우저 기본 파일 칸은 컴퓨터 언어로 "파일 선택 / 선택된 파일 없음"이 나와서 영어 화면과 섞인다.
   // 기본 칸은 보이지 않게 두고(키보드·화면 낭독기로는 그대로 쓸 수 있음), 영어 버튼과 상태 글을 따로 보여 준다. (#188)
   const input = /** @type {HTMLInputElement} */ (
@@ -56,40 +125,91 @@ function filePicker(id, label, hint, current, onChange, removeLabel) {
       id,
       class: 'file-input',
       accept: 'application/pdf,image/jpeg,image/png',
+      // 갤러리에서 여러 장을 한 번에 고를 수 있다. 카메라는 한 장씩 찍고 "Add another page"로 덧붙인다 (#268)
+      multiple: true,
       // 화면 낭독기로도 칸 설명(특약 별지 안내 등)을 듣게 한다 (#234)
       'aria-describedby': `${hintId} ${statusId}`,
     })
   );
   // 고르기 창에서 취소하면 브라우저에 따라 빈 change가 온다. 그때 고른 파일이 지워지지 않게 한다 (지우기는 Remove로)
   input.addEventListener('change', () => {
-    const file = input.files?.[0];
-    if (file) onChange(file);
+    const picked = [...(input.files ?? [])];
+    if (picked.length === 0) return;
+    const r = addPicked(current, picked);
+    onChange(r.value, r.notice);
   });
 
-  // 지우기: 파일 이름 옆의 작은 글자 버튼 (주 버튼 "Check my documents"보다 눈에 덜 띄게)
+  // 지우기: 작은 글자 버튼 (주 버튼 "Check my documents"보다 눈에 덜 띄게)
   let remove = null;
   if (current) {
-    remove = button('Remove', () => {
+    remove = button(photos ? 'Remove all' : 'Remove', () => {
       onChange(null);
       // 화면이 바로 다시 그려진다. 키보드 사용자가 길을 잃지 않게 같은 칸의 파일 선택으로 포커스를 옮긴다.
       document.getElementById(id)?.focus();
     }, { id: `${id}-remove` });
     remove.className = 'link-button';
-    remove.setAttribute('aria-label', removeLabel);
+    remove.setAttribute('aria-label', photos ? `Remove all photos of the ${docName}` : `Remove the ${docName} file`);
   }
+
+  // PDF는 새 탭에서 열어 모든 쪽을 확인한다 (브라우저의 PDF 보기, 이 기기 안에서만)
+  let view = null;
+  if (pdf) {
+    view = button('View', () => window.open(urlOf(pdf), '_blank', 'noopener'), { id: `${id}-view` });
+    view.className = 'link-button';
+    view.setAttribute('aria-label', `View the ${docName} file`);
+  }
+
+  const buttonText = photos ? 'Add another page' : pdf ? 'Change file' : 'Choose file';
+  const statusText = photos
+    ? `${photos.length} photo${photos.length === 1 ? '' : 's'} (${photos.length} page${photos.length === 1 ? '' : 's'})`
+    : pdf
+      ? pdf.name
+      : 'No file chosen';
 
   return el('div', { class: 'picker' }, [
     el('label', { for: id }, [label]),
     el('p', { class: 'hint', id: hintId }, [hint]),
     el('div', { class: 'file-row' }, [
       input,
-      // 누르면 파일 고르기 창이 열린다 (label for). 고른 뒤에는 "Change file"로 바꿀 수 있다고 보인다.
-      el('label', { for: id, class: 'file-button', 'aria-hidden': 'true' }, [current ? 'Change file' : 'Choose file']),
+      // 누르면 파일 고르기 창이 열린다 (label for)
+      el('label', { for: id, class: 'file-button', 'aria-hidden': 'true' }, [buttonText]),
       // 파일 이름에는 개인정보가 있을 수 있어 화면에만 보여 준다
-      el('span', { id: statusId, class: current ? 'file-name chosen' : 'file-name' }, [current ? current.name : 'No file chosen']),
+      el('span', { id: statusId, class: current ? 'file-name chosen' : 'file-name' }, [statusText]),
+      view,
       remove,
     ]),
+    photos ? photoList(id, docName, photos, onChange, viewer) : null,
+    notice ? el('p', { class: 'picker-notice', role: 'status', id: `${id}-notice` }, [notice]) : null,
   ]);
+}
+
+/**
+ * 올린 사진 미리 보기 목록: 쪽 순서대로, 누르면 크게 보기, 한 장씩 지우기 (#268)
+ * @param {string} id
+ * @param {string} docName
+ * @param {File[]} photos
+ * @param {(value: import('../photo-pages.js').SlotValue) => void} onChange
+ * @param {ReturnType<typeof photoViewer>} viewer
+ */
+function photoList(id, docName, photos, onChange, viewer) {
+  return el(
+    'ol',
+    { class: 'photo-pages', id: `${id}-pages`, 'aria-label': `Photos of the ${docName}` },
+    photos.map((photo, i) => {
+      const pageText = `Page ${i + 1} of the ${docName} (your photo)`;
+      const thumb = el('button', { type: 'button', class: 'photo-thumb', id: `${id}-page-${i}`, 'aria-label': `View page ${i + 1}` }, [
+        el('img', { src: urlOf(photo), alt: '' }),
+      ]);
+      thumb.addEventListener('click', () => viewer.open(urlOf(photo), pageText));
+      const rm = button('Remove', () => {
+        onChange(removePhoto(photos, i));
+        document.getElementById(id)?.focus();
+      }, { id: `${id}-remove-${i}` });
+      rm.className = 'link-button';
+      rm.setAttribute('aria-label', `Remove page ${i + 1} of the ${docName}`);
+      return el('li', { class: 'photo-page' }, [thumb, el('span', { class: 'photo-page-label' }, [`Page ${i + 1}`]), rm]);
+    }),
+  );
 }
 
 /**
@@ -99,38 +219,48 @@ function filePicker(id, label, hint, current, onChange, removeLabel) {
 export function uploadScreen(state, act) {
   const { registry, lease } = state.files;
   const hasFile = Boolean(registry || lease);
+  const notice = state.uploadNotice ?? null;
+  // 칸에서 빠진 파일의 미리 보기 주소 정리
+  releaseUnused(new Set([registry, lease].flat().filter((f) => f instanceof File)));
+  const viewer = photoViewer();
   return el('div', {}, [
     resumeCard(state, act),
     card('Upload your documents', [
       el('p', {}, [
-        'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo.',
+        'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
       ]),
       photoTipsBox(),
-      filePicker(
-        'registry-file',
-        'Property register (등기부등본)',
-        // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다. 사진 한 장이면 그 쪽이 빠질 수 있다 (#243 리뷰)
-        'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
-          'A photo covers only one page, so for a register with several pages, upload a PDF with all pages.',
-        registry,
-        (f) => act.setFiles({ registry: f }),
-        'Remove the property register file',
-      ),
-      filePicker(
-        'lease-file',
-        'Lease contract (임대차계약서)',
+      filePicker({
+        id: 'registry-file',
+        label: 'Property register (등기부등본)',
+        // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
+        hint:
+          'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
+          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page").',
+        docName: 'property register',
+        current: registry,
+        notice: notice?.slot === 'registry' ? notice.text : null,
+        onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
+        viewer,
+      }),
+      filePicker({
+        id: 'lease-file',
+        label: 'Lease contract (임대차계약서)',
         // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
-        // 사진은 한 장만 올라가므로 여러 쪽 계약서는 PDF로 올리라고 안내한다
-        'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
-          'A photo covers only one page, so for a contract with several pages, upload a PDF with all pages.',
-        lease,
-        (f) => act.setFiles({ lease: f }),
-        'Remove the lease contract file',
-      ),
+        hint:
+          'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
+          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page").',
+        docName: 'lease contract',
+        current: lease,
+        notice: notice?.slot === 'lease' ? notice.text : null,
+        onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
+        viewer,
+      }),
       actions([
         button('Check my documents', () => act.analyze(), { id: 'run', disabled: !hasFile }),
         button('Try with sample data', () => act.analyzeSample(), { id: 'run-sample', variant: 'secondary' }),
       ]),
     ]),
+    viewer.node,
   ]);
 }
