@@ -22,6 +22,7 @@ import {
   findKnownAddresses,
   unitTailsOf,
   corporateNameInField,
+  findCorporateNames,
   findAddresses,
   lastRoleIn,
   findAddressContinuation,
@@ -689,6 +690,7 @@ export function extractFields(documents, findings) {
     monthlyRent: null,
     specialTerms: null,
     contractDate: null,
+    landlordCompanies: null,
   };
   if (leaseDoc) {
     const hits = scanDocument(leaseDoc);
@@ -704,6 +706,7 @@ export function extractFields(documents, findings) {
       monthlyRent: findMonthlyRent(lines),
       specialTerms: findSpecialTerms(lines),
       contractDate: findContractDate(lines),
+      landlordCompanies: findCorporateNames(lines),
     };
   }
 

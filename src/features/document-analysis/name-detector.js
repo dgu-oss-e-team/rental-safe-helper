@@ -694,6 +694,22 @@ export function corporateNameInField(prevText, text) {
 }
 
 /**
+ * "성명(법인명)" 칸에 적힌 회사 이름들. (계약서 법인명 표시용, 개인정보 아님)
+ * 임차인은 개인이라는 전제로, 이 칸의 회사는 임대사업자(임대인)로 본다.
+ * @param {string[]} texts 줄(또는 블록) 글
+ */
+export function findCorporateNames(texts) {
+  const names = [];
+  texts.forEach((text, i) => {
+    const at = corporateNameInField(texts[i - 1] ?? '', text);
+    if (at < 0) return;
+    const name = text.slice(at).replace(/\s*[(（]\s*서명.*$/, '').trim();
+    if (name && !names.includes(name)) names.push(name);
+  });
+  return names;
+}
+
+/**
  * 주민·외국인등록번호의 앞 6자리 (6자리가 아니면 null)
  * @param {{ value: string }} id
  */
