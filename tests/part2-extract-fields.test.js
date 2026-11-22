@@ -31,18 +31,41 @@ describe('PART 2 extractFields 사람 정보·주소', () => {
   const fields = extractFields(docs, []).data;
 
   it('PART 4에 약속한 사람 정보를 그대로 만든다', () => {
+    // confidence: 이름이 있는 줄의 OCR 신뢰도. 글자 PDF(이 mock)는 null (#277)
     expect(fields.registry.owners).toEqual([
-      { findingId: 'PII_DOC_REGISTRY_003', name: '김철수', birthDate: '800101', role: 'OWNER' },
+      { findingId: 'PII_DOC_REGISTRY_003', name: '김철수', birthDate: '800101', role: 'OWNER', confidence: null },
     ]);
     expect(fields.contract.landlords).toEqual([
-      { findingId: 'PII_DOC_LEASE_002', name: '김철수', birthDate: '750315', role: 'LANDLORD' },
+      { findingId: 'PII_DOC_LEASE_002', name: '김철수', birthDate: '750315', role: 'LANDLORD', confidence: null },
     ]);
     expect(fields.contract.tenants).toEqual([
-      { findingId: 'PII_DOC_LEASE_004', name: 'NGUYEN VAN A', birthDate: '990505', role: 'TENANT' },
+      { findingId: 'PII_DOC_LEASE_004', name: 'NGUYEN VAN A', birthDate: '990505', role: 'TENANT', confidence: null },
     ]);
     expect(fields.contract.accountHolders).toEqual([
-      { findingId: 'PII_DOC_LEASE_008', name: '김철수', birthDate: null, role: 'ACCOUNT_HOLDER' },
+      { findingId: 'PII_DOC_LEASE_008', name: '김철수', birthDate: null, role: 'ACCOUNT_HOLDER', confidence: null },
     ]);
+  });
+
+  it('사진(OCR) 서류는 이름이 있는 줄의 신뢰도를 사람 정보에 넣는다 (#277 후속)', () => {
+    const photo = {
+      documentId: 'DOC_P',
+      sourceType: 'image',
+      pages: [
+        {
+          pageIndex: 0,
+          blocks: [
+            { text: '주택임대차계약서 보증금 특약', confidence: 0.95 },
+            { text: '임대인 성명 BUS 주민등록번호 750315-1******', confidence: 0.42 },
+            { text: '임차인 성명 왕가상 주민등록번호 990505-5******', confidence: 0.91 },
+            { text: '계좌번호 110-123-456789 신한은행 예금주 김가상', confidence: 0.88 },
+          ].map((b, i) => ({ blockId: `P_${i}`, bbox: { x: 0, y: i / 10, width: 1, height: 0.02 }, ...b })),
+        },
+      ],
+    };
+    const c = extractFields([photo], []).data.contract;
+    expect(c.landlords?.map((p) => [p.name, p.confidence])).toEqual([['BUS', 0.42]]);
+    expect(c.tenants?.map((p) => [p.name, p.confidence])).toEqual([['왕가상', 0.91]]);
+    expect(c.accountHolders?.map((p) => [p.name, p.confidence])).toEqual([['김가상', 0.88]]);
   });
 
   it('사람 정보의 findingId가 detectPII() 결과의 id와 맞는다', () => {
