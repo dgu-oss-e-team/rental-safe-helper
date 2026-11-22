@@ -33,6 +33,32 @@ describe('PART 4 이중 안전장치: 남아 있으면 안 되는 번호 모양 
     expect(r.ok).toBe(false);
   });
 
+  it('사진 OCR로 주소 탐지가 놓친 집 주소("서물특별시 … 가상로 30, 2층 204호")도 찾는다', () => {
+    for (const text of [
+      '서물특별시 중구 가상로 30, 2층 204호(가상동)',
+      '경기도 고양시 일산동구 가상로 1234, 101동 1001호',
+      '서울특별시 송파구 가상동 123-4 가상아파트 101동 1001호',
+      '가상길 7-2 302호',
+    ]) {
+      expect(findLeftoverNumber(text), text).not.toBeNull();
+    }
+    // 시·구까지만 남긴 주소, 이미 가린 주소, 호수만 있는 줄, 조항 번호는 멈추지 않는다
+    for (const text of [
+      '[집합건물] 서울특별시 중구',
+      '임차주택 [REDACTED]',
+      '1동의 건물의 표시 제7층 제702호',
+      '제10조 제1항 제3호에 따라 해지할 수 있다',
+      '보증금 금10,000,000원 월세 금650,000원',
+    ]) {
+      expect(findLeftoverNumber(text), text).toBeNull();
+    }
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 집 주소가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임차인 주소 서물특별시 중구 가상로 30, 2층 204호(가상동)' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
   it('외국인등록번호, 휴대폰 번호(하이픈 없이)도 찾는다', () => {
     expect(findLeftoverNumber('외국인등록번호 990505-5123456')).toBe('990505-5123456');
     expect(findLeftoverNumber('연락처 01012345678')).toBe('01012345678');
