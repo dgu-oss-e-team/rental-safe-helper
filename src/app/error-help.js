@@ -98,19 +98,36 @@ const BY_STEP = {
   },
 };
 
+/**
+ * 사진·스캔 서류에서 보내기 전 검사가 멈췄을 때 (#286)
+ * 사진 글자가 잘못 읽혀(예: 도시 이름) 개인정보를 찾지 못한 경우가 대부분이다. 글자 확인 단계로 돌아가 고치면 된다.
+ * main.js 오류 카드가 "Go back and fix the text" 버튼을 같이 보여 준다.
+ */
+export const PHOTO_STOP_HELP = {
+  title: 'Some text in your photos may have been misread, so we stopped.',
+  help:
+    'Nothing was shared. Some personal information could not be found, most likely because a word in a photo was read wrongly (for example a city name or a number). ' +
+    'Go back to "Check the text we read", correct the wrong words, and continue again.',
+};
+
 /** 모르는 오류일 때 */
 const FALLBACK = {
   title: 'Something went wrong.',
   help: 'Please try again. If it happens again, start over.',
 };
 
+/** 보내기 전 검사에서 멈춘 단계 (처음 가릴 때, ④에서 고칠 때 모두) */
+const MASKING_CHECK_STEP = 'validateMaskedText';
+
 /**
  * 오류 → 사용자 안내
  * @param {{ step?: string, code?: string } | null | undefined} error
+ * @param {{ photo?: boolean }} [context]  photo: 분석한 서류에 사진·스캔이 있는지 (#286)
  * @returns {ErrorHelp}
  */
-export function errorHelp(error) {
+export function errorHelp(error, context = {}) {
   if (!error) return FALLBACK;
+  if (context.photo && error.step === MASKING_CHECK_STEP) return PHOTO_STOP_HELP;
   // 코드가 구체적이면(LOW_CONFIDENCE 등) 코드 안내를 먼저 쓰고, INVALID_INPUT처럼 넓은 코드는 단계로 나눈다
   if (error.code && error.code !== ERROR_CODE.INVALID_INPUT && BY_CODE[error.code]) return BY_CODE[error.code];
   if (error.step && BY_STEP[error.step]) return BY_STEP[error.step];
