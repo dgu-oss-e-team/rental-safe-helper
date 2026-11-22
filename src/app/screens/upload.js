@@ -34,6 +34,15 @@ function photoTipsBox() {
       el('li', {}, ['Use bright, even lighting and avoid shadows over the text.']),
       el('li', {}, ['Fit the entire page inside the frame so no edges are cut off.']),
     ]),
+    // 선택 팁 (#272): 앱은 배경 자르기·그림자 지우기까지만 한다. 휴대폰 문서 스캔은 비스듬한 종이도 펴 줘서 더 정확하다.
+    el('p', { class: 'scan-tip', id: 'scan-tip' }, [
+      "For the best results, you can use your phone's document scan feature (for example in Notes, Files or Google Drive) and upload the PDF it makes. Plain photos work too: we crop the page and remove shadows for you.",
+    ]),
+    // 여러 쪽을 한 번에 (#272): 휴대폰 카메라는 한 번에 한 장만 찍으므로, 먼저 다 찍고 사진 보관함에서 한꺼번에 고르게 안내한다.
+    // 앱 안 연속 촬영은 화질이 낮아질 수 있어 넣지 않았다 (보고서 Future work)
+    el('p', { class: 'scan-tip', id: 'many-pages-tip' }, [
+      'To add several pages at once, take photos of all pages with your camera first, then tap "Choose file" and select them all from your photo library.',
+    ]),
   ]);
 }
 

@@ -97,17 +97,19 @@ describe('PART 5 사진 여러 장 → PDF 하나 (#268)', () => {
     expect(doc.getCreationDate()).toBeUndefined();
   });
 
-  it('slotToFile(): PDF·사진 1장은 그대로, 여러 장만 PDF로 합친다, 빈 칸은 null', async () => {
+  it('slotToFile(): PDF는 그대로, 사진은 1장이어도 보정해서 PDF로 만든다 (#272), 빈 칸은 null', async () => {
     const toPdf = vi.fn(async (_photos, name) => pdf(name));
     const a = pdf('a.pdf');
     expect(await slotToFile(a, 'x.pdf', toPdf)).toBe(a);
-    const p1 = photo('p1.jpg');
-    expect(await slotToFile([p1], 'x.pdf', toPdf)).toBe(p1);
     expect(await slotToFile(null, 'x.pdf', toPdf)).toBeNull();
+    expect(await slotToFile([], 'x.pdf', toPdf)).toBeNull();
     expect(toPdf).not.toHaveBeenCalled();
+    const p1 = photo('p1.jpg');
+    expect((await slotToFile([p1], 'lease-photos.pdf', toPdf))?.name).toBe('lease-photos.pdf');
     const merged = await slotToFile([p1, photo('p2.jpg')], 'registry-photos.pdf', toPdf);
     expect(merged?.name).toBe('registry-photos.pdf');
-    expect(toPdf).toHaveBeenCalledTimes(1);
-    expect(names(toPdf.mock.calls[0][0])).toEqual(['p1.jpg', 'p2.jpg']);
+    expect(toPdf).toHaveBeenCalledTimes(2);
+    expect(names(toPdf.mock.calls[0][0])).toEqual(['p1.jpg']);
+    expect(names(toPdf.mock.calls[1][0])).toEqual(['p1.jpg', 'p2.jpg']);
   });
 });
