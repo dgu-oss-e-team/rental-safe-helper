@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPrompt, getRecommendedQuestions, assessRisks } from '../src/features/risk-check/index.js';
-import { replaceUnlistedAliases } from '../src/features/risk-check/prompt-builder.js';
+import { replaceUnlistedAliases, ANSWER_RULES } from '../src/features/risk-check/prompt-builder.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
 import { RISK_STATUS, MASKING_PURPOSE } from '../src/shared/document-model.js';
 
@@ -209,5 +209,39 @@ describe('PART 3 프롬프트 (#250)', () => {
     expect(owner.evidence.right.value).toContain('주식회사가상리츠'); // 화면에는 있다
     const p = buildPrompt({ purpose: FRAUD_CHECK, riskResults: risks.data, maskedText: { DOC_LEASE: 'masked' }, legend: {} });
     for (const secret of ['주식회사가상리츠', '가상신탁 주식회사', '최가상']) expect(p.data).not.toContain(secret);
+  });
+});
+
+describe('PART 3 프롬프트 답변 규칙 (#274)', () => {
+  it('규칙은 4개이고, 가명 모양이나 이름·숫자 같은 개인정보가 없다', () => {
+    expect(ANSWER_RULES).toHaveLength(4);
+    for (const rule of ANSWER_RULES) {
+      expect(rule).not.toMatch(/\[[A-Za-z]+_[A-Z]\]/);
+      expect(rule).not.toMatch(/\d{6,}/);
+    }
+  });
+
+  it('세 목적 모두 4개 규칙이 들어간다', () => {
+    for (const purpose of [CLAUSE_EXPLANATION, FRAUD_CHECK, CONTRACT_EXPLANATION]) {
+      const text = prompt({ results: [], legend: {}, purpose }).data;
+      expect(text).toContain('## Answer rules');
+      for (const rule of ANSWER_RULES) expect(text).toContain(`- ${rule}`);
+    }
+  });
+
+  it('규칙 4가지 내용: 추측 금지, 문서·쪽 번호, 사실/추측 구분, 법 시행일', () => {
+    const text = ANSWER_RULES.join('\n');
+    expect(text).toMatch(/Do not guess or reconstruct/);
+    expect(text).toMatch(/which document/);
+    expect(text).toMatch(/page number/);
+    expect(text).toMatch(/Separate facts from guesses/);
+    expect(text).toMatch(/came into effect/);
+    expect(text).toMatch(/you do not know/);
+  });
+
+  it('규칙은 서류 내용보다 앞에 있고, 프롬프트는 여전히 영어 답변 요청으로 끝난다', () => {
+    const text = prompt({ results: [], legend: {} }).data;
+    expect(text.indexOf('## Answer rules')).toBeLessThan(text.indexOf('## Documents (masked)'));
+    expect(text.trim().endsWith('Please answer in English.')).toBe(true);
   });
 });

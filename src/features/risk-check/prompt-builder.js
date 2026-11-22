@@ -34,6 +34,18 @@ const ROLE_PHRASE = {
 /** 역할을 알 수 없을 때 */
 const UNKNOWN_ROLE_PHRASE = 'a person';
 
+/**
+ * 모든 목적의 프롬프트에 똑같이 넣는 답변 규칙 (#274)
+ *  - AI가 가린 정보를 짐작하거나, 근거 없이 단정하거나, 법을 틀리게 말하는 것을 줄인다.
+ *  - 가명 모양이나 실제 값은 쓰지 않고 고정 문구만 넣는다.
+ */
+export const ANSWER_RULES = [
+  'Do not guess or reconstruct information that has been hidden. If something is shown as [REDACTED] or as a role name, treat it as unknown and say you cannot tell.',
+  'Say which document your answer is based on, and the page number if the text shows one. Do not invent a page number.',
+  'Separate facts from guesses. Label what the documents or the check results say as "Fact", and anything else as "Guess".',
+  'When you mention a law, say the date it came into effect. If you are not sure about the law or its date, say that you do not know.',
+];
+
 /** "[Landlord_B]" 같은 역할 가명 */
 const ALIAS_PATTERN = /\[([A-Za-z]+)_[A-Z]\]/g;
 
@@ -74,6 +86,9 @@ export function buildPrompt({ purpose, riskResults, maskedText, legend }) {
   const lines = [
     'I am an international student in Korea checking housing documents before signing a lease.',
     'Personal information has been removed or replaced with role names.',
+    '',
+    '## Answer rules',
+    ...ANSWER_RULES.map((rule) => `- ${rule}`),
     '',
   ];
 
