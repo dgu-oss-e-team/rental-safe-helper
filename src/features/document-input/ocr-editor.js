@@ -216,6 +216,36 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
     (doc.pages ?? []).forEach((page, pageIdx) => {
       const blocksList = el('div', { class: 'ocr-block-list' });
+      /** @type {Array<() => void>} */
+      const rowRefreshers = [];
+
+      const hasUnconfirmedTextBlocks = () =>
+        (page.blocks ?? []).some((b) => isLowConfidenceBlock(b) && !/\d/.test(b.text));
+
+      const confirmPageBtn = button(
+        'Confirm this page',
+        () => {
+          let changed = false;
+          (page.blocks ?? []).forEach((b) => {
+            if (isLowConfidenceBlock(b) && !/\d/.test(b.text)) {
+              b.confidence = 1;
+              changed = true;
+            }
+          });
+          if (!changed) return;
+          rowRefreshers.forEach((fn) => fn());
+          refreshPageConfirmBtn();
+          updateSummaryChip();
+          emitChange();
+        },
+        { variant: 'secondary' }
+      );
+      confirmPageBtn.classList.add('ocr-confirm-page-btn');
+
+      const refreshPageConfirmBtn = () => {
+        confirmPageBtn.hidden = !hasUnconfirmedTextBlocks();
+      };
+      refreshPageConfirmBtn();
 
       (page.blocks ?? []).forEach((block, blockIdx) => {
         const origBlock = originalDocs[docIdx]?.pages?.[pageIdx]?.blocks?.[blockIdx];
@@ -244,6 +274,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           () => {
             block.confidence = 1;
             refreshRowState();
+            refreshPageConfirmBtn();
             updateSummaryChip();
             emitChange();
           },
@@ -259,6 +290,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             block.confidence = origConfidence;
             autoResizeTextarea(textarea);
             refreshRowState();
+            refreshPageConfirmBtn();
             updateSummaryChip();
             emitChange();
           },
@@ -293,6 +325,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           confirmLineBtn.hidden = !needsCheck;
           resetBtn.hidden = textarea.value === origText && block.confidence === origConfidence;
         };
+        rowRefreshers.push(refreshRowState);
 
         textarea.addEventListener('keydown', (evt) => {
           if (evt.key === 'Enter') {
@@ -310,6 +343,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           block.confidence = 1;
           autoResizeTextarea(textarea);
           refreshRowState();
+          refreshPageConfirmBtn();
           updateSummaryChip();
           emitChange();
         });
@@ -334,9 +368,15 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         blocksList.append(rowContainer);
       });
 
+      const pageTitle =
+        (doc.pages ?? []).length > 1
+          ? el('h3', {}, [`Page ${page.pageIndex + 1}`])
+          : el('span', { class: 'ocr-page-label' }, ['Page 1']);
+      const pageHeader = el('div', { class: 'ocr-page-header' }, [pageTitle, confirmPageBtn]);
+
       pageSections.push(
         el('div', { class: 'ocr-page' }, [
-          (doc.pages ?? []).length > 1 ? el('h3', {}, [`Page ${page.pageIndex + 1}`]) : null,
+          pageHeader,
           blocksList,
         ])
       );
