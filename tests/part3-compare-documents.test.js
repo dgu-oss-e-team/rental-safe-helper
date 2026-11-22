@@ -746,3 +746,77 @@ describe('PART 3 법인 임대인 (#250)', () => {
     expect(r.data.evidence.right.value).toBe('주식회사가상리츠');
   });
 });
+
+describe('PART 3 OCR이 불확실한 이름은 STOP 대신 UNVERIFIABLE (#275)', () => {
+  /** 소유자는 "홍길동", 임대인 이름만 바꿔서 비교한다 (사진에서 "홍길동"을 "BUS"로 읽은 실제 사례) */
+  const withLandlordName = (name, extra = {}) => {
+    const f = fields();
+    f.registry.owners[0].name = '홍길동';
+    Object.assign(f.contract.landlords[0], { name, ...extra });
+    return f;
+  };
+  const confirmedHolderGroups = () => {
+    const g = groups();
+    g.find((x) => x.personId === 'P4').status = 'CONFIRMED';
+    return g;
+  };
+
+  it('"BUS" vs "홍길동"은 STOP이 아니라 UNVERIFIABLE이고, 설명에 이름이 없다', () => {
+    const r = compareOwnerAndLandlord(withLandlordName('BUS'), groups());
+    expect(r.ok).toBe(true);
+    expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(r.data.explanation).toContain('read incorrectly');
+    expect(r.data.action.length).toBeGreaterThan(0);
+    const text = [r.data.title, r.data.explanation, r.data.action].join(' ');
+    for (const secret of ['BUS', '홍길동']) expect(text).not.toContain(secret);
+  });
+
+  it('한글이 섞이거나 숫자가 붙은 이름도 한글 이름 모양이 아니라서 UNVERIFIABLE', () => {
+    for (const name of ['홍길동1', '홍AB', '홍', '홍길동길동이']) {
+      expect(compareOwnerAndLandlord(withLandlordName(name), groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    }
+  });
+
+  it('소유자 쪽 이름이 깨졌어도 UNVERIFIABLE', () => {
+    const f = fields();
+    f.registry.owners[0].name = 'AdET';
+    expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('신뢰도가 기준(0.8)보다 낮으면 한글 이름이어도 UNVERIFIABLE', () => {
+    expect(compareOwnerAndLandlord(withLandlordName('김철수', { confidence: 0.5 }), groups()).data.status).toBe(
+      RISK_STATUS.UNVERIFIABLE,
+    );
+  });
+
+  it('신뢰도가 null인 글자 PDF나 신뢰도가 충분한 한글 이름은 기존대로 STOP', () => {
+    for (const extra of [{ confidence: null }, { confidence: 0.95 }, { confidence: 0.8 }, {}]) {
+      expect(compareOwnerAndLandlord(withLandlordName('김철수', extra), groups()).data.status).toBe(RISK_STATUS.STOP);
+    }
+  });
+
+  it('정상적인 한글 이름이 서로 다르면 기존대로 STOP (공백이 낀 이름, 네 글자 이름 포함)', () => {
+    for (const name of ['김철수', '홍 길 동', '남궁민수']) {
+      const f = withLandlordName(name);
+      if (name.replace(/\s/g, '') === '홍길동') f.registry.owners[0].name = '이영희';
+      expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.STOP);
+    }
+  });
+
+  it('같은 사람으로 확인된 경우(NO_FLAG)는 이름이 어떻든 바뀌지 않는다', () => {
+    const f = withLandlordName('BUS');
+    expect(compareOwnerAndLandlord(f, mergeOwnerAndLandlord(groups())).data.status).toBe(RISK_STATUS.NO_FLAG);
+  });
+
+  it('예금주 이름이 깨졌거나 신뢰도가 낮으면 UNVERIFIABLE, 정상 한글 이름이면 STOP', () => {
+    const run = (extra) => {
+      const f = fields();
+      Object.assign(f.contract.accountHolders[0], extra);
+      return compareAccountHolderAndLandlord(f, confirmedHolderGroups());
+    };
+    expect(run({}).data.status).toBe(RISK_STATUS.STOP);
+    expect(run({ name: 'AdET' }).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(run({ confidence: 0.3 }).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(run({ name: 'AdET' }).data.explanation).toContain('read incorrectly');
+  });
+});

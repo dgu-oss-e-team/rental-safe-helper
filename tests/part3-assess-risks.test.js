@@ -391,3 +391,28 @@ describe('PART 3 규칙 파일 변형 키 ("상태.변형")', () => {
     expect(parseRiskRules(yaml('CHECK.a.b')).ok).toBe(false);
   });
 });
+
+describe('PART 3 사진에서 읽지 못한 항목은 NO_FLAG가 아니라 UNVERIFIABLE (#275)', () => {
+  it('계약서 주소(null)·갑구(소유자·이전일)·을구(rights)를 못 읽으면 해당 점검은 모두 UNVERIFIABLE', () => {
+    const f = fields();
+    f.contract.address = null; // PR #271: "주택 소재지"를 못 읽으면 집 주소를 비워 둔다
+    f.registry.owners = null;
+    f.registry.previousOwners = null;
+    f.registry.lastTransferDate = null;
+    f.registry.rights = null;
+    const r = assessRisks(f, mockPersonGroups);
+    expect(r.ok).toBe(true);
+    const byId = Object.fromEntries(r.data.map((x) => [x.ruleId, x.status]));
+    for (const ruleId of [
+      'OWNER_MISMATCH',
+      'ADDRESS_MISMATCH',
+      'TRUST_REGISTERED',
+      'SEIZURE_ACTIVE',
+      'MORTGAGE_EXISTS',
+      'RECENT_OWNERSHIP_CHANGE',
+    ]) {
+      expect(byId[ruleId], ruleId).toBe(UNVERIFIABLE);
+    }
+    expect(r.data.some((x) => x.ruleId === 'ADDRESS_MISMATCH' && x.status === STOP)).toBe(false);
+  });
+});
