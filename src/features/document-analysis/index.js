@@ -13,7 +13,7 @@
  *           extractFields()는 사람 정보·주소(탐지 결과)와 보증금·월세·특약·권리(field-extractor.js)를 실제 문서에서 만든다.
  */
 
-import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS, isValidBBox } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS, SOURCE_TYPE, isValidBBox } from '../../shared/document-model.js';
 import { findPatternPII } from './pii-patterns.js';
 import { toFormalAddress } from './address-normalizer.js';
 import {
@@ -652,6 +652,8 @@ function lineIndexById(document, hits) {
  * 등기부 소유자를 지금 소유자와 예전 소유자(갑구에 남아 있는, 이미 판 사람)로 나눈다.
  * (예전 소유자가 임대인으로 서명해도 "소유자와 같음"으로 보이지 않게, 공동 소유로 잘못 보이지 않게)
  * - current: 지금 소유자 줄을 정할 근거가 없으면('ALL') 지금처럼 전부 쓴다. (예: 순위번호 없는 등기부, Mock)
+ *   단, 사진·스캔(OCR) 서류에서 근거가 없는데 소유자가 2명 이상이면 null. 순위번호·등기목적을 못 읽은 것이라
+ *   예전 공유자까지 지금 소유자로 들어가 "공동 소유"로 잘못 보인다. (상욱님 사진 점검: 김선달·박흥부·홍길동이 모두 소유자)
  *   지금 소유자를 정할 수 없거나 그 줄에서 소유자 이름을 못 찾으면 null (못 읽음, 추측하지 않음)
  * - previous: 지금 소유자를 정했을 때만 만든다. 없으면 [], current가 정해지지 않았거나 'ALL'이면 null.
  *   role은 'PREVIOUS_OWNER' (PART 4가 [PrevOwner_E] 같은 가명을 붙인다)
@@ -664,6 +666,8 @@ function lineIndexById(document, hits) {
  */
 function splitOwners(owners, document, hits, lines) {
   const currentLines = findCurrentOwnerLines(lines);
+  const ocr = document.sourceType === SOURCE_TYPE.IMAGE || document.sourceType === SOURCE_TYPE.IMAGE_PDF;
+  if (currentLines === 'ALL' && ocr && owners.length > 1) return { current: null, previous: null };
   if (currentLines === 'ALL') return { current: owners, previous: null };
   if (currentLines === null) return { current: null, previous: null };
   const lineOf = lineIndexById(document, hits);
