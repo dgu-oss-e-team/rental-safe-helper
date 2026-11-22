@@ -17,6 +17,22 @@ describe('PART 4 이중 안전장치: 남아 있으면 안 되는 번호 모양 
     expect(findLeftoverNumber('홍길동 800101-*******')).toBe('800101-*******');
   });
 
+  it('사진 OCR로 별표 개수가 틀린 주민번호("760423-******")도 찾는다 (별표 1개 이상, PART 2 #270과 같은 기준)', () => {
+    for (const text of ['760423-******', '690812-*****', '680918-***져', '760423-*', '760423-********', '760423-1*****', '760423 - ******', '홍길동760423-******']) {
+      expect(findLeftoverNumber(`주민등록번호 ${text}`), text).not.toBeNull();
+    }
+    // 숫자만 있고 7자리가 아니면 계좌번호 등과 헷갈려 찾지 않는다
+    expect(findLeftoverNumber('관리번호 123456-1234')).toBeNull();
+    expect(findLeftoverNumber('지번 123456-12')).toBeNull();
+    // 이미 가린 자리
+    expect(findLeftoverNumber('주민등록번호 [REDACTED]')).toBeNull();
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 "760423-******"가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임대인 [Landlord_A] 760423-******' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
   it('외국인등록번호, 휴대폰 번호(하이픈 없이)도 찾는다', () => {
     expect(findLeftoverNumber('외국인등록번호 990505-5123456')).toBe('990505-5123456');
     expect(findLeftoverNumber('연락처 01012345678')).toBe('01012345678');
