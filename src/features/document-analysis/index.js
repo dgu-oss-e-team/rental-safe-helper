@@ -27,6 +27,7 @@ import {
   lastRoleIn,
   findAddressContinuation,
   findTrailingRegion,
+  findOrphanUnitTail,
   reachesLineEnd,
   hasOpenParen,
   findMixedContinuation,
@@ -211,6 +212,14 @@ function scanDocument(document) {
               next = { hit: piece, regionOnly: false, mixed: true };
             }
           }
+        }
+
+        if (!next) {
+          // 윗줄과 이어지지 못한 "번지, 동·호수" 줄 (윗줄 주소를 OCR이 깨서 읽은 경우). 확인 필요로 표시한다.
+          const tail = findOrphanUnitTail(line);
+          /** @type {any} */
+          const orphan = tail && { ...tail, start: tail.start + offset, end: tail.end + offset, uncertain: true };
+          if (orphan && !overlapsAny(found, orphan)) found.push(orphan);
         }
 
         if (!next) {

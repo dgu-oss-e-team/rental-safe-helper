@@ -551,6 +551,34 @@ export function findAddressContinuation(line, afterRegion = false, openParen = f
 }
 
 /**
+ * 윗줄 주소와 이어지지 못한 "번지, 동·호수" 줄 (사진 OCR, 상욱님 점검)
+ * 두 줄 주소의 윗줄("서울특별시 노원구 가상로")을 OCR이 깨서 읽으면 윗줄이 주소로 안 잡히고,
+ * 아랫줄 "88,205동1103호(가상동,가상그린아파트)"만 남아 동·호수가 AI 글에 간다.
+ * 줄 맨 앞이 "번지(쉼표) [동] 호" 모양이면 그 자체로 집을 가리키는 주소 조각이다.
+ * - "번지 + 쉼표"가 있어야 한다. 쉼표 없는 "제40517호"(접수번호), "제3층 제301호"(전유부분, 따로 찾음)는 아니다.
+ * - 줄 맨 앞에서만 찾는다. (줄 중간의 모양은 표 칸이 섞인 경우라 findMixedContinuation이 맡는다)
+ * - 두 줄 주소의 아랫줄을 이어 붙이는 단계(findAddressContinuation)가 끝난 뒤, 이어지지 못한 줄에만 쓴다.
+ *   (윗줄이 바르게 읽힌 주소면 지금처럼 같은 groupId 조각이 된다)
+ */
+const ORPHAN_UNIT_TAIL_REGEX = new RegExp(
+  `^[ \\t]*(\\d{1,5}(?:-\\d{1,5})?[ \\t]*,[ \\t]*(?:\\d{1,4}[ \\t]*동[ \\t]*)?\\d{1,5}[ \\t]*호(?![가-힣])${ADDRESS_TAIL})`,
+);
+
+/**
+ * @param {string} line 한 줄 (줄바꿈 없음)
+ * @returns {{ type: string, value: string, start: number, end: number } | null}
+ */
+export function findOrphanUnitTail(line) {
+  const m = line.match(ORPHAN_UNIT_TAIL_REGEX);
+  if (!m) return null;
+  const start = (m.index ?? 0) + m[0].length - m[1].length;
+  const cut = cutAtTableCell(m[1]);
+  const end = cut === m[1] ? withParenTail(line, start + cut.length) : start + cut.length;
+  const value = line.slice(start, end).trimEnd();
+  return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
+}
+
+/**
  * 줄 끝에 시·도 이름만 있는지 찾는다. (예: "소재지 서울특별시" → "서울특별시")
  * 아랫줄이 시·군·구로 시작할 때만 주소 조각으로 쓴다.
  * @param {string} line 한 줄 (줄바꿈 없음)
