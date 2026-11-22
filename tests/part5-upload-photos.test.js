@@ -31,6 +31,15 @@ describe('PART 5 ① 화면: 사진 여러 장 (#268)', () => {
     expect(notice).toBeNull();
   });
 
+  it('이미 올린 사진을 다시 고르면 덧붙이지 않고 그 칸 아래에 안내한다 (#287)', () => {
+    const p1 = new File(['x'], 'p1.jpg', { type: 'image/jpeg', lastModified: 1 });
+    const { node, act } = screenWith({ registry: [p1] });
+    choose(/** @type {HTMLInputElement} */ (node.querySelector('#registry-file')), [new File(['x'], 'p1.jpg', { type: 'image/jpeg', lastModified: 1 })]);
+    const [patch, notice] = act.setFiles.mock.calls[0];
+    expect(patch.registry).toHaveLength(1);
+    expect(notice).toEqual({ slot: 'registry', text: PHOTO_NOTICE.DUPLICATE });
+  });
+
   it('사진이 있으면 버튼이 "Add another page"이고, 몇 장(몇 쪽)인지 보여 준다', () => {
     const { node } = screenWith({ registry: [photo('p1.jpg'), photo('p2.jpg'), photo('p3.jpg')] });
     expect(node.querySelector('label.file-button[for="registry-file"]')?.textContent).toBe('Add another page');

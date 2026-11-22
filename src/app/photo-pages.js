@@ -48,7 +48,16 @@ export const PHOTO_NOTICE = {
   ONE_PDF: 'Choose one PDF at a time. Your earlier choice is kept.',
   UNSUPPORTED: 'Only PDF, JPG and PNG files work. Your earlier choice is kept.',
   TOO_MANY: `You can add up to ${MAX_PHOTOS} photos for one document. Only the first ${MAX_PHOTOS} were kept.`,
+  DUPLICATE: 'A photo you chose was already added, so it was not added again.',
 };
+
+/**
+ * 같은 사진인지 (이름·크기·수정 시각이 모두 같음, #287)
+ * 내용까지 비교하지는 않는다. 다른 사진이 세 가지가 모두 같을 일은 거의 없다.
+ * @param {File} a
+ * @param {File} b
+ */
+export const isSamePhoto = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 
 /**
  * 칸에 새로 고른 파일을 더한 결과
@@ -69,8 +78,16 @@ export function addPicked(current, picked) {
     return { value: pdfs[0], notice: null };
   }
   const before = Array.isArray(current) ? current : [];
-  const all = [...before, ...picked];
+  // 이미 있는 사진(또는 이번에 두 번 고른 사진)은 다시 넣지 않는다 (#287)
+  /** @type {File[]} */
+  const all = [...before];
+  let duplicate = false;
+  for (const photo of picked) {
+    if (all.some((f) => isSamePhoto(f, photo))) duplicate = true;
+    else all.push(photo);
+  }
   if (all.length > MAX_PHOTOS) return { value: all.slice(0, MAX_PHOTOS), notice: PHOTO_NOTICE.TOO_MANY };
+  if (duplicate) return { value: all.length > 0 ? all : current, notice: PHOTO_NOTICE.DUPLICATE };
   return { value: all, notice: null };
 }
 
