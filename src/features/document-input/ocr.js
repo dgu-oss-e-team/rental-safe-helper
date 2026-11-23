@@ -125,12 +125,7 @@ export async function recognizeImageText(buffer) {
     const uint8Array = new Uint8Array(buffer);
     const canSetParams = typeof worker.setParameters === 'function';
 
-    if (canSetParams) {
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM?.AUTO ?? '3',
-        preserve_interword_spaces: '1',
-      });
-    }
+    // Only call setParameters when running the lease table recovery pass so normal pages stay fast (~30s for 10 photos)
 
     // @ts-ignore
     const ret = await worker.recognize(uint8Array, {}, { blocks: true });
@@ -149,10 +144,12 @@ export async function recognizeImageText(buffer) {
     if (canSetParams && shouldRunLeaseTableRecovery(blocks)) {
       await worker.setParameters({
         tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
-        preserve_interword_spaces: '1',
       });
       // @ts-ignore
       const fallbackRet = await worker.recognize(uint8Array, {}, { blocks: true });
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM?.AUTO ?? '3',
+      });
       const fallbackBlocks = extractNormalizedLines(
         fallbackRet.data,
         imageWidth,
