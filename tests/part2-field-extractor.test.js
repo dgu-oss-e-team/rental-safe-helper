@@ -532,6 +532,48 @@ describe('PART 2 등기부 권리: 말소', () => {
   });
 });
 
+describe('PART 2 등기부 권리: 접수일(receivedAt)', () => {
+  const GAP = '【 갑 구 】 (소유권에 관한 사항)';
+  const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
+  /** @param {string[]} lines */
+  const dates = (lines) => findRegistryRights(lines)?.map((x) => [x.kind, x.receivedAt]);
+
+  it('권리 줄의 첫 날짜(접수 칸)를 YYYY-MM-DD로 읽는다 (둘째 날짜는 등기원인)', () => {
+    expect(
+      dates([
+        GAP,
+        '2 가압류 2023년2월6일 2023년2월3일 청구금액 금12,000,000 원',
+        EUL,
+        '3 근저당권설정 2026년8월25일 2026년8월25일 채권최고액 금168,000,000원',
+      ]),
+    ).toEqual([
+      ['PROVISIONAL_SEIZURE', '2023-02-06'],
+      ['MORTGAGE', '2026-08-25'],
+    ]);
+  });
+
+  it('좁은 칸이라 접수일이 다음 줄로 넘어가면 다음 순위번호 전까지 찾는다', () => {
+    expect(dates([GAP, EUL, '1 근저당권설정', '2016년5월9일 2016년5월9일 채권최고액 금120,000,000원', '제21574호'])).toEqual([
+      ['MORTGAGE', '2016-05-09'],
+    ]);
+  });
+
+  it('날짜가 없으면 다음 기록의 날짜를 가져오지 않고 null', () => {
+    expect(dates([GAP, EUL, '1 근저당권설정 채권최고액 금120,000,000원', '2 전세권설정 2020년1월2일'])).toEqual([
+      ['MORTGAGE', null],
+      ['JEONSE', '2020-01-02'],
+    ]);
+  });
+
+  it('순위번호 없는 줄에서 찾은 권리는 날짜를 추측하지 않는다', () => {
+    expect(dates([GAP, '2 소유권이전 2020년3월4일 수탁자 가상자산신탁주식회사', '신탁', EUL])?.[0]).toEqual([
+      'TRUST',
+      '2020-03-04',
+    ]);
+    expect(dates([GAP, '근저당권설정 2016년5월9일', EUL])).toEqual([['MORTGAGE', null]]);
+  });
+});
+
 describe('PART 2 등기부 권리: 한 권리를 두 번 세지 않는다', () => {
   const GAP = '【 갑 구 】 (소유권에 관한 사항)';
   const EUL = '【 을 구 】 (소유권 이외의 권리에 관한 사항)';
