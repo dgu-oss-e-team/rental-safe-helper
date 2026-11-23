@@ -61,6 +61,24 @@ describe('PART 5 사진 여러 장: 칸에 더하기 (#268)', () => {
     expect(r.notice).toBe(PHOTO_NOTICE.TOO_MANY);
   });
 
+  it('같은 사진(이름·크기·수정 시각이 같음)은 다시 넣지 않고 안내한다 (#287)', () => {
+    const same = (name) => new File(['xx'], name, { type: 'image/jpeg', lastModified: 1 });
+    const p1 = same('p1.jpg');
+    // 이미 있는 사진을 다시 고름
+    const again = addPicked([p1], [same('p1.jpg')]);
+    expect(names(again.value)).toEqual(['p1.jpg']);
+    expect(again.notice).toBe(PHOTO_NOTICE.DUPLICATE);
+    // 새 사진과 같이 고르면 새 사진만 들어간다
+    const mixed = addPicked([p1], [same('p1.jpg'), same('p2.jpg')]);
+    expect(names(mixed.value)).toEqual(['p1.jpg', 'p2.jpg']);
+    expect(mixed.notice).toBe(PHOTO_NOTICE.DUPLICATE);
+    // 한 번에 같은 사진을 두 번 골라도 한 장
+    expect(names(addPicked(null, [same('p3.jpg'), same('p3.jpg')]).value)).toEqual(['p3.jpg']);
+    // 이름만 같고 다른 사진(크기·시각이 다름)은 넣는다
+    const other = new File(['yyyy'], 'p1.jpg', { type: 'image/jpeg', lastModified: 2 });
+    expect(addPicked([p1], [other]).value).toHaveLength(2);
+  });
+
   it('빈 선택(고르기 창 취소)은 아무것도 바꾸지 않는다', () => {
     const current = [photo('p1.jpg')];
     expect(addPicked(current, [])).toEqual({ value: current, notice: null });

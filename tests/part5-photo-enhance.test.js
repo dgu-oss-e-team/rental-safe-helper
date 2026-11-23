@@ -1,6 +1,6 @@
 // PART 5. 사진 자동 보정 계산 (#272). 작은 가짜 그림(숫자 배열)으로 확인한다.
 import { describe, it, expect } from 'vitest';
-import { otsuThreshold, paperBounds, flattenShading } from '../src/app/photo-enhance.js';
+import { otsuThreshold, paperBounds, flattenShading, enhanceScale, MIN_PAPER_WIDTH } from '../src/app/photo-enhance.js';
 
 /**
  * w×h 회색 그림: 바탕은 bg, (x0,y0)~(x1,y1) 직사각형은 paper 밝기
@@ -68,5 +68,24 @@ describe('PART 5 사진 자동 보정: 그림자 지우기 (#272)', () => {
     expect(rgba[0]).toBe(rgba[1]);
     expect(rgba[1]).toBe(rgba[2]);
     expect(rgba[3]).toBe(255);
+  });
+});
+
+describe('PART 5 사진 자동 보정: 크기 맞추기 (#287)', () => {
+  it('큰 사진은 긴 변이 2000px이 되게 줄인다', () => {
+    expect(enhanceScale(3000, 4000, 2000)).toBeCloseTo(0.5);
+  });
+
+  it('가로가 1200px보다 작은 사진은 1200px까지 키운다', () => {
+    expect(enhanceScale(800, 1100, 2000) * 800).toBeCloseTo(MIN_PAPER_WIDTH);
+  });
+
+  it('키워도 2배까지만, 긴 변 2000px은 넘지 않는다', () => {
+    expect(enhanceScale(300, 400, 2000)).toBe(2);
+    expect(enhanceScale(1000, 1900, 2000) * 1900).toBeLessThanOrEqual(2000);
+  });
+
+  it('알맞은 크기면 그대로 (1배)', () => {
+    expect(enhanceScale(1500, 1900, 2000)).toBe(1);
   });
 });
