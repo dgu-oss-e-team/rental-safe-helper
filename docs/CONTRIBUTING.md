@@ -25,6 +25,7 @@ git push -u origin feature/작업이름
 - PR은 작게, 자주. 무엇을 만들었는지와 테스트 결과를 적는다.
 - 담당 폴더 밖의 공통 파일은 임의로 수정하지 않는다 (`docs/OWNERS.md`).
 - 다른 파트를 기다리지 말고 `src/shared/mock-data.js`의 Mock 데이터로 먼저 개발한다.
+- 병합한 뒤에는 Actions 탭에서 **Deploy**가 성공했는지 확인한다. 실패하면 그 실행에서 **Re-run all jobs**를 누르거나, Deploy 워크플로의 **Run workflow**로 다시 배포한다. (#285)
 
 ## 절대 올리지 않는 것
 
