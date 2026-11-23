@@ -1,0 +1,60 @@
+{
+  "document": "set1-lease-risky",
+  "file": "tests/eval/docs/set1-lease-risky.pdf",
+  "documentType": "LEASE_CONTRACT",
+  "form": "가짜세트1 위험 판정용 계약서: 임대인·예금주 다름 + 특약 별지(위험 특약 4개), 7쪽",
+  "pii": [
+    {
+      "type": "PERSON_NAME",
+      "value": "강감찬"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "김철수"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "왕리웨이"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "711205-1******",
+      "secret": "711205-1"
+    },
+    {
+      "type": "FOREIGNER_ID",
+      "value": "030827-6418257"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "010-4472-8150"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "010-7392-0458"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "2021-서울강서-00532"
+    },
+    {
+      "type": "BANK_ACCOUNT",
+      "value": "1002-381-640275"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 강서구 가상로 118, 3층(가상동)",
+      "secret": "가상로 118, 3층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상로 30, 2층 204호(가상동)",
+      "secret": "가상로 30, 2층 204호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호",
+      "secret": "47-12 가상하우스 제4층 제402호"
+    }
+  ]
+}

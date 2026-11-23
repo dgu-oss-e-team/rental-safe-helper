@@ -1,0 +1,70 @@
+{
+  "document": "set3-registry",
+  "file": "tests/eval/docs/set3-registry.pdf",
+  "documentType": "REGISTRY",
+  "form": "가짜세트3 등기부: 법인 소유 → 신탁(수탁자 소유), 근저당 말소 (열람본 3쪽, 바탕체)",
+  "pii": [
+    {
+      "type": "REGISTRY_ID",
+      "value": "1149-2021-008352"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-4826013"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-7359024"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-5193746"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-0012345"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 광진구 가상동 57-9 가상하임 제5층 제502호",
+      "secret": "57-9 가상하임 제5층 제502호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 광진구 가상동 57-9 가상하임",
+      "secret": [
+        "57-9",
+        "가상하임"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 광진구 가상로22길 15",
+      "secret": "가상로22길"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "제5층 제502호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 성동구 가상로 31, 7층(가상동)",
+      "secret": "가상로 31, 7층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 강남구 가상대로 214, 9층(가상동)",
+      "secret": "가상대로 214, 9층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 영등포구 가상로 90, 15층(가상동)",
+      "secret": "가상로 90, 15층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상대로 100(가상동)",
+      "secret": "가상대로 100"
+    }
+  ]
+}

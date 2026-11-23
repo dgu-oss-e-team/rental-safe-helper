@@ -1,0 +1,127 @@
+<!doctype html>
+<!--
+  가상 등기사항전부증명서(말소사항 포함) - 집합건물. 테스트·시연용 가짜 문서다.
+  이름·생년월일·주소·고유번호·접수번호는 모두 지어낸 값이다. 실제 서류에서 가져온 값은 없다.
+  인터넷등기소 열람본의 쪽 구성(3쪽)과 표 모양을 따랐다.
+  시나리오: 김선달·박흥부 반씩 공유(2018 보존) → 1-1 박흥부 주소 변경(부기) → 2018년 공유자 전원 지분을 홍길동에게 매매 이전.
+           지금 소유자 = 홍길동(690812). 을구 기록사항 없음(근저당 없음). 대지권 표에 말소된 별도등기.
+  짝 계약서: set1-lease.html (임대사업자 = 홍길동, 같은 집), set1-lease-risky.html + set1-lease-risky-terms.html (위험 판정용)
+  평가 세트(#251, #300)와 시연(실제 법정 양식 + 가상 정보)용이다. 가짜세트1.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>form-individual-registry</title>
+<style>
+  /* 인터넷등기소 열람본과 같은 글꼴: 바탕체 하나 (Windows 글꼴, 임베딩 허용 "Editable") */
+  @page { size: A4; margin: 14mm 12mm 12mm; }
+  /* 바탕체에는 굵은 글꼴이 없어서 굵게 쓰면 Chrome이 글자를 한 자씩 따로 찍는다 → 진짜 열람본처럼 굵게 쓰지 않는다 */
+  body { font-family: 'BatangChe', '바탕체', serif; font-size: 8.8pt; line-height: 1.35; color: #000; margin: 0; }
+  .page { break-after: page; position: relative; min-height: 262mm; }
+  .page:last-child { break-after: auto; }
+  h1 { text-align: center; font-size: 15pt; font-weight: 400; margin: 2mm 0 0; letter-spacing: 0.5mm; }
+  .kind { text-align: center; font-size: 11pt; margin: 0 0 3mm; }
+  .uid { text-align: right; font-size: 8.5pt; margin: 0 0 1mm; }
+  .bldg { font-weight: 400; margin: 1mm 0 2mm; }
+  .sec { font-size: 10pt; font-weight: 400; margin: 3mm 0 1mm; text-align: center; background: #ddd; border: 1px solid #000; border-bottom: 0; padding: 0.6mm 0; }
+  .sub { font-size: 8.5pt; text-align: center; margin: 2mm 0 1mm; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
+  th { font-weight: 400; text-align: center; }
+  .no { width: 8%; } .recv { width: 14%; } .cause { width: 21%; } .purpose { width: 18%; }
+  .t1 .addr { width: 30%; } .t1 .bd { width: 26%; }
+  .land .addr { width: 44%; } .land .kind2 { width: 8%; } .land .area { width: 10%; }
+  .unit .num { width: 22%; } .unit .bd { width: 28%; }
+  .right .kind2 { width: 26%; } .right .ratio { width: 20%; }
+  .strike { text-decoration: line-through; }
+  .view { position: absolute; top: 95mm; left: 0; right: 0; text-align: center; font-size: 30pt; color: #bbb; letter-spacing: 8mm; z-index: -1; }
+  .end { text-align: center; margin: 4mm 0; letter-spacing: 2mm; }
+  .court { text-align: right; margin: 2mm 0; }
+  .notes { font-size: 7.5pt; margin-top: 4mm; }
+  .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8pt; }
+  .fake { font-size: 7.5pt; color: #555; text-align: center; margin-top: 2mm; }
+</style>
+</head>
+<body>
+  <!-- 1쪽 -->
+  <section class="page">
+    <h1>등기사항전부증명서(말소사항 포함)</h1>
+    <p class="kind">- 집합건물 -</p>
+    <p class="uid">고유번호 1102-2018-004127</p>
+    <p class="bldg">[집합건물] 서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호</p>
+
+    <p class="sec">【 표 제 부 】 ( 1동의 건물의 표시 )</p>
+    <table class="t1">
+      <tr><th class="no">표시번호</th><th class="recv">접 수</th><th class="addr">소재지번,건물명칭 및 번호</th><th class="bd">건 물 내 역</th><th class="cause">등기원인 및 기타사항</th></tr>
+      <tr>
+        <td>1</td><td>2018년3월14일</td>
+        <td>서울특별시 중구 가상동2가<br>47-12<br>가상하우스<br>[도로명주소]<br>서울특별시 중구 가상로3길<br>21</td>
+        <td>철근콘크리트구조<br>(철근)콘크리트지붕<br>5층 다세대주택<br>1층 21.40㎡<br>2층 142.35㎡<br>3층 142.35㎡<br>4층 128.62㎡<br>5층 96.18㎡<br>옥탑1층<br>18.72㎡(연면적제외)</td>
+        <td></td>
+      </tr>
+    </table>
+
+    <p class="sub">( 대지권의 목적인 토지의 표시 )</p>
+    <table class="land">
+      <tr><th class="no">표시번호</th><th class="addr">소 재 지 번</th><th class="kind2">지 목</th><th class="area">면 적</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>1. 서울특별시 중구 가상동2가<br>47-12</td><td>대</td><td>298㎡</td><td>2018년3월14일 등기</td></tr>
+    </table>
+
+    <p class="sec">【 표 제 부 】 ( 전유부분의 건물의 표시 )</p>
+    <table class="unit">
+      <tr><th class="no">표시번호</th><th class="recv">접 수</th><th class="num">건 물 번 호</th><th class="bd">건 물 내 역</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2018년3월14일</td><td>제4층 제402호</td><td>철근콘크리트구조<br>31.27㎡</td><td></td></tr>
+    </table>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월17일 10시42분07초</span><span>1/3</span></div>
+  </section>
+
+  <!-- 2쪽 -->
+  <section class="page">
+    <p class="bldg">[집합건물] 서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호</p>
+    <p class="sub">( 대지권의 표시 )</p>
+    <table class="right">
+      <tr><th class="no">표시번호</th><th class="kind2">대지권종류</th><th class="ratio">대지권비율</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>1 소유권대지권</td><td>298분의 18.64</td><td>2018년3월2일 대지권<br>2018년3월14일 등기</td></tr>
+      <tr><td class="strike">2</td><td></td><td></td><td class="strike">별도등기 있음<br>1토지(을구 1번 근저당권 설정 등기)<br>2018년3월14일 등기</td></tr>
+      <tr><td>3</td><td></td><td></td><td>2번 별도등기 말소<br>2018년4월9일 등기</td></tr>
+    </table>
+
+    <p class="sec">【 갑 구 】 ( 소유권에 관한 사항 )</p>
+    <table>
+      <tr><th class="no">순위번호</th><th class="purpose">등 기 목 적</th><th class="recv">접 수</th><th class="recv">등 기 원 인</th><th>권리자 및 기타사항</th></tr>
+      <tr>
+        <td>1</td><td>소유권보존</td><td>2018년3월14일<br>제18264호</td><td></td>
+        <td>공유자<br>지분 2분의 1<br>김선달 760423-*******<br>서울특별시 노원구 가상로<br>88,205동1103호(가상동,가상그린아파트)<br>지분 2분의 1<br>박흥부 680915-*******<br>서울특별시 서대문구 가상로<br>14,301호(가상동,가상빌라)</td>
+      </tr>
+      <tr>
+        <td>1-1</td><td>1번등기명의인표시<br>변경</td><td></td><td>2018년6월11일<br>전거</td>
+        <td>박흥부의 주소 서울특별시 은평구 가상로7길<br>9, 202호(가상동)<br>2018년9월3일 부기</td>
+      </tr>
+      <tr>
+        <td>2</td><td>공유자전원지분전부<br>이전</td><td>2018년9월3일<br>제40517호</td><td>2018년7월20일<br>매매</td>
+        <td>소유자 홍길동 690812-*******<br>서울특별시 서초구 가상로52길 3,<br>201호(가상동)</td>
+      </tr>
+    </table>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월17일 10시42분07초</span><span>2/3</span></div>
+  </section>
+
+  <!-- 3쪽 -->
+  <section class="page">
+    <p class="bldg">[집합건물] 서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호</p>
+    <p class="sec">【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )</p>
+    <table><tr><td style="text-align:center; padding: 3mm 0;">기록사항 없음</td></tr></table>
+    <p class="end">-- 이 하 여 백 --</p>
+    <p class="court">관할등기소 서울중앙지방법원 중부등기소</p>
+    <div class="notes">
+      <p>* 실선으로 그어진 부분은 말소사항을 표시함. * 기록사항 없는 갑구, 을구는 '기록사항 없음'으로 표시함.</p>
+      <p>* 증명서는 컬러 또는 흑백으로 출력 가능함.</p>
+      <p>* 본 등기사항증명서는 열람용이므로 출력하신 등기사항증명서는 법적인 효력이 없습니다.</p>
+    </div>
+    <p class="fake">이 문서는 테스트용 가상 문서입니다. 실제 등기사항증명서가 아니며, 이름·번호·주소는 모두 지어낸 값입니다.</p>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월17일 10시42분07초</span><span>3/3</span></div>
+  </section>
+</body>
+</html>

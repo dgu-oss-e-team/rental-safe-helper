@@ -1,0 +1,51 @@
+{
+  "document": "set3-lease",
+  "file": "tests/eval/docs/set3-lease.pdf",
+  "documentType": "LEASE_CONTRACT",
+  "form": "가짜세트3 계약서: 민간임대 표준임대차계약서 (법인 임대사업자, 예금주 개인, 외국인 임차인) + 특약 별지, 7쪽",
+  "pii": [
+    {
+      "type": "PERSON_NAME",
+      "value": "변학도"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "TRAN THI MAI"
+    },
+    {
+      "type": "FOREIGNER_ID",
+      "value": "050912-6283175"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "02-0000-4127"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "010-6142-8807"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "2022-서울광진-00348"
+    },
+    {
+      "type": "BANK_ACCOUNT",
+      "value": "110-482-307915"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 강남구 가상대로 214, 9층(가상동)",
+      "secret": "가상대로 214, 9층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 광진구 가상로 8, 3층 302호(가상동)",
+      "secret": "가상로 8, 3층 302호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 광진구 가상동 57-9 가상하임 제5층 제502호",
+      "secret": "57-9 가상하임 제5층 제502호"
+    }
+  ]
+}

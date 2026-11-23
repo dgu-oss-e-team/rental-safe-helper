@@ -1,0 +1,87 @@
+{
+  "document": "set1-registry",
+  "file": "tests/eval/docs/set1-registry.pdf",
+  "documentType": "REGISTRY",
+  "form": "가짜세트1 등기부: 개인 공유→개인 소유 집합건물 (열람본 3쪽, 바탕체)",
+  "pii": [
+    {
+      "type": "REGISTRY_ID",
+      "value": "1102-2018-004127"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "김선달"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "박흥부"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "홍길동"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "760423-*******",
+      "secret": "760423"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "680915-*******",
+      "secret": "680915"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "690812-*******",
+      "secret": "690812"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상동2가 47-12 가상하우스 제4층 제402호",
+      "secret": "47-12 가상하우스 제4층 제402호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상동2가 47-12 가상하우스",
+      "secret": [
+        "47-12",
+        "가상하우스"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상로3길 21",
+      "secret": "가상로3길"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "제4층 제402호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 노원구 가상로 88,205동1103호(가상동,가상그린아파트)",
+      "secret": "88,205동1103호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 서대문구 가상로 14,301호(가상동,가상빌라)",
+      "secret": "14,301호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 은평구 가상로7길 9, 202호(가상동)",
+      "secret": [
+        "가상로7길",
+        "9, 202호"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 서초구 가상로52길 3, 201호(가상동)",
+      "secret": [
+        "가상로52길",
+        "201호(가상동)"
+      ]
+    }
+  ]
+}
