@@ -181,15 +181,15 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
   registry: {
     documentId, address,
     roadAddress,                    // 표제부 [도로명주소] (지번 등기부용, 없으면 null)
-    owners: [{ findingId, name, birthDate, role: 'OWNER' }],                  // 지금 소유자만
-    previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER' }], // 갑구의 예전 소유자 (이미 판 사람)
+    owners: [{ findingId, name, birthDate, role: 'OWNER', confidence }],                  // 지금 소유자만
+    previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER', confidence }], // 갑구의 예전 소유자 (이미 판 사람)
     rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
     lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
     ownerCompanies: ['가상신탁주식회사']  // 지금 소유자 기록의 회사 이름 (신탁이면 수탁자). 화면 전용, 프롬프트에 넣지 않음. 없으면 [], 못 정하면 null
   },
   contract: {
     documentId, address,
-    landlords: [{ findingId, name, birthDate, role: 'LANDLORD' }],
+    landlords: [{ findingId, name, birthDate, role: 'LANDLORD', confidence }],
     tenants: [...], accountHolders: [...],
     deposit, monthlyRent, specialTerms: ['...'],
     contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
@@ -199,6 +199,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 ```
 
 `birthDate`는 동일 인물 판정에만 쓰고 AI로 보내지 않는다. 읽지 못한 값은 `null`로 두고 추측하지 않는다.
+`confidence`는 이름이 있는 줄의 OCR 신뢰도(0~1)다. 글자 PDF는 `null`. PART 3은 흐리게 읽힌 이름이면 "다른 사람(STOP)" 대신 확인 불가로 본다. (#277)
 
 날짜(`lastTransferDate`, `contractDate`)는 `'YYYY-MM-DD'` 문자열이다. 못 읽으면 `null`이다. (PART 3 최근 소유권 이전 점검용, 이슈 #44)
 

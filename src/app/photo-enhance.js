@@ -17,6 +17,12 @@
 const ANALYSIS_PIXELS = 400;
 /** 한 행·열에서 밝은 칸이 이 비율을 넘으면 종이로 본다 */
 const PAPER_RATIO = 0.5;
+/*
+ * 알려진 한계 (#287, #273 리뷰): 종이 맨 위·아래에 가로로 긴 진한 띠(검은 제목 칸 등)가 있으면 그 줄은 잘린다.
+ * 잘린 부분은 OCR·마스킹 PDF에 들어가지 않아 개인정보가 새지는 않고, 그 부분을 못 읽을 뿐이다.
+ * "띠 안에 흰 글자가 조금이라도 있으면 종이로 넣기"를 시험했지만, 실제 휴대폰 사진(종이가 기울어짐)에서
+ * 종이 바깥 줄까지 넓어져 흐린 줄이 72 → 110개로 늘어서 넣지 않았다. 등기부·계약서는 위아래가 흰 여백이다.
+ */
 /** 찾은 종이가 사진의 이 비율보다 작으면 못 찾은 것으로 보고 자르지 않는다 */
 const MIN_PAPER_AREA = 0.25;
 /** 배경 밝기를 구할 때 줄이는 배율 (글자보다 훨씬 큰 범위의 평균 밝기) */
@@ -24,6 +30,23 @@ const SHADING_SCALE = 24;
 /** 그림자 지우기: (글자 밝기 / 주변 밝기)가 LOW 이하면 검정, HIGH 이상이면 흰색 */
 const SHADING_LOW = 0.5;
 const SHADING_HIGH = 0.92;
+/** 종이 부분 가로가 이보다 작으면 키운다 (작은 사진은 글자가 작아 OCR이 틀리기 쉽다, #287 가리드마님 의견) */
+export const MIN_PAPER_WIDTH = 1200;
+/** 키울 때 최대 배율 (너무 흐린 사진을 크게 키워도 글자가 생기지 않는다) */
+const MAX_UPSCALE = 2;
+
+/**
+ * 보정한 사진의 배율: 긴 변이 maxPixels를 넘으면 줄이고, 가로가 MIN_PAPER_WIDTH보다 작으면 키운다(최대 2배).
+ * 가로세로 비율은 그대로다.
+ * @param {number} width  종이 부분 가로 (픽셀)
+ * @param {number} height  종이 부분 세로 (픽셀)
+ * @param {number} maxPixels
+ */
+export function enhanceScale(width, height, maxPixels) {
+  const shrink = maxPixels / Math.max(width, height);
+  const grow = Math.min(MAX_UPSCALE, MIN_PAPER_WIDTH / width);
+  return Math.min(shrink, Math.max(1, grow));
+}
 
 /**
  * 회색 값(0~255)들을 둘로 가장 잘 나누는 문턱 (Otsu)
@@ -152,14 +175,14 @@ function findPaper(bitmap) {
 }
 
 /**
- * 사진을 보정한 캔버스: 종이만 잘라내고, 긴 변을 maxPixels 이하로 줄이고, 그림자를 지운 회색조 (브라우저 전용)
+ * 사진을 보정한 캔버스: 종이만 잘라내고, 크기를 맞추고(큰 사진은 줄이고 작은 사진은 키움), 그림자를 지운 회색조 (브라우저 전용)
  * @param {ImageBitmap} bitmap  회전 정보(EXIF)를 반영해 만든 사진
  * @param {number} maxPixels
  * @returns {HTMLCanvasElement}
  */
 export function enhancePhoto(bitmap, maxPixels) {
   const crop = findPaper(bitmap);
-  const ratio = Math.min(1, maxPixels / Math.max(crop.width, crop.height));
+  const ratio = enhanceScale(crop.width, crop.height, maxPixels);
   const width = Math.max(1, Math.round(crop.width * ratio));
   const height = Math.max(1, Math.round(crop.height * ratio));
   const { c: canvas, ctx } = makeCanvas(width, height);

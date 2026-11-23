@@ -70,6 +70,48 @@ export function coarsenAddress(address) {
   return kept.join(' ');
 }
 
+/** 이름 줄 바로 아래 줄로 보는 거리 (페이지 높이 대비, 등기부 한 줄은 약 0.014) */
+const NEXT_LINE_GAP = 0.025;
+/** 지금 사람의 역할 (이 역할도 있으면 이전 소유자라도 주소를 줄이기만 한다) */
+const CURRENT_ROLES = new Set(['OWNER', 'LANDLORD', 'TENANT', 'ACCOUNT_HOLDER']);
+
+/**
+ * 이전 소유자 주소인 탐지 결과 id. 이전 소유자 이름(가명이 이전 소유자 가명인 이름, "?" 가명 포함)과
+ * 같은 줄이거나 같은 쪽 바로 아래 줄의 주소, 그리고 그 주소와 같은 groupId(두 줄 주소) 조각.
+ * @param {PiiFinding[]} findings
+ * @param {PersonGroup[]} personGroups
+ * @param {(f: PiiFinding) => string | undefined} aliasFor
+ */
+function findPrevOwnerAddressIds(findings, personGroups, aliasFor) {
+  const prevAliases = new Set(
+    personGroups
+      .filter((g) => g.roles.includes('PREVIOUS_OWNER') && !g.roles.some((r) => CURRENT_ROLES.has(r)))
+      .map((g) => g.alias),
+  );
+  /** @type {Set<string>} */
+  const ids = new Set();
+  if (prevAliases.size === 0) return ids;
+  // "[PrevOwner_B]의", "[PrevOwner_B?]" → "[PrevOwner_B]"
+  const baseAlias = (/** @type {string} */ a) => a.replace(/\?\]/, ']').replace(/\][^\]]*$/, ']');
+  const names = findings.filter((f) => {
+    if (f.type !== PII_TYPE.PERSON_NAME) return false;
+    const alias = aliasFor(f);
+    return alias !== undefined && prevAliases.has(baseAlias(alias));
+  });
+  const addresses = findings.filter((f) => f.type === PII_TYPE.ADDRESS);
+  for (const name of names) {
+    for (const a of addresses) {
+      if (a.documentId !== name.documentId || a.pageIndex !== name.pageIndex) continue;
+      const gap = a.bbox.y - name.bbox.y;
+      if (a.blockId === name.blockId || (gap > 0 && gap <= NEXT_LINE_GAP)) ids.add(a.id);
+    }
+  }
+  // 두 줄 주소는 조각 전체
+  const groups = new Set(addresses.filter((a) => ids.has(a.id) && a.groupId).map((a) => a.groupId));
+  for (const a of addresses) if (a.groupId && groups.has(a.groupId)) ids.add(a.id);
+  return ids;
+}
+
 /**
  * 목적에 맞는 마스킹 계획을 만든다.
  * @param {PiiFinding[]} findings
@@ -150,6 +192,11 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
     else addressGroups.set(f.groupId, { firstId: f.id, text: f.value });
   }
 
+  // 이전 소유자의 주소는 줄이지 않고 통째로 가린다 (사기 판단에 필요 없음, 외부 AI 평가 후속)
+  // 등기부에서 주소는 그 사람 이름 줄과 같은 줄이거나 바로 아래 줄에 나온다. ("소유자 박영수 700101-…" 다음 줄 주소,
+  // 부기 "이몽룡의 주소 …"). 지금 소유자·임대인이기도 한 사람의 주소는 그대로 둔다.
+  const prevOwnerAddressIds = findPrevOwnerAddressIds(findings, personGroups, aliasFor);
+
   // 사용자가 해제한 것 (규칙 적용 후)
   const keepIds = resolveRemovals(findings, personGroups, edits);
 
@@ -167,7 +214,9 @@ export function createMaskingPlan(findings, personGroups, purpose, edits) {
         else action = MASKING_ACTION.REDACT;
       } else if (f.type === PII_TYPE.ADDRESS) {
         const group = f.groupId ? addressGroups.get(f.groupId) : undefined;
-        if (group && group.firstId !== f.id) {
+        if (prevOwnerAddressIds.has(f.id)) {
+          action = MASKING_ACTION.REDACT;
+        } else if (group && group.firstId !== f.id) {
           // 두 줄 주소의 둘째 조각부터는 가린다 (줄인 주소는 첫 조각에만 넣음)
           action = MASKING_ACTION.REDACT;
         } else {
