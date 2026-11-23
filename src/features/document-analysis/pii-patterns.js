@@ -140,6 +140,20 @@ const MASKED_ID_LOOSE_REGEX =
   /(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\s?[-./–—~]\s?(?=[\d*＊]*[*＊])([1-8*＊])[\d*＊]{0,11}(?![\d*＊])/g;
 
 /**
+ * 뒷자리 별표가 전부 엉뚱한 글자로 읽힌 번호 (사진 OCR, 상욱님 점검)
+ * 예: "김선달 760423-#xwssnr" (별표 "*******"를 "#xwssnr"로 읽음), "760423-" (뒷자리를 못 읽음)
+ * 생년월일 모양 6자리(월 01~12, 일 01~31) + 하이픈(–·— 포함) + 띄어쓰기 없는 뒷자리 0~12글자면 주민·외국인등록번호로 본다.
+ * - 생년월일 6자리 뒤에 하이픈이 오는 것은 서류에서 주민번호 말고는 거의 없다.
+ * - 뒷자리가 숫자·하이픈만이면 잡지 않는다. "110423-12-345678" 같은 계좌번호일 수 있다. (숫자만인 번호는 위 정규식들이 맡는다)
+ * - 뒷자리는 하이픈에 바로 붙어 있어야 한다. 뒷자리를 하나도 못 읽은 "760423-"는 뒤가 띄어쓰기·줄 끝일 때만 잡고,
+ *   띄어 쓴 다음 낱말("760423- 서울특별시"의 "서울특별시")은 번호에 넣지 않는다.
+ * - "." "/" "~"는 받지 않는다. 날짜("18.03.14"), 기간("180301~180331일")과 헷갈린다. (별표가 섞이면 위 정규식이 "~"도 받는다)
+ * - uncertain(사용자 확인 필요)이다.
+ */
+const MASKED_ID_GARBAGE_REGEX =
+  /(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\s?[-–—](?:(?=[^\s]*[^\d\s-])([^\s]{1,12})|(?=\s|$))/g;
+
+/**
  * 주민번호 모양의 번호가 법인등록번호인지 (바로 앞 글자로 판단)
  * @param {string} text
  * @param {number} start 번호가 시작하는 위치
@@ -197,6 +211,19 @@ export function findIdNumbers(text) {
         ? PII_TYPE.FOREIGNER_ID
         : PII_TYPE.RESIDENT_ID;
     results.push({ type, value: match[0], start, end, uncertain: true });
+  }
+  // 뒷자리가 엉뚱한 글자로 읽힌 번호 (OCR, 위 정규식들이 못 찾는 것만)
+  for (const match of text.matchAll(MASKED_ID_GARBAGE_REGEX)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (results.some((r) => start < r.end && r.start < end)) continue;
+    const firstBack = (match[1] ?? '').charAt(0);
+    const type = isCorporateNumber(text, start)
+      ? PII_TYPE.REGISTRY_ID
+      : /^[5-8]$/.test(firstBack)
+        ? PII_TYPE.FOREIGNER_ID
+        : PII_TYPE.RESIDENT_ID;
+    results.push({ type, value: match[0].trimEnd(), start, end: start + match[0].trimEnd().length, uncertain: true });
   }
   return results.sort((a, b) => a.start - b.start);
 }
