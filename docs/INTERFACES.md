@@ -41,7 +41,8 @@
       confidence: 0.98,         // PDF 텍스트 추출은 null
       spans: [                  // 선택. 텍스트 PDF에서 조각별 [start, end) 오프셋과 bbox 제공 (OCR은 생략)
         { start: 0, end: 3, bbox: { x: 0.12, y: 0.35, width: 0.15, height: 0.03 } }
-      ]
+      ],
+      confirmed: true           // 선택. "Confirm this page"로 확인된 줄 여부 (원래 OCR confidence는 그대로 유지)
     }]
   }]
 }
