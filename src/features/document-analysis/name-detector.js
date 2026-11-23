@@ -480,23 +480,54 @@ function withParenTail(text, end) {
 /** 주소가 줄 끝에서 괄호를 열고 닫지 않았는지 ("… 304호(가" → 아랫줄 "상동,가상빌라)"로 이어짐) */
 export const hasOpenParen = (/** @type {string} */ value) => /\([^)]*$/.test(value);
 
+/*
+ * 사진(OCR)이 시·도나 시·군·구 이름을 틀리게 읽은 주소 (상욱님 사진 점검)
+ *   "서물특별시 중구 가상로 30, 2층 204호(가상동)", "서득별시 중구 기싱동2가 47-12 기상하우스 제4층 제402호",
+ *   "서울특별시 AdET 가상로 14,301호(가상동,가상빌라)"
+ * 위 ADDRESS_REGEX는 시·도 이름이 목록(person-labels.json의 addressRegions)에 있고 시·군·구가 한글이어야 해서 놓친다.
+ * 틀린 글자를 목록에 넣는 대신 주소 모양으로 찾는다. 일상 문장과 헷갈리지 않게 뒤에 도로명·동 + 번지 숫자가 꼭 있어야 한다.
+ * 1) 시·도 이름이 깨짐: "○○시"·"○○도"로 끝나는 낱말(3~7글자) + 시·군·구 + 도로명·동 + 숫자
+ * 2) 시·군·구 이름이 깨짐: 목록의 시·도 이름 + 띄어쓰기 없는 아무 낱말(1~8글자) + 도로명·동 + 숫자
+ * OCR 추측이라 uncertain(④에서 확인)으로 표시한다. 시·도 이름이 정식이 아니라 extractFields의 주소 비교는 확인 불가가 된다.
+ */
+const OCR_ROAD_OR_DONG_AHEAD = '(?=[가-힣0-9]+(?:로|길|동|가|읍|면|리)[ \\t]*\\d)';
+const OCR_ADDRESS_REGEX = new RegExp(
+  `(?<![가-힣A-Za-z0-9])(?:[가-힣]{2,6}[시도][ \\t]*${SIGUNGU_WORD}(?![가-힣])|(?:${REGION_ANY})[^\\s(]{1,8})` +
+    `[ \\t]+${OCR_ROAD_OR_DONG_AHEAD}[^\\n(]*[^\\s\\n(]`,
+  'g',
+);
+
+/**
+ * 정규식으로 찾은 주소 하나를 표 옆 칸 끊기·뒤 괄호 붙이기까지 마친 결과로 만든다.
+ * @param {string} text
+ * @param {RegExpMatchArray} match
+ */
+function addressResult(text, match) {
+  const start = match.index ?? 0;
+  const cut = cutAtTableCell(match[0]);
+  // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
+  const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
+  const value = text.slice(start, end).trimEnd();
+  // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
+  const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
+  return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) };
+}
+
 /**
  * @param {string} text
- * @returns {{type: string, value: string, start: number, end: number}[]}
+ * @returns {{type: string, value: string, start: number, end: number, uncertain?: boolean}[]}
  */
 export function findAddresses(text) {
+  /** @type {{type: string, value: string, start: number, end: number, tableCut?: boolean, uncertain?: boolean}[]} */
   const results = [];
-  for (const match of text.matchAll(ADDRESS_REGEX)) {
-    const start = match.index ?? 0;
-    const cut = cutAtTableCell(match[0]);
-    // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
-    const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
-    const value = text.slice(start, end).trimEnd();
-    // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
-    const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
-    results.push({ type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) });
+  for (const match of text.matchAll(ADDRESS_REGEX)) results.push(addressResult(text, match));
+  // OCR이 시·도·시·군·구 이름을 틀리게 읽은 주소 (위에서 찾은 것과 겹치지 않는 것만)
+  for (const match of text.matchAll(OCR_ADDRESS_REGEX)) {
+    const r = addressResult(text, match);
+    if (results.some((p) => r.start < p.end && p.start < r.end)) continue;
+    results.push({ ...r, uncertain: true });
   }
-  return results;
+  return results.sort((a, b) => a.start - b.start);
 }
 
 /*
