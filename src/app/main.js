@@ -12,7 +12,8 @@ import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
-import { slotToSource } from './photo-pages.js';
+import { slotToSource, isPhoto } from './photo-pages.js';
+import { readingText, preparingText } from './progress-text.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -200,7 +201,9 @@ async function runAnalysis(files, slots = null, parts = null, partItems = null) 
   const p = await pipeline();
   if (!p) return;
   // 흐린 줄이 있어도 멈추지 않고 받아서 사용자가 확인하게 한다 (확인 전에는 다음으로 못 감)
-  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true });
+  // 사진 OCR은 쪽마다 몇 초씩 걸리므로 어디까지 읽었는지 보여 준다
+  const onProgress = (/** @type {import('./pipeline.js').ReadProgress} */ at) => appState.setState({ busy: readingText(at, slots) });
+  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true, onProgress });
   if (!read.ok) {
     appState.setState({ busy: null, error: toError(read) });
     return;
@@ -264,12 +267,16 @@ const act = {
     // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
     const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
     if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
+    // 사진 보정은 장마다 걸리므로 몇 번째 사진인지 보여 준다
+    const photoTotal = [chosen.registry, chosen.lease].flatMap((v) => (Array.isArray(v) ? v : [])).filter(isPhoto).length;
+    let photoDone = 0;
+    const onPhoto = () => appState.setState({ busy: preparingText(photoDone++, photoTotal) });
     /** @type {{ registry: Awaited<ReturnType<typeof slotToSource>>, lease: Awaited<ReturnType<typeof slotToSource>> }} */
     let sources;
     try {
       sources = {
-        registry: await slotToSource(chosen.registry, 'registry.pdf'),
-        lease: await slotToSource(chosen.lease, 'lease.pdf'),
+        registry: await slotToSource(chosen.registry, 'registry.pdf', { onPhoto }),
+        lease: await slotToSource(chosen.lease, 'lease.pdf', { onPhoto }),
       };
     } catch {
       appState.setState({ busy: null, error: { step: 'input', code: 'PHOTO_READ_FAILED', message: 'A photo could not be prepared.' } });

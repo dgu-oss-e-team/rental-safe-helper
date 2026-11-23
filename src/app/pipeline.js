@@ -79,14 +79,31 @@ export async function analyzeDocuments({ files }) {
  *   partTypes[i]: 조각마다 판별한 서류 종류 (PART 2 classifyDocument). 한 칸에 다른 서류가 섞였는지 안내할 때 쓴다 (#305)
  *   조각이 하나면 partTypes[i]는 null (서류 전체 판별과 같으므로).
  * @param {{ files: File[], parts?: (File[] | null | undefined)[] }} input
- * @param {{ allowLowConfidence?: boolean }} [options]
+ * @param {{ allowLowConfidence?: boolean, onProgress?: (p: ReadProgress) => void }} [options]
  *   allowLowConfidence: 사진·스캔에서 흐린 줄이 있어도 멈추지 않고 돌려받는다.
  *   이때는 반드시 "Confirm text" 단계에서 흐린 줄을 사용자가 모두 확인한 뒤에 analyzeReadDocuments()로 넘긴다.
+ *   onProgress: 서류(조각)를 읽기 시작할 때, 그리고 PART 1이 쪽마다 onPage를 부르면 쪽마다 불린다 (진행 표시용)
  */
 export async function readDocuments({ files, parts }, options = {}) {
   if (!Array.isArray(files) || files.length === 0) {
     return { ...fail(ERROR_CODE.INVALID_INPUT, 'Please choose at least one file.'), step: 'input' };
   }
+  const { onProgress, ...readOptions } = options;
+  /** 진행을 알리고, PART 1에는 쪽마다 알려 달라고 onPage를 넘긴다 (PART 1이 부르지 않아도 동작한다) */
+  const read1 = (/** @type {File} */ f, /** @type {Omit<ReadProgress, 'pageIndex' | 'pageCount'>} */ at) => {
+    const report = (/** @type {Partial<ReadProgress>} */ extra = {}) => {
+      try {
+        onProgress?.({ ...at, ...extra });
+      } catch {
+        // 진행 표시가 실패해도 읽기는 계속한다
+      }
+    };
+    report();
+    return readDocument(f, {
+      ...readOptions,
+      onPage: (/** @type {{ pageIndex: number, pageCount: number }} */ p) => report({ pageIndex: p.pageIndex, pageCount: p.pageCount }),
+    });
+  };
   const documents = [];
   /** @type {(string[] | null)[]} */
   const partTypes = [];
@@ -94,8 +111,8 @@ export async function readDocuments({ files, parts }, options = {}) {
     const pieces = parts?.[i];
     if (pieces && pieces.length > 1) {
       const read = [];
-      for (const piece of pieces) {
-        const r = await readDocument(piece, options);
+      for (const [k, piece] of pieces.entries()) {
+        const r = await read1(piece, { docIndex: i, docCount: files.length, partIndex: k, partCount: pieces.length });
         if (!r.ok) return stoppedAt('readDocument', r);
         read.push(r.data);
       }
@@ -109,13 +126,18 @@ export async function readDocuments({ files, parts }, options = {}) {
       );
       continue;
     }
-    const r = await readDocument(file, options);
+    const r = await read1(file, { docIndex: i, docCount: files.length, partIndex: 0, partCount: 1 });
     if (!r.ok) return stoppedAt('readDocument', r);
     documents.push(r.data);
     partTypes.push(null);
   }
   return ok({ files, documents, partTypes });
 }
+
+/**
+ * 읽기 진행 (0부터 세는 번호). pageIndex·pageCount는 PART 1이 쪽마다 알려 줄 때만 있다.
+ * @typedef {{ docIndex: number, docCount: number, partIndex: number, partCount: number, pageIndex?: number, pageCount?: number }} ReadProgress
+ */
 
 /** OCR로 읽은 서류인지 (사진 또는 글자 없는 스캔 PDF) → "Confirm text" 단계에서 확인한다 */
 export function needsTextReview(/** @type {import('../shared/document-model.js').DocumentModel} */ doc) {
