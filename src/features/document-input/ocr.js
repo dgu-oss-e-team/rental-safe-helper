@@ -144,11 +144,13 @@ export async function recognizeImageText(buffer) {
     if (canSetParams && shouldRunLeaseTableRecovery(blocks)) {
       await worker.setParameters({
         tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
+        preserve_interword_spaces: '1',
       });
       // @ts-ignore
       const fallbackRet = await worker.recognize(uint8Array, {}, { blocks: true });
       await worker.setParameters({
         tessedit_pageseg_mode: PSM?.AUTO ?? '3',
+        preserve_interword_spaces: '0',
       });
       const fallbackBlocks = extractNormalizedLines(
         fallbackRet.data,
