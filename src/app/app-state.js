@@ -73,6 +73,12 @@ export function initialState() {
      * @type {import('./upload-check.js').UploadSlot[] | null}
      */
     uploadSlots: null,
+    /**
+     * 한 칸에 함께 올린 파일 조각마다 판별한 종류와 칸 목록 번호 (uploadParts[i] ↔ uploadSlots[i], 조각이 하나면 null). (#305)
+     * ② 결과 화면이 칸과 다른 서류가 섞였으면 "File 2 … looks like a property register"처럼 안내한다.
+     * @type {(import('./upload-check.js').UploadParts | null)[] | null}
+     */
+    uploadParts: null,
     /** analyzeDocuments() 결과 (원래 판정. "같은 사람인가요?" 답은 반영되지 않음) */
     /** @type {import('./pipeline.js').Analysis | null} */
     analysis: null,

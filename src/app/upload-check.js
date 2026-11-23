@@ -88,3 +88,46 @@ export function uploadSlotNotices(documents, slots) {
   }
   return notices;
 }
+
+/**
+ * @typedef {{ types: string[], items: number[][] }} UploadParts
+ *   한 칸에 함께 올린 파일 조각들 (#305). types[k]: 조각 k를 판별한 종류, items[k]: 조각 k가 칸 목록의 몇 번째 파일들인지(0부터)
+ */
+
+/** "File 2", "Files 2–3" (칸 목록 번호는 1부터) */
+function fileLabel(/** @type {number[]} */ items) {
+  const first = items[0] + 1;
+  const last = items[items.length - 1] + 1;
+  return items.length === 1 ? `File ${first}` : `Files ${first}–${last}`;
+}
+
+/**
+ * 한 칸에 여러 파일을 올렸을 때, 칸과 다른 서류가 섞였으면 안내한다 (#305, #299 리뷰)
+ * 예: 계약서 칸에 계약서 PDF + 등기부 PDF → 등기부는 계약서와 한 서류로 합쳐져서 등기부로 점검되지 않는다.
+ * - 종류를 모르는 조각(특약 별지 한 장 등)은 안내하지 않는다. 별지는 계약서 칸에 있는 게 맞다.
+ * - 막지 않고 안내만 한다. 지우는 방법(Remove)과 올릴 칸을 알려 준다. 파일 이름은 넣지 않는다 (몇 번째 파일인지만).
+ * @param {(UploadParts | null)[] | null | undefined} parts  parts[i]는 slots[i] 칸 (조각이 하나면 null)
+ * @param {UploadSlot[] | null | undefined} slots
+ * @returns {string[]}
+ */
+export function uploadPartNotices(parts, slots) {
+  if (!parts || !slots) return [];
+  /** @type {string[]} */
+  const notices = [];
+  for (const [i, slot] of slots.entries()) {
+    const p = parts[i];
+    if (!p) continue;
+    for (const [k, type] of p.types.entries()) {
+      if (type !== DOCUMENT_TYPE.REGISTRY && type !== DOCUMENT_TYPE.LEASE_CONTRACT) continue;
+      if (type === SLOT_TYPE[slot]) continue;
+      const label = fileLabel(p.items[k] ?? [k]);
+      const other = slot === 'registry' ? 'lease' : 'registry';
+      notices.push(
+        `${label} in the ${SLOT_TEXT[slot]} box looks like ${TYPE_TEXT[/** @type {keyof typeof TYPE_TEXT} */ (type)]}. ` +
+          'Files in one box are checked together as one document, so the results below may be incomplete or wrong. ' +
+          `If you added it by mistake, go back, remove it from this box, and upload it in the ${SLOT_TEXT[other]} box.`,
+      );
+    }
+  }
+  return notices;
+}

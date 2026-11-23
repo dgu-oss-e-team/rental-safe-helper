@@ -178,12 +178,24 @@ async function refreshPreviews() {
 }
 
 /**
+ * 읽은 조각 종류 + 칸 목록 번호 → ② 안내용 (#305). 조각이 하나뿐인 칸은 null.
+ * @param {(string[] | null)[] | undefined} partTypes
+ * @param {(number[][] | null)[] | null} partItems
+ * @returns {(import('./upload-check.js').UploadParts | null)[] | null}
+ */
+function uploadPartsOf(partTypes, partItems) {
+  if (!partTypes || !partItems) return null;
+  return partTypes.map((types, i) => (types && partItems[i] ? { types, items: /** @type {number[][]} */ (partItems[i]) } : null));
+}
+
+/**
  * 서류를 읽고, 사진·스캔이 있으면 "Confirm text" 단계로, 없으면 바로 분석으로 간다. (#54)
  * @param {File[]} files
  * @param {import('./upload-check.js').UploadSlot[] | null} [slots]  파일마다 올린 칸 (시연 샘플은 null, #186)
  * @param {(File[] | null)[] | null} [parts]  files[i]를 따로 읽을 조각 (#298, 없으면 files[i]를 그대로 읽음)
+ * @param {(number[][] | null)[] | null} [partItems]  조각마다 칸 목록의 몇 번째 파일들인지 (#305)
  */
-async function runAnalysis(files, slots = null, parts = null) {
+async function runAnalysis(files, slots = null, parts = null, partItems = null) {
   appState.setState({ busy: 'Reading your documents…', error: null });
   const p = await pipeline();
   if (!p) return;
@@ -193,6 +205,8 @@ async function runAnalysis(files, slots = null, parts = null) {
     appState.setState({ busy: null, error: toError(read) });
     return;
   }
+  // 한 칸에 함께 올린 조각의 종류 (#305). 글자 확인 단계를 거쳐도 ② 화면에서 쓰도록 바로 남겨 둔다.
+  appState.setState({ uploadParts: uploadPartsOf(read.data.partTypes, partItems) });
   const ocrIndexes = read.data.documents.map((d, i) => (p.needsTextReview(d) ? i : -1)).filter((i) => i >= 0);
   if (ocrIndexes.length > 0) {
     ocrDraft = structuredClone(ocrIndexes.map((i) => read.data.documents[i]));
@@ -250,7 +264,7 @@ const act = {
     // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
     const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
     if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
-    /** @type {{ registry: { file: File, parts: File[] } | null, lease: { file: File, parts: File[] } | null }} */
+    /** @type {{ registry: Awaited<ReturnType<typeof slotToSource>>, lease: Awaited<ReturnType<typeof slotToSource>> }} */
     let sources;
     try {
       sources = {
@@ -264,7 +278,8 @@ const act = {
     // 파일마다 올린 칸을 같이 넘긴다. ②에서 판별 결과와 다르면 안내한다 (#186)
     const { files: list, slots } = filesWithSlots({ registry: sources.registry?.file ?? null, lease: sources.lease?.file ?? null });
     const parts = slots.map((slot) => sources[slot]?.parts ?? null);
-    await runAnalysis(list, slots, parts);
+    const partItems = slots.map((slot) => sources[slot]?.items ?? null);
+    await runAnalysis(list, slots, parts, partItems);
   },
   async analyzeSample() {
     // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.
