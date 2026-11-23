@@ -1,17 +1,17 @@
 // @ts-check
 /**
- * PART 1. OCR 결과 수정 화면 (ocr-editor)
+ * PART 1. OCR ?? ?? ?? (ocr-editor)
  *
- * 인터페이스 (docs/INTERFACES.md / #93 / #54):
+ * ????? (docs/INTERFACES.md / #93 / #54):
  *   renderOcrEditor({ documents, files, onChange }) -> HTMLElement
- *   - documents: DocumentModel[] (사진/스캔 서류)
- *   - files: 원본 File[] (이미지 또는 스캔 PDF면 텍스트 옆에 원본 페이지 이미지를 함께 표시)
- *   - onChange(editedDocuments): 사용자가 수정하거나 줄을 확인할 때마다 전체 DocumentModel[] 복사본으로 호출
- *   - blockId와 bbox는 절대 변경하지 않는다(PDF 마스킹 위치가 의존).
- *   - 사용자가 확인(Confirm)한 줄은 confidence를 1로 설정한다.
+ *   - documents: DocumentModel[] (??/?? ??)
+ *   - files: ?? File[] (??? ?? ?? PDF? ??? ?? ?? ??? ???? ?? ??)
+ *   - onChange(editedDocuments): ???? ????? ?? ??? ??? ?? DocumentModel[] ????? ??
+ *   - blockId? bbox? ?? ???? ???(PDF ??? ??? ??).
+ *   - ???? ??(Confirm)? ?? confidence? 1? ????.
  *
- * 보안 규칙: 서류 텍스트는 innerHTML에 넣지 않고 textContent / textarea.value만 사용한다(XSS 방지).
- *            개인정보를 콘솔 로그나 오류 메시지에 남기지 않는다.
+ * ?? ??: ?? ???? innerHTML? ?? ?? textContent / textarea.value? ????(XSS ??).
+ *            ????? ?? ??? ?? ???? ??? ???.
  */
 
 import './ocr-editor.css';
@@ -19,25 +19,91 @@ import { el, button, card } from '../../app/ui.js';
 import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { renderPdfToImages } from './pdf-reader.js';
 
-/** 숫자 포함 줄의 주의 기준 신뢰도 (PART 1 기준과 동일) */
+/** ?? ?? ?? ?? ?? ??? (PART 1 ??? ??) */
 export const OCR_REVIEW_DIGIT_THRESHOLD = 0.8;
-/** 일반 줄의 주의 기준 신뢰도 */
+/** ?? ?? ?? ?? ??? */
 export const OCR_REVIEW_TEXT_THRESHOLD = 0.75;
 
 const DOC_LABELS = {
-  [DOCUMENT_TYPE.REGISTRY]: 'Property register (등기부등본)',
-  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract (임대차계약서)',
+  [DOCUMENT_TYPE.REGISTRY]: 'Property register (?????)',
+  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract (??????)',
   [DOCUMENT_TYPE.UNKNOWN]: 'Scanned document',
 };
 
 /**
- * 블록이 사용자 확인이 필요한 낮은 신뢰도인지 판정한다.
- * @param {{ text: string, confidence?: number | null }} block
+ * ??/?? ???? ?? ??("Confirm this page")?? ???? ? ?? ?? ????? ??? ????.
+ * @param {string} text
  * @returns {boolean}
  */
-export function isLowConfidenceBlock(block) {
+function isCriticalPartyOrNameLine(text) {
+  return new RegExp("(임대사업자|임차인|개업공인|소속공인중개사|대표자|성명|소유자|공유자|예금주|채무자|근저당권자|서명|날인)").test(text);
+}
+
+/**
+ * ??/?? ???? OCR ???? ???? ??? ??? ??? ??? ?? ?? ????.
+ * - ?????? 1?? "1. ?? ???" ~ "?" ?? ?? ?? ?? ?
+ * - ?????????? ???/??/??, ???/??, ??/?? ??? ? ? ? ???(|, ?) ??? ?
+ * @param {import('../../shared/document-model.js').DocumentModel[]} docs
+ * @returns {WeakSet<object>}
+ */
+function collectCriticalBlocks(docs) {
+  const criticalSet = new WeakSet();
+  const reStart = new RegExp("1\\.\\s*계약\\s*당사자|계약\\s*당사자");
+  const reEnd = new RegExp("^[◈◆◇]|해당\\s*주택은");
+  const reAddrKw = new RegExp("(\\[집합건물\\]|고유번호|주택\\s*소재지|소재지번|도로명주소|건물번호|주소)");
+  const reAddrNum = new RegExp("\\d+\\s*-\\s*\\d+|\\d+\\s*호|제\\s*\\d+\\s*층");
+  const reAddrSuf = new RegExp("(시|구|동|로|길|호|층|번지|가상)");
+  const reMoneyRight = new RegExp("(임대보증금|월임대료|계약금|잔\\s*금|계좌번호|선순위|근저당|채권최고액|갑\\s*구|을\\s*구|지분)");
+  const rePipe = new RegExp("[|⎸│]");
+
+  for (const doc of docs) {
+    if (!doc || doc.sourceType === 'text_pdf') continue;
+
+    for (const page of doc.pages ?? []) {
+      let inLeasePartySection = false;
+
+      for (const block of page.blocks ?? []) {
+        const text = String(block.text || '').trim();
+        if (!text) continue;
+
+        if (reStart.test(text)) {
+          inLeasePartySection = true;
+        } else if (reEnd.test(text)) {
+          inLeasePartySection = false;
+        }
+
+        const isKeyAddressOrPropertyLine =
+          reAddrKw.test(text) || (reAddrNum.test(text) && reAddrSuf.test(text));
+        const isKeyMoneyOrRightLine = reMoneyRight.test(text);
+        const hasTablePipeArtifact = rePipe.test(text);
+
+        if (
+          inLeasePartySection ||
+          isCriticalPartyOrNameLine(text) ||
+          isKeyAddressOrPropertyLine ||
+          isKeyMoneyOrRightLine ||
+          hasTablePipeArtifact
+        ) {
+          criticalSet.add(block);
+        }
+      }
+    }
+  }
+
+  return criticalSet;
+}
+
+/**
+ * ??? ??? ??? ??? ?? ???(?? ?? ?? ??)?? ????.
+ * @param {{ text: string, confidence?: number | null, confirmed?: boolean }} block
+ * @param {{ forceReview?: boolean }} [options]
+ * @returns {boolean}
+ */
+export function isLowConfidenceBlock(block, options = {}) {
   if (block?.confirmed === true) return false;
   if (typeof block.confidence !== 'number') return false;
+  if (block.confidence === 1) return false;
+  if (options.forceReview) return true;
   const threshold = /\d/.test(block.text)
     ? OCR_REVIEW_DIGIT_THRESHOLD
     : OCR_REVIEW_TEXT_THRESHOLD;
@@ -45,7 +111,7 @@ export function isLowConfidenceBlock(block) {
 }
 
 /**
- * textarea 높이를 내용 줄 수에 맞게 자동으로 조절한다.
+ * textarea ??? ?? ? ?? ?? ???? ????.
  * @param {HTMLTextAreaElement} textarea
  */
 function autoResizeTextarea(textarea) {
@@ -57,7 +123,7 @@ function autoResizeTextarea(textarea) {
 }
 
 /**
- * OCR 결과 확인 및 수정 UI를 렌더링한다.
+ * OCR ?? ?? ? ?? UI? ?????.
  *
  * @param {{
  *   documents?: import('../../shared/document-model.js').DocumentModel[],
@@ -72,6 +138,10 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
   const draftDocs = structuredClone(sourceDocs);
   /** @type {import('../../shared/document-model.js').DocumentModel[]} */
   const originalDocs = structuredClone(sourceDocs);
+  const criticalBlocks = collectCriticalBlocks(draftDocs);
+
+  const isBlockFlagged = (block) =>
+    isLowConfidenceBlock(block, { forceReview: criticalBlocks.has(block) });
 
   const emitChange = () => {
     if (typeof onChange === 'function') {
@@ -85,7 +155,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
     for (const page of doc.pages ?? []) {
       for (const block of page.blocks ?? []) {
         totalBlocks += 1;
-        if (isLowConfidenceBlock(block)) flaggedCount += 1;
+        if (isBlockFlagged(block)) flaggedCount += 1;
       }
     }
   }
@@ -112,7 +182,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
     for (const doc of draftDocs) {
       for (const page of doc.pages ?? []) {
         for (const block of page.blocks ?? []) {
-          if (isLowConfidenceBlock(block)) remaining += 1;
+          if (isBlockFlagged(block)) remaining += 1;
         }
       }
     }
@@ -220,15 +290,20 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
       /** @type {Array<() => void>} */
       const rowRefreshers = [];
 
+      const isBatchConfirmableBlock = (b) =>
+        isBlockFlagged(b) &&
+        !/\d/.test(b.text) &&
+        !isCriticalPartyOrNameLine(b.text);
+
       const hasUnconfirmedTextBlocks = () =>
-        (page.blocks ?? []).some((b) => isLowConfidenceBlock(b) && !/\d/.test(b.text));
+        (page.blocks ?? []).some(isBatchConfirmableBlock);
 
       const confirmPageBtn = button(
         'Confirm this page',
         () => {
           let changed = false;
           (page.blocks ?? []).forEach((b) => {
-            if (isLowConfidenceBlock(b) && !/\d/.test(b.text)) {
+            if (isBatchConfirmableBlock(b)) {
               b.confirmed = true;
               changed = true;
             }
@@ -248,17 +323,20 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
       };
       refreshPageConfirmBtn();
 
-      (page.blocks ?? []).forEach((block, blockIdx) => {
+      const renderBlockRow = (block, blockIdx) => {
         const origBlock = originalDocs[docIdx]?.pages?.[pageIdx]?.blocks?.[blockIdx];
         const origText = origBlock?.text ?? block.text;
         const origConfidence = origBlock?.confidence ?? block.confidence;
         const origConfirmed = Boolean(origBlock?.confirmed);
+        const isCriticalField = criticalBlocks.has(block);
         const inputId = `ocr-${doc.documentId}-p${page.pageIndex}-${block.blockId}`;
 
         const rowContainer = el('div', { class: 'ocr-block' });
         const statusBadge = el('span', { class: 'ocr-badge' }, []);
         const digitHint = el('p', { class: 'ocr-digit-hint' }, [
-          'Fix any wrong characters (like ^ or extra spaces) before confirming.',
+          isCriticalField
+            ? 'Key field (address, party name, or number) ? verify carefully against the image.'
+            : 'Fix any wrong characters (like ^ or extra spaces) before confirming.',
         ]);
 
         const textarea = /** @type {HTMLTextAreaElement} */ (
@@ -306,7 +384,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         resetBtn.classList.add('ocr-reset-btn');
 
         const refreshRowState = () => {
-          const needsCheck = isLowConfidenceBlock(block);
+          const needsCheck = isBlockFlagged(block);
           const hasDigits = /\d/.test(block.text);
           const isConfirmed =
             (block.confidence === 1 && origConfidence !== 1) ||
@@ -318,11 +396,13 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
           rowContainer.className = needsCheck ? 'ocr-block ocr-block-warn' : 'ocr-block';
           textarea.className = needsCheck ? 'ocr-input ocr-input-warn' : 'ocr-input';
-          digitHint.hidden = !(needsCheck && hasDigits);
+          digitHint.hidden = !(needsCheck && (hasDigits || isCriticalField));
 
           if (needsCheck) {
             statusBadge.className = 'ocr-badge ocr-badge-warn';
-            statusBadge.textContent = `Check carefully (${confPercent})`;
+            statusBadge.textContent = isCriticalField
+              ? `Check key field (${confPercent})`
+              : `Check carefully (${confPercent})`;
           } else if (isConfirmed) {
             statusBadge.className = 'ocr-badge ocr-badge-ok';
             statusBadge.textContent = 'Confirmed (100%)';
@@ -351,7 +431,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             textarea.value = sanitized;
           }
           block.text = sanitized;
-          // 사용자가 직접 텍스트를 고치면 확인 완료(confidence = 1)로 표시
+          // ???? ?? ???? ??? ?? ??(confidence = 1)? ??
           block.confidence = 1;
           autoResizeTextarea(textarea);
           refreshRowState();
@@ -378,7 +458,35 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
         rowContainer.append(rowHeader, digitHint, rowControls);
         blocksList.append(rowContainer);
+      };
+
+      (page.blocks ?? []).forEach((block, blockIdx) => {
+        renderBlockRow(block, blockIdx);
       });
+
+      const addLineBtn = button(
+        '+ Add missing line',
+        () => {
+          page.blocks = page.blocks ?? [];
+          const newIdx = page.blocks.length;
+          const prevBlock = page.blocks[newIdx - 1];
+          const nextY = prevBlock
+            ? Math.min(0.96, Number((prevBlock.bbox.y + prevBlock.bbox.height + 0.005).toFixed(4)))
+            : 0.1;
+          const newBlock = {
+            blockId: `p${page.pageIndex}_b${newIdx}_added`,
+            text: '',
+            bbox: { x: 0.05, y: nextY, width: 0.9, height: 0.025 },
+            confidence: 1,
+          };
+          page.blocks.push(newBlock);
+          renderBlockRow(newBlock, newIdx);
+          updateSummaryChip();
+          emitChange();
+        },
+        { variant: 'secondary' }
+      );
+      addLineBtn.classList.add('ocr-add-line-btn');
 
       const pageTitle =
         (doc.pages ?? []).length > 1
@@ -390,6 +498,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         el('div', { class: 'ocr-page' }, [
           pageHeader,
           blocksList,
+          addLineBtn,
         ])
       );
     });

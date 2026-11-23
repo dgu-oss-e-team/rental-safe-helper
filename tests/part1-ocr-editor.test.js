@@ -375,4 +375,65 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     expect(confirmPageBtn.hidden).toBe(true);
     expect(editor.querySelectorAll('.ocr-block-warn')).toHaveLength(2);
   });
+
+  it('always flags critical lease party/address/agent lines even at high confidence and supports "+ Add missing line"', () => {
+    const onChange = vi.fn();
+    const doc = {
+      documentId: 'doc-lease-photo-1',
+      documentType: DOCUMENT_TYPE.UNKNOWN,
+      sourceType: SOURCE_TYPE.IMAGE,
+      pages: [
+        {
+          pageIndex: 0,
+          width: 1000,
+          height: 1414,
+          blocks: [
+            {
+              blockId: 'p0_b0',
+              text: "1. 계약 당사자",
+              bbox: { x: 0.1, y: 0.15, width: 0.3, height: 0.02 },
+              confidence: 0.96,
+            },
+            {
+              blockId: 'p0_b1',
+              text: "임대사업자 성명(법인명) 전우치 (서명 또는 인)",
+              bbox: { x: 0.1, y: 0.18, width: 0.8, height: 0.02 },
+              confidence: 0.94,
+            },
+            {
+              blockId: 'p0_b2',
+              text: "개업공인 ⎸ 김삿갓 ⎸ GLEE]",
+              bbox: { x: 0.1, y: 0.25, width: 0.8, height: 0.02 },
+              confidence: 0.79,
+            },
+            {
+              blockId: 'p0_b3',
+              text: "◈ 해당 주택은 민간임대주택에 관한 특별법에 따라 등록한 주택입니다.",
+              bbox: { x: 0.1, y: 0.32, width: 0.8, height: 0.02 },
+              confidence: 0.92,
+            },
+            {
+              blockId: 'p0_b4',
+              text: "서울특별시 동대문구 가상동 210-5 가상스테이 제2층 제208호",
+              bbox: { x: 0.1, y: 0.4, width: 0.8, height: 0.02 },
+              confidence: 0.91,
+            },
+          ],
+        },
+      ],
+    };
+
+    const editor = renderOcrEditor({ documents: [doc], onChange });
+    const warnRows = editor.querySelectorAll('.ocr-block-warn');
+    expect(warnRows).toHaveLength(4);
+
+    const addBtn = editor.querySelectorAll('button').find((b) => b.classList.contains('ocr-add-line-btn'));
+    expect(addBtn).toBeDefined();
+    addBtn.click();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0];
+    expect(updated[0].pages[0].blocks).toHaveLength(6);
+    expect(updated[0].pages[0].blocks[5].blockId).toContain('_added');
+  });
 });
