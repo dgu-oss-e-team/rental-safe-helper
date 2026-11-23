@@ -6,10 +6,12 @@
  * - 합친 PDF는 "그림만 있는 PDF" 흐름(쪽마다 그림 → OCR)을 그대로 탄다. PART 1 코드·DocumentModel은 그대로다.
  * - 모두 브라우저 안에서 한다. 사진은 어디에도 보내지 않는다.
  * - 사진을 다시 그려서 넣으므로 사진의 위치(GPS)·기기 정보(EXIF)는 PDF에 들어가지 않는다.
+ * - 다시 그릴 때 종이만 잘라내고 그림자를 지운다 (photo-enhance.js, #272). 사진 1장도 같은 방법으로 처리한다.
  *
  * 칸에 담기는 값: PDF 한 개(File) 또는 사진 목록(File[], 1장 이상) 또는 null
  */
 
+import { enhancePhoto } from './photo-enhance.js';
 
 /** 서류 하나에 올릴 수 있는 사진 수 (등기부·계약서는 보통 10쪽 이하) */
 export const MAX_PHOTOS = 10;
@@ -116,21 +118,14 @@ export async function buildPhotoPdf(pages) {
  * - 휴대폰 사진의 회전 정보(EXIF)를 반영해서 바로 세운다 (createImageBitmap이 회전을 적용한다)
  * - 가장 긴 변을 MAX_PHOTO_PIXELS 이하로 줄인다
  * - JPEG로 다시 만들어서 사진의 위치·기기 정보가 남지 않는다
+ * - 종이만 잘라내고 그림자를 지운 회색조로 만든다 (#272, OCR 정확도)
  * @param {File} file
  * @returns {Promise<{ bytes: Uint8Array, format: 'jpg', width: number, height: number }>}
  */
 async function redrawPhoto(file) {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const ratio = Math.min(1, MAX_PHOTO_PIXELS / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * ratio));
-  const height = Math.max(1, Math.round(bitmap.height * ratio));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(bitmap, 0, 0, width, height);
+  const canvas = enhancePhoto(bitmap, MAX_PHOTO_PIXELS);
+  const { width, height } = canvas;
   bitmap.close?.();
   const blob = await new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PHOTO_ENCODE_FAILED'))), 'image/jpeg', 0.92),
@@ -141,7 +136,7 @@ async function redrawPhoto(file) {
 }
 
 /**
- * 사진 여러 장을 PDF 파일 하나로 합친다 (브라우저 전용)
+ * 사진(1장 이상)을 PDF 파일 하나로 합친다 (브라우저 전용)
  * @param {File[]} photos
  * @param {string} name  PDF 파일 이름 (개인정보 없는 이름)
  * @returns {Promise<File>}
@@ -157,7 +152,7 @@ export async function photosToPdfFile(photos, name) {
 
 /**
  * 칸 값을 분석에 넘길 파일 하나로 바꾼다
- * - PDF·null은 그대로, 사진 1장은 그 사진 그대로(지금까지와 같음), 사진 여러 장은 PDF 하나로 합친다
+ * - PDF·null은 그대로, 사진은 1장이어도 보정해서 PDF 하나로 만든다 (#272: 1장과 여러 장을 같은 방법으로, #269 리뷰)
  * @param {SlotValue} value
  * @param {string} name  합친 PDF 이름
  * @param {(photos: File[], name: string) => Promise<File>} [toPdf]  테스트에서 바꿔 끼운다
@@ -166,6 +161,6 @@ export async function photosToPdfFile(photos, name) {
 export async function slotToFile(value, name, toPdf = photosToPdfFile) {
   if (!value) return null;
   if (!Array.isArray(value)) return value;
-  if (value.length === 1) return value[0];
+  if (value.length === 0) return null;
   return toPdf(value, name);
 }

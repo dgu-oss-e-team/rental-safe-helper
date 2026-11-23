@@ -244,9 +244,9 @@ const act = {
   },
   async analyze() {
     const chosen = appState.getState().files;
-    // 사진 여러 장은 칸마다 PDF 하나로 합친다 (#268). 브라우저 안에서만 한다.
-    const manyPhotos = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 1);
-    if (manyPhotos) appState.setState({ busy: 'Preparing your photos…', error: null, uploadNotice: null });
+    // 사진은 칸마다 보정해서 PDF 하나로 만든다 (#268, #272). 브라우저 안에서만 한다.
+    const hasPhotos = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
+    if (hasPhotos) appState.setState({ busy: 'Preparing your photos…', error: null, uploadNotice: null });
     /** @type {{ registry: File | null, lease: File | null }} */
     let files;
     try {
