@@ -170,6 +170,7 @@ function findSpans(text, words) {
 function isShortNumberPiece(f) {
   return f.type === PII_TYPE.ADDRESS && /^\d[\d-]*$/.test(f.value) && f.value.replace(/-/g, '').length < 6;
 }
+
 /** 사진 서류에서 바로 옆에 이름이 오는 역할 낱말 (person-labels.json + 줄여 읽힌 "개업공인", 등기부 "채무자" 등) */
 const ROLE_WORDS = [
   ...new Set([
@@ -290,7 +291,6 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
   if (outsideLines.some((line) => findLeftoverNumber(line) !== null)) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a number that looks like personal information is still visible.');
   }
-
   // 사진(OCR) 서류: 역할 낱말 옆 이름, 동 이름이 붙은 호수가 남아 있으면 안 된다 (탐지가 OCR 오독으로 놓친 것)
   const outsideText = outside.join('');
   for (const id of options?.photoDocumentIds ?? []) {
@@ -306,7 +306,6 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
       );
     }
   }
-
   // 사용자가 더 가린 글자도 남아 있으면 안 된다
   for (const a of validAdds(edits)) {
     checked += 1;
