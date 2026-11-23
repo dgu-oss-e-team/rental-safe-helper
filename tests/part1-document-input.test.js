@@ -571,13 +571,13 @@ describe('PART 1 scanned PDF page progress callback', () => {
     vi.spyOn(ocrModule, 'recognizeImageText').mockImplementation(async () => {
       events.push('ocr');
       return {
-        text: '??? ???',
+        text: '임대인 홍길동',
         confidence: 0.92,
         width: 1190,
         height: 1684,
         blocks: [
           {
-            text: '??? ???',
+            text: '임대인 홍길동',
             confidence: 0.94,
             bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
           },
@@ -604,5 +604,36 @@ describe('PART 1 scanned PDF page progress callback', () => {
       'page:2/3',
       'ocr',
     ]);
+  });
+
+  it('continues OCR if options.onPage throws', async () => {
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595, 842]);
+    const pdfBytes = await pdfDoc.save();
+    const file = new File([pdfBytes], 'scanned-lease.pdf', { type: 'application/pdf' });
+
+    vi.spyOn(pdfReader, 'renderPdfToImages').mockResolvedValue([
+      { pageIndex: 0, buffer: new Uint8Array([1, 2, 3, 4]).buffer, width: 1190, height: 1684 },
+    ]);
+    vi.spyOn(ocrModule, 'recognizeImageText').mockResolvedValue({
+      text: '임대인 홍길동',
+      confidence: 0.92,
+      width: 1190,
+      height: 1684,
+      blocks: [
+        {
+          text: '임대인 홍길동',
+          confidence: 0.94,
+          bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
+        },
+      ],
+    });
+
+    const r = await readDocument(file, {
+      onPage: () => {
+        throw new Error('progress UI failed');
+      },
+    });
+    expect(r.ok).toBe(true);
   });
 });
