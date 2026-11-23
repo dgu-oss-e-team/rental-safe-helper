@@ -50,7 +50,10 @@ import {
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
-/** @typedef {{ findingId: string, name: string, birthDate: string | null, role: string | null }} Person */
+/**
+ * confidence: 이름이 있는 줄의 OCR 신뢰도(0~1). 글자 PDF는 null. (#277 후속)
+ * @typedef {{ findingId: string, name: string, birthDate: string | null, role: string | null, confidence: number | null }} Person
+ */
 
 /**
  * 판별 키워드 (TODO(PART 2): src/config/templates/*.yaml로 옮기기)
@@ -503,7 +506,7 @@ export function detectPII(document) {
 }
 
 /**
- * 문서 안의 사람 목록을 만든다. (INTERFACES.md 5번 형식: findingId, name, birthDate, role)
+ * 문서 안의 사람 목록을 만든다. (INTERFACES.md 5번 형식: findingId, name, birthDate, role, confidence)
  * 같은 문서에서 역할과 이름이 같으면 같은 사람이므로, 한쪽에만 있는 생년월일을 다른 쪽에도 채운다.
  * 예: 위쪽 "임대인 김철수 750315-1******"과 서명란 "임대인 김철수" → 둘 다 750315
  * @param {any[]} hits scanDocument() 결과
@@ -512,7 +515,14 @@ export function detectPII(document) {
 function collectPeople(hits, rejectedIds) {
   const people = hits
     .filter((h) => h.type === PII_TYPE.PERSON_NAME && !rejectedIds.has(h.id))
-    .map((h) => ({ findingId: h.id, name: h.value, birthDate: h.birthDate ?? null, role: h.role }));
+    .map((h) => ({
+      findingId: h.id,
+      name: h.value,
+      birthDate: h.birthDate ?? null,
+      role: h.role,
+      // 이름이 있는 줄의 OCR 신뢰도 (0~1). 글자 PDF는 null. PART 3이 흐리게 읽힌 이름이면 STOP 대신 확인 불가로 본다 (#277)
+      confidence: typeof h.block?.confidence === 'number' ? h.block.confidence : null,
+    }));
 
   /** @param {{ role: string | null, name: string }} p */
   const key = (p) => `${p.role}|${p.name.replace(/\s/g, '').toUpperCase()}`;
