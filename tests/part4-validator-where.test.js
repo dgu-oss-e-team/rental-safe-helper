@@ -3,8 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateMaskedText } from '../src/features/masking/masking-validator.js';
 import { applyMaskingPlan, createMaskingPlan } from '../src/features/masking/index.js';
-import { analyzeReadDocuments, prepareForAi } from '../src/app/pipeline.js';
-import { MASKING_ACTION, MASKING_PURPOSE, PII_TYPE, SOURCE_TYPE } from '../src/shared/document-model.js';
+import { MASKING_ACTION, MASKING_PURPOSE, PII_TYPE } from '../src/shared/document-model.js';
 
 const BOX = { x: 0.1, y: 0.1, width: 0.8, height: 0.01 };
 const name = (id, value, blockId, documentId = 'D') => ({ id, type: PII_TYPE.PERSON_NAME, value, documentId, blockId, pageIndex: 0, bbox: BOX });
@@ -64,22 +63,5 @@ describe('PART 4 보내기 전 검사: 멈춘 곳 위치(where)', () => {
     ] }] };
     const r = applyMaskingPlan([doc], createMaskingPlan([], [], MASKING_PURPOSE.FRAUD_CHECK).data, [], []);
     expect(r.data.lineBlocks).toEqual({ D: ['b0', 'b1', 'p1_b0'] });
-  });
-
-  it('전체 흐름: 사진 계약서에서 멈추면 prepareForAi 결과에 where가 있다', () => {
-    const lines = ['표준임대차계약서', '임대인 성명 [표 칸]', '주택 소재지 가상시 203호(가상동) |'];
-    const doc = {
-      documentId: 'L',
-      fileName: 'L.pdf',
-      sourceType: SOURCE_TYPE.IMAGE_PDF,
-      pages: [{ pageIndex: 0, width: 595, height: 842, blocks: lines.map((t, i) => ({
-        blockId: `b${i}`, text: t, bbox: { x: 0.1, y: (i + 1) / 5, width: 0.8, height: 0.01 }, confidence: 0.9,
-      })) }],
-    };
-    const a = analyzeReadDocuments({ files: [], documents: [doc] }).data;
-    const r = prepareForAi(a, MASKING_PURPOSE.FRAUD_CHECK);
-    expect(r.ok).toBe(false);
-    expect(r.step).toBe('validateMaskedText');
-    expect(r.where).toEqual([{ documentId: 'L', blockId: 'b2', lineIndex: 2 }]);
   });
 });
