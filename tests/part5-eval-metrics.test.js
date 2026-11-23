@@ -5,6 +5,7 @@ import {
   compact,
   secretsOf,
   isVisible,
+  isNearlyVisible,
   isFalsePositive,
   longestCommon,
   countByType,
@@ -13,6 +14,36 @@ import {
   checkTruthDoc,
 } from './eval/metrics.js';
 import { PII_TYPE } from '../src/shared/document-model.js';
+
+describe('PART 5 평가 지표: 사진(OCR)에서 비슷하게 남은 값', () => {
+  const phone = { type: 'PHONE_NUMBER', value: '010-1234-5678' };
+  it('한두 글자를 잘못 읽어도 대부분 이어서 남으면 비슷하게 남은 것으로 본다', () => {
+    expect(isVisible(phone, '연락처 010-1234-56l8')).toBe(false);
+    expect(isNearlyVisible(phone, '연락처 010-1234-56l8')).toBe(true);
+  });
+  it('가려졌거나 조금만 겹치면 아니다', () => {
+    expect(isNearlyVisible(phone, '연락처 [PHONE_1]')).toBe(false);
+    expect(isNearlyVisible(phone, '010-9')).toBe(false);
+  });
+  it('짧은 이름은 3글자가 이어서 같아야 한다', () => {
+    const name = { type: 'PERSON_NAME', value: '홍길동' };
+    expect(isNearlyVisible(name, '임대인 홍길둥')).toBe(false);
+    expect(isNearlyVisible(name, '임대인 홍길동')).toBe(true);
+  });
+});
+
+describe('PART 5 사진 평가 세트 (tests/eval/photo-set.json)', () => {
+  const photoSet = JSON.parse(readFileSync(new URL('./eval/photo-set.json', import.meta.url), 'utf8'));
+  it('서류마다 정답표와 OCR 결과가 있고, OCR 결과는 사진으로 읽은 DocumentModel이다', () => {
+    for (const d of photoSet.documents) {
+      expect(() => readFileSync(new URL(`./eval/truth/${d.document}.json`, import.meta.url)), d.document).not.toThrow();
+      const model = JSON.parse(readFileSync(new URL(`../${d.ocr}`, import.meta.url), 'utf8'));
+      expect(model.sourceType, d.document).toBe('image_pdf');
+      expect(model.pages.length, d.document).toBe(d.files.length);
+    }
+    for (const pair of photoSet.pairs) for (const n of pair.documents) expect(photoSet.documents.some((d) => d.document === n)).toBe(true);
+  });
+});
 
 describe('PART 5 평가 지표: 정답 값이 글에 보이는지 (#251)', () => {
   it('띄어쓰기·줄바꿈을 무시하고 찾는다', () => {
