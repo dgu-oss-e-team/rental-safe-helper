@@ -15,7 +15,7 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 npm run eval        # 평가 세트로 4가지 지표를 계산해 docs/EVALUATION.md를 새로 쓴다
 ```
 
-- 평가 세트: 실제 서식과 쪽 구성·글꼴이 같은 가짜 서류 7건(가짜세트 1·2·3, `tests/eval/docs/set*.pdf`, #300)과
+- 평가 세트: 실제 서식과 쪽 구성·글꼴이 같은 가짜 서류 9건(가짜세트 1·2·3·4, `tests/eval/docs/set*.pdf`, #300)과
   서류마다 정답표 `tests/eval/truth/<서류>.json`, 함께 올리는 묶음 `tests/eval/set.json`
   - 원본 HTML은 `scripts/sample-docs/eval/`, PDF는 `node scripts/make-sample-pdfs.mjs "<Chrome 경로>" --eval`로 다시 만든다
     (실제 서류처럼 Windows 글꼴을 쓰므로 Windows에서 만든다. 특약 별지는 계약서 뒤에 붙여 한 PDF로)

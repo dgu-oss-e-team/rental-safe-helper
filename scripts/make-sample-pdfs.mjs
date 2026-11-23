@@ -10,8 +10,8 @@
 // --individual: tests/fixtures/form-individual-registry.pdf, form-individual-lease.pdf, form-individual-lease-risky.pdf (평가 세트, #251)
 //   실제 열람본(3쪽)·민간임대 표준계약서(6쪽)의 쪽 구성 그대로인 가짜 한 쌍 + 같은 집의 위험 판정용 계약서.
 // 한글 글꼴(Noto Sans KR, OFL)을 Google Fonts에서 받으므로 인터넷 연결이 필요하다.
-// --eval: tests/eval/docs/set1~3-*.pdf (평가 세트, #300). 원본은 scripts/sample-docs/eval/
-//   실제 서식(인터넷등기소 열람본 3쪽, 민간임대 표준계약서 HWP 6쪽)과 쪽 구성·줄 바꿈·글꼴이 같은 가짜 서류 3세트.
+// --eval: tests/eval/docs/set1~4-*.pdf (평가 세트, #300). 원본은 scripts/sample-docs/eval/
+//   실제 서식(인터넷등기소 열람본 3쪽, 민간임대 표준계약서 HWP 6쪽)과 쪽 구성·줄 바꿈·글꼴이 같은 가짜 서류 4세트.
 //   글꼴은 실제 서류처럼 Windows 글꼴(등기부 바탕체, 계약서 돋움체·맑은 고딕)을 쓴다 → Windows에서 만든다.
 //   (세 글꼴 모두 임베딩 허용 "Editable"이라 PDF에 넣어 공개해도 된다)
 //   특약 별지(*-terms.html)는 계약서 6쪽 뒤에 붙여 계약서 PDF 하나(7쪽)로 만든다.
@@ -42,6 +42,8 @@ const EVAL_DOCS = {
   'set2-lease': ['set2-lease', 'set2-lease-terms'],
   'set3-registry': ['set3-registry'],
   'set3-lease': ['set3-lease', 'set3-lease-terms'],
+  'set4-registry': ['set4-registry'],
+  'set4-lease': ['set4-lease', 'set4-lease-terms'],
 };
 const outDir = evalSet
   ? join(root, 'tests', 'eval', 'docs')

@@ -1,0 +1,282 @@
+<!doctype html>
+<!--
+  가상 표준임대차계약서 (민간임대주택에 관한 특별법 시행규칙 [별지 제24호서식]) - 테스트·시연용 가짜 문서다.
+  한글(HWP)로 작성한 실제 서식 PDF의 쪽 구성·줄 바꿈·표 모양을 따라 다시 만들었다. 조항 문구는 법령 서식 그대로다.
+  이름·생년월일·주소·번호·계좌·전화·중개사무소는 모두 지어낸 값이다. 실제 서류에서 가져온 값은 없다.
+  시나리오(가짜세트4): 개업공인중개사(가상공인중개사사무소, 대표 김삿갓, 소속공인중개사 임꺽정)가 작성한 계약.
+           임대사업자는 공유자 두 사람 중 전우치 한 사람이다 (다른 공유자 황진이은 계약서에 없음).
+           외국인 유학생 SATO YUKI에게 보증부 월세로 임대. 보증금 3,000만 원 / 월 55만 원, 예금주 전우치.
+           근저당(채권최고액 9,600만 원)을 계약서에 적었고, 특약 별지에 "중개보수 임차인 전액 부담"이 있다.
+  짝 등기부: set4-registry.html (같은 집: 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호)
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>가짜 표준임대차계약서 (가짜세트4) (가짜세트2)</title>
+<style>
+  /* 실제 서식(한글)처럼 돋움 계열 한 글꼴. 굵은 글씨는 굵은 글꼴이 있는 맑은 고딕으로 (돋움을 굵게 하면 Chrome이 글자를 따로 찍을 수 있다) */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Dotum', '돋움', sans-serif; font-size: 10pt; color: #000; letter-spacing: -0.35pt; }
+  b, .b { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-weight: 700; letter-spacing: -0.4pt; line-height: 0; }
+  /* 맑은 고딕은 돋움보다 키가 커서 줄 높이를 늘리지 않게 line-height: 0 */
+  .page { position: relative; width: 210mm; height: 297mm; padding: 15mm 20mm 14mm 21.5mm; break-after: page; overflow: hidden; }
+  .page:last-child { break-after: auto; }
+  .pg { text-align: right; font-size: 8pt; margin: 0 0 1pt; padding-bottom: 1pt; border-bottom: 0.6pt solid #000; }
+  .pg.nobar { border-bottom: 0; }
+  .foot { position: absolute; left: 22.5mm; right: 21mm; bottom: 12mm; border-top: 1.2pt solid #000; text-align: right; font-size: 7.5pt; padding-top: 1pt; }
+  p { margin: 0; }
+  /* 줄은 실제 서식과 같은 곳에서 끊는다 (<br>). hN: 첫 줄 들여쓰기, 다음 줄 들여쓰기 (pt) */
+  .l { line-height: 14.6pt; }
+  /* 줄은 실제 서식처럼 <br>로만 나눈다 (돋움이 조금 넓어서 저절로 한 번 더 꺾이지 않게) */
+  .p3 .l, .p4 .l, .p5 .l, .p6 .l, .box p, .note p { white-space: nowrap; }
+  .p3, .p4, .p5, .p6 { letter-spacing: -0.5pt; }
+  .p4 .l, .p5 .l, .p6 .l { line-height: 16pt; }
+  .a { padding-left: 20pt; text-indent: -10pt; }      /* 제N조: 74 → 84 */
+  .a0 { padding-left: 20pt; text-indent: 0; }           /* ②③: 84 */
+  .n { padding-left: 33pt; text-indent: -13pt; }        /* 1. : 84 → 97 */
+  .g { padding-left: 49pt; text-indent: -19pt; }        /* 가. : 94 → 113 */
+  .s { padding-left: 55pt; text-indent: -14pt; }        /* 1) : 105 → 119 */
+  h1 { text-align: center; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-weight: 700; font-size: 17pt; letter-spacing: 1pt; margin: 6pt 0 3pt; }
+  .top { font-size: 9pt; margin-bottom: 8pt; }
+  .top .rev { color: #2b47a6; }
+  h2 { font-size: 10pt; margin: 6pt 0 2pt; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td, th { border: 0.6pt solid #000; padding: 2pt 4pt; font-weight: 400; vertical-align: middle; text-align: center; }
+  .open td:first-child, .open th:first-child { border-left: 0; }
+  .open td:last-child, .open th:last-child { border-right: 0; }
+  .open tr:first-child > * { border-top: 1.2pt solid #000; }
+  .open tr:last-child > * { border-bottom: 1.2pt solid #000; }
+  .parties td, .parties th { height: 17pt; padding-top: 1pt; padding-bottom: 1pt; }
+  .sign { color: #555; font-size: 8pt; float: right; }
+  .left { text-align: left; }
+  .box { border: 0.8pt solid #000; padding: 4pt 6pt; margin-top: 10pt; }
+  .t2 td, .t2 th { font-size: 9.5pt; padding: 1.2pt 3pt; line-height: 12pt; }
+  .money td, .money th { height: 15.5pt; font-size: 10pt; padding-top: 1pt; padding-bottom: 1pt; }
+  .note { font-size: 8.3pt; line-height: 10.6pt; }
+  .fake { position: absolute; left: 22.5mm; right: 21mm; bottom: 18mm; font-size: 7.5pt; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- 1쪽 -->
+<section class="page p1">
+  <p class="top">■ 민간임대주택에 관한 특별법 시행규칙 [별지 제24호서식] <span class="rev">&lt;개정 2025. 10. 31.&gt;</span></p>
+  <h1>표준임대차계약서</h1>
+  <p class="pg">(6쪽 중 1쪽)</p>
+  <p class="l" style="font-size:10.2pt; line-height:17pt; padding-left:5pt; margin-top:3pt">임대사업자와 임차인은 아래의 같이 임대차계약을 체결하고 이를 증명하기 위해 계약서 2통을 작성하<br>여 임대사업자와 임차인이 각각 서명 또는 날인한 후 각각 1통씩 보관한다.</p>
+  <p class="l" style="font-size:9pt; padding-left:23pt; text-indent:-14pt; margin-top:2pt">※ 개업공인중개사가 임대차계약서를 작성하는 경우에는 계약서 3통을 작성하여 임대사업자, 임차인, 개업공인중<br>개사가 각각 서명 또는 날인한 후 각각 1통씩 보관한다.</p>
+  <p style="text-align:right; font-size:9pt; margin:2pt 12pt 2pt 0">계약일: &nbsp;&nbsp; 2026년 &nbsp;&nbsp; 11월 &nbsp;&nbsp; 22일</p>
+  <h2>1. 계약 당사자</h2>
+  <table class="open parties">
+    <colgroup><col style="width:15%"><col style="width:19%"><col style="width:28%"><col style="width:15%"><col style="width:23%"></colgroup>
+    <tr><th rowspan="4">임대사업자</th><th>성명(법인명)</th><td colspan="3">전우치 <span class="sign">(서명 또는 인)</span></td></tr>
+    <tr><th>주소<br>(대표 사무소 소재지)</th><td colspan="3">서울특별시 성북구 가상로 63, 502호(가상동,가상맨션)</td></tr>
+    <tr><th>주민등록번호<br>(사업자등록번호)</th><td>790318-1538204</td><th>전화번호</th><td>010-8826-1490</td></tr>
+    <tr><th>임대사업자<br>등록번호</th><td colspan="3">2022-서울동대문-00415</td></tr>
+    <tr><th rowspan="3">임차인</th><th>성명(법인명)</th><td colspan="3">SATO YUKI <span class="sign">(서명 또는 인)</span></td></tr>
+    <tr><th>주소</th><td colspan="3">서울특별시 동대문구 가상로 4, 2층 201호(가상동)</td></tr>
+    <tr><th>주민등록번호</th><td>030721-7642915</td><th>전화번호</th><td>010-4570-2268</td></tr>
+  </table>
+  <h2>2. 공인중개사<span style="font-family:'Dotum'; font-weight:400">(개업공인중개사가 계약서를 작성하는 경우 해당)</span></h2>
+  <table class="open parties">
+    <colgroup><col style="width:15%"><col style="width:19%"><col style="width:28%"><col style="width:15%"><col style="width:23%"></colgroup>
+    <tr><th rowspan="4">개업공인<br>중개사</th><th>사무소 명칭</th><td colspan="3">가상공인중개사사무소</td></tr>
+    <tr><th>대표자 성명</th><td colspan="3">김삿갓 <span class="sign">(서명 및 인)</span></td></tr>
+    <tr><th>사무소 소재지</th><td colspan="3">서울특별시 동대문구 가상로 21, 1층(가상동)</td></tr>
+    <tr><th>등록번호</th><td>11230-2020-00187</td><th>전화번호</th><td>02-0000-7319</td></tr>
+    <tr><th colspan="2">소속공인중개사</th><td colspan="3">임꺽정 <span class="sign">(서명 및 인)</span></td></tr>
+  </table>
+  <div class="box l" style="line-height:14.2pt; margin-top:8pt">
+    <p style="padding-left:14pt; text-indent:-12pt">◈ <b>해당 주택은</b> 「민간임대주택에 관한 특별법」(이하 “법”이라 한다)에 따라 <b>임대사업자가 시장</b><br><b>ㆍ군수ㆍ구청장에게 등록한 민간임대주택</b>으로서 <b>다음과 같은 사항이 적용</b>됩니다.</p>
+    <p style="padding-left:6pt">ㅇ <b>임대의무기간 중 민간임대주택 양도 제한</b>(법 제43조)</p>
+    <p style="padding-left:25pt; text-indent:-9pt">- <b>임대사업자는</b> 「민간임대주택에 관한 특별법 시행령」 제34조제1항에 따른 시점부터 법 제2조제4<br>호 또는 제5호<b>에 따른 기간 동안</b> 해당 <b>민간임대주택을 계속 임대해야 하며, 그 기간 동안에는 양</b><br><b>도가 제한</b>됩니다.</p>
+    <p style="padding-left:6pt">ㅇ <b>임대료 증액 제한</b>(법 제44조)</p>
+    <p style="padding-left:25pt; text-indent:-9pt">- <b>임대사업자는</b> 해당 민간임대주택에 대한 임대료의 증액을 청구하는 경우 <b>임대료의 5퍼센트의 범위</b><br><b>에서</b> 주거비 물가지수, 인근 지역의 임대료 변동률, 임대주택 세대수 등을 고려하여 「민간임대<br>주택에 관한 특별법 시행령」 제34조의2에 따른 <b>증액비율을 초과하여 청구할 수 없습니다.</b><br>또한, <b>임대차계약 또는 임대료 증액이 있은 후 1년 이내에는 그 임대료를 증액할 수 없습니다.</b></p>
+    <p style="padding-left:6pt">ㅇ <b>임대차계약의 해제ㆍ해지 등 제한</b>(법 제45조)</p>
+    <p style="padding-left:25pt; text-indent:-9pt">- <b>임대사업자는</b> 임차인이 의무를 위반하거나 임대차를 계속하기 어려운 경우 등의 사유가 발생한<br>때를 제외하고는 임대사업자로 등록되어 있는 기간 동안 임대차계약을 해제 또는 해지하거나<br>재계약을 거절할 수 없습니다.</p>
+    <p style="padding-left:25pt; text-indent:-9pt">- <b>임차인은</b> 시장ㆍ군수ㆍ구청장이 임대주택에 거주하기 곤란한 정도의 중대한 하자가 있다고 인정<br>하는 경우 등에 해당하면 <b>임대의무기간 동안에도 임대차계약을 해제ㆍ해지할 수 있습니다.</b></p>
+  </div>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+<!-- 2쪽 -->
+<section class="page p2">
+  <p class="pg nobar">(6쪽 중 2쪽)</p>
+  <h2 style="margin-top:0">3. 민간임대주택의 표시</h2>
+  <table class="t2 open">
+    <colgroup><col style="width:18.3%"><col style="width:17%"><col style="width:3.2%"><col style="width:11.7%"><col style="width:7.4%"><col style="width:5.3%"><col style="width:14.9%"><col style="width:2.1%"><col style="width:20.1%"></colgroup>
+    <tr><th>주택 소재지</th><td colspan="8" class="left">서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호</td></tr>
+    <tr><th>주택 유형</th><td colspan="8" class="left">아파트[ &nbsp;] &nbsp;연립주택[ &nbsp;] &nbsp;다세대주택[√] &nbsp;다가구주택[ &nbsp;] &nbsp;그 밖의 주택[ &nbsp;]</td></tr>
+    <tr><th rowspan="3">민간임대주택<br>면적(㎡)</th><th colspan="2" rowspan="2">주거전용면적</th><th colspan="5">공용면적</th><th rowspan="2">합계</th></tr>
+    <tr><th colspan="2">주거공용면적</th><th colspan="3" style="font-size:8.5pt; line-height:10pt">그 밖의 공용면적(지하<br>주차장 면적을 포함한다)</th></tr>
+    <tr><td colspan="2" class="left">33.06</td><td colspan="2"></td><td colspan="3"></td><td class="left">33.06</td></tr>
+    <tr><th>민간임대주택의<br>종류</th><td colspan="3" class="left" style="line-height:11.5pt">공공지원[ &nbsp;] (□10년, □8년)<br>장기일반[√] (■10년, □8년)<br>단기 &nbsp;&nbsp;&nbsp;[ &nbsp;] (□ 6년, □4년)<br>그 밖의 유형 [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]</td><td colspan="2" class="left">건설[ &nbsp;]<br>매입[√]</td><th style="line-height:11.5pt">임대의무<br>기간<br>개시일</th><td colspan="2">2022년 &nbsp;7월 &nbsp;1일</td></tr>
+    <tr><th style="line-height:11.5pt">100세대 이상 민간<br>임대주택단지 해당<br>여부</th><td colspan="8" class="left" style="line-height:12pt">예 [ &nbsp;] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;아니오 [√]<br>* 임대료 증액 시「민간임대주택에 관한 특별법 시행령」 제34조의2제1호에 따른<br>&nbsp;&nbsp;기준 적용</td></tr>
+    <tr><th style="line-height:11.5pt">민간임대주택에<br>딸린 부대시설ㆍ<br>복리시설의 종류</th><td colspan="8" class="left">주차장</td></tr>
+    <tr><th style="line-height:11.5pt">선순위 담보권 등<br>권리관계<br>설정 여부</th><td colspan="3" class="left">없음[ &nbsp;]</td><td colspan="5" class="left" style="line-height:11.5pt">있음[√]<br>&nbsp;&nbsp;-선순위 담보권 등 권리관계의 종류: 근저당권<br>&nbsp;&nbsp;-설정금액: 금 96,000,000원<br>&nbsp;&nbsp;-설정일자: 2022년 6월 20일</td></tr>
+    <tr><th>국세ㆍ지방세<br>체납사실</th><td colspan="3" class="left">없음[√]</td><td colspan="5" class="left">있음[ &nbsp;]</td></tr>
+    <tr><th rowspan="4">임대보증금<br>보증 가입 여부</th><td>보증가입 여부</td><td colspan="7">보증대상 금액(또는 미가입 사유)</td></tr>
+    <tr><td class="left">가입 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[√]</td><td colspan="7" class="left">보증대상 금액: 30,000,000원</td></tr>
+    <tr><td class="left">일부가입[ &nbsp;]</td><td colspan="7" class="left">보증대상 금액:</td></tr>
+    <tr><td style="font-size:9pt">미가입(법정사유)<br>[ &nbsp;]</td><td colspan="7" class="left" style="line-height:11.5pt">법에서 정한 미가입사유:<br>□ 가입대상 금액이 0원 이하(법 제49조제3항)<br>□ 임대보증금이 우선변제금 이하(법 제49조제7항제1호)<br>□ 공공주택사업자와 임대차계약 체결(법 제49조제7항제2호)<br>□ 임차인이 전세보증금반환보증에 가입(법 제49조제7항제3호)<br><span class="note" style="line-height:10.5pt; display:inline-block">* 임대보증금에 대한 보증가입은 임대사업자의 법정의무이며, 법에서 정한<br>&nbsp;&nbsp;미가입사유 외에 임대사업자가 임대보증금에 대한 보증에 가입하지 않<br>&nbsp;&nbsp;은 경우 임차인은 계약을 해제 또는 해지할 수 있고 임차인은 그 해제<br>&nbsp;&nbsp;또는 해지로 인해 입은 손해의 배상을 청구할 수 있음</span></td></tr>
+  </table>
+  <div class="note" style="margin-top:2pt">
+    <p>* 주택 면적 산정방법은 「주택법 시행규칙」 제2조,「주택공급에 관한 규칙」 제21조제5항에 따른다.</p>
+    <p style="padding-left:8pt; text-indent:-8pt">* 민간임대주택의 종류 중 그 밖의 유형에는 단기민간임대주택(3ㆍ4ㆍ5년), &nbsp;준공공임대주택(8ㆍ10년), 기업형<br>임대주택 중 하나를 적는다.</p>
+    <p>* 선순위 담보권 등 권리관계는 제한물권, 압류ㆍ가압류ㆍ가처분 등에 관한 사항을 말한다.</p>
+    <p>* 임대보증금 보증가입대상 금액은 법 제49조에 따른다.</p>
+    <p style="padding-left:8pt; text-indent:-8pt">* 보증가입대상의 미가입 사유에는 선순위 담보권 설정금액과 임대보증금을 합한 금액이 주택가격의 100분의 60보<br>다 적은 경우(법 제49조제3항), 가입 면제 대상(법 제49조제7항) 및 가입 거절 등의 사유를 적는다.</p>
+  </div>
+  <h2 style="margin:6pt 0 2pt 4pt">4. 계약조건</h2>
+  <p class="l a" style="line-height:12.5pt"><b>제1조(임대보증금, 월임대료 및 임대차 계약기간)</b> ① 임대사업자는 위 주택의 임대보증금, 월임대료(이<br>하 "임대료"라 한다) 및 임대차 계약기간을 아래와 같이 정하여 임차인에게 임대한다.</p>
+  <table class="money" style="margin:3pt 0 3pt 4pt; width:calc(100% - 4pt)">
+    <colgroup><col style="width:13%"><col style="width:45%"><col style="width:42%"></colgroup>
+    <tr><th>구분</th><th>임대보증금</th><th>월임대료</th></tr>
+    <tr><th>금액</th><td class="left">금 &nbsp;&nbsp;&nbsp;삼천만 &nbsp;&nbsp;&nbsp;&nbsp;원정(₩ 30,000,000 &nbsp;)</td><td class="left">금 &nbsp;&nbsp;&nbsp;&nbsp;오십오만 &nbsp;&nbsp;&nbsp;원정(₩ &nbsp;&nbsp;550,000 &nbsp;)</td></tr>
+    <tr><th>임대차<br>계약기간</th><td colspan="2">2027년 &nbsp;&nbsp;1월 &nbsp;&nbsp;5일 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;∼ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2029년 &nbsp;&nbsp;1월 &nbsp;&nbsp;4일</td></tr>
+  </table>
+  <p class="l" style="padding-left:20pt; line-height:13pt">② 임차인은 제1항의 임대보증금에 대하여 아래와 같이 임대사업자에게 지급하기로 한다.</p>
+  <table class="open money" style="margin-top:3pt">
+    <colgroup><col style="width:14%"><col style="width:35%"><col style="width:13%"><col style="width:16%"><col style="width:9%"><col style="width:13%"></colgroup>
+    <tr><th>계약금</th><td colspan="5" class="left">금 &nbsp;&nbsp;&nbsp;&nbsp;삼백만 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;원정(₩ &nbsp;&nbsp;3,000,000 &nbsp;)은 계약 시에 지급</td></tr>
+    <tr><th>중도금</th><td colspan="5" class="left">금 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;원정(₩ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)은 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;년 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일에 지급</td></tr>
+    <tr><th>잔 &nbsp;&nbsp;금</th><td colspan="5" class="left">금 &nbsp;&nbsp;이천칠백만 &nbsp;&nbsp;원정(₩ 27,000,000 &nbsp;)은 &nbsp;&nbsp;2027년 &nbsp;&nbsp;1월 &nbsp;&nbsp;5일에 지급</td></tr>
+    <tr><th>계좌번호</th><td class="left">3333-07-2981546</td><td>은행</td><td>카카오뱅크</td><td>예금주</td><td>전우치</td></tr>
+  </table>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+<!-- 3쪽 -->
+<section class="page p3">
+  <p class="pg">(6쪽 중 3쪽)</p>
+  <div style="margin-top:4pt">
+  <p class="l a0">③ 임차인은 제1항과 제2항에 따른 임대보증금을 이자 없이 임대사업자에게 예치한다.</p>
+  <p class="l a0">④ 임차인은 제2항의 지급기한까지 임대보증금을 내지 않는 경우에는 연체이율(연 &nbsp;6 %)을 적용하<br>여 계산한 연체료를 더하여 내야 한다. 이 경우 연체이율은 한국은행에서 발표하는 예금은행 주택<br>담보대출의 가중평균금리에 「은행법」에 따른 은행으로서 가계자금 대출시장의 점유율이 최상위<br>인 금융기관의 연체가산율을 합산한 이율을 고려하여 결정한다.</p>
+  <p class="l a0">⑤ 임차인은 당월 분의 월임대료를 매달 말일까지 내야하며, 이를 내지 않을 경우에는 연체된 금액<br>에 제4항에 따른 연체요율을 적용하여 계산한 연체료를 더하여 내야 한다.</p>
+  <p class="l a"><b>제2조(민간임대주택의 입주일)</b> 위 주택의 입주일은 2027년 1월 5일부터 2027년 2월 4일까지로 한다.</p>
+  <p class="l a"><b>제3조(월임대료의 계산)</b> ① 임대기간이 월의 첫날부터 시작되지 않거나 월의 말일에 끝나지 않는 경우에는<br>그 임대기간이 시작되거나 끝나는 월의 임대료는 일할로 산정한다.</p>
+  <p class="l a0">② <b>입주 월의 월임대료는 입주일(제2조에 따른 입주일을 정한 경우 입주일)부터 계산</b>한다. 다만, 입주지<br>정기간이 지나 입주하는 경우에는 입주지정기간이 끝난 날부터 계산한다.</p>
+  <p class="l a"><b>제4조(관리비와 사용료)</b> ① 임차인이 임대주택에 대한 <b>관리비와 사용료를 임대사업자 또는 임대사업자가 지정한</b><br><b>관리주체에게 납부해야 하는 경우에는 특약으로 정하는 기한까지 내야</b>하며, 이를 내지 않을 경우에는 임<br>대사업자는 임차인으로 하여금 연체된 금액에 대해 제1조제4항에 따른 연체요율을 적용하여 계산한 연체료<br>를 더하여 내게 할 수 있다.</p>
+  <p class="l a0">② 임대사업자는 관리비와 사용료를 부과ㆍ징수할 때에는 관리비와 사용료의 부과 명세서를 첨부하여 임차인에<br>게 이를 낼 것을 통지해야 한다. 이 경우 임대사업자는 일반관리비, 청소비, 경비비, 소독비, 승강기 유지비,<br>난방비, 급탕비, 수선유지비, 지능형 홈네트워크 설비 유지비 외의 어떠한 명목으로도 관리비를 부과ㆍ징수할<br>수 없다.</p>
+  <p class="l a"><b>제5조(임대 조건 등의 변경)</b> 임대사업자와 임차인은 다음 각 호의 어느 하나에 해당할 경우에는 임대보증<br>금, 임대료, 관리비, 사용료 등 모든 납부금액을 조정할 수 있다. 다만, <b>임대료의 조정은 법 및 「주택</b><br><b>임대차보호법」을 위반해서는 안 되고,</b> 법 제44조에 따라 <b>임대료 증액청구는 임대료의 5퍼센트의 범위에</b><br><b>서</b> 주거비 물가지수, 인근 지역의 임대료 변동률, 임대주택 세대수 등을 고려하여 「민간임대주택에 관한<br>특별법 시행령」 제34조의2에 따라 정하는 <b>증액비율을 초과하여 청구할 수 없으며, 임대차계약 또는 임대료</b><br><b>증액이 있은 후 1년 이내에는 그 임대료를 증액하지 못한다.</b></p>
+  <p class="l n">1. 물가, 그 밖의 경제적 여건의 변동이 있을 때</p>
+  <p class="l n">2. 임대사업자가 임대하는 주택 상호간 또는 인근 유사지역의 민간임대주택 간에 임대조건의 균형상 조정<br>할 필요가 있을 때</p>
+  <p class="l n">3. 민간임대주택과 부대시설 및 부지의 가격에 현저한 변동이 있을 때</p>
+  <div style="border:0.8pt solid #000; padding:2pt 4pt; margin:3pt 0; line-height:13pt">
+    <p><b>100세대 이상 민간임대주택단지</b>는 <b>임대료 증액</b> 시 직전 임대료의 5퍼센트의 범위에서 다음의 <b>기준</b>을<br>적용 받음(「민간임대주택에 관한 특별법 시행령」 제34조의2제1호)</p>
+    <p style="padding-left:18pt; text-indent:-13pt">1. 「통계법」에 따라 국가데이터처장이 고시하는 지출목적별 소비자물가지수 항목 중 해당 <u>임대주</u><br><u>택이 소재한 특별시, 광역시, 특별자치시, 도 또는 특별자치도의 주택임차료, 주거시설 유지ㆍ보</u><br><u>수 및 기타 주거관련 서비스 지수를 가중 평균한 값의 변동률</u>. 다만, 임대료의 5퍼센트 범위에서<br>시ㆍ군ㆍ자치구의 조례로 해당 시ㆍ군ㆍ자치구에서 적용하는 비율을 정하고 있는 경우에는 그에<br>따름</p>
+    <p style="padding-left:18pt; text-indent:-13pt">2. 구체적인 산정방법은 <b>임대등록시스템(렌트홈, www.renthome.go.kr)</b> “100세대 이상 민간임대주<br>택단지 임대료 증액기준” 참조</p>
+  </div>
+  <p class="l a"><b>제6조(임차인의 금지행위)</b> 임차인은 다음 각 호의 어느 하나에 해당하는 행위를 해서는 안 된다.</p>
+  <p class="l n">1. 임대사업자의 동의 없이 <b>무단으로 임차권을 양도하거나 민간임대주택을 타인에게 전대</b>하는 행위</p>
+  <p class="l n">2. 민간임대주택 및 그 부대시설을 <b>개축ㆍ증축 또는 변경하거나 본래의 용도가 아닌 용도로 사용</b>하는 행위</p>
+  <p class="l n">3. 민간임대주택 및 그 부대시설을 <b>파손 또는 멸실</b>하는 행위</p>
+  <p class="l n">4. 민간임대주택 및 그 부대시설의 유지ㆍ관리를 위하여 <b>임대사업자와 임차인이 합의한 사항을 위반</b>하는 행위</p>
+  <p class="l a"><b>제7조(임차인의 의무)</b> 임차인은 위 주택을 선량한 관리자로서 유지ㆍ관리해야 한다.</p>
+  <p class="l a"><b>제8조(민간임대주택 관리의 범위)</b> 위 주택의 <b>공용부분과 그 부대시설 및 복리시설은 임대사업자</b> 또는 임<br>대사업자가 지정한 주택관리업자가 관리하고, <b>주택과 그 내부시설은 임차인이 관리</b>한다.</p>
+  <p class="l a"><b>제9조(민간임대주택의 수선ㆍ유지 및 보수의 한계)</b> ① 위 주택의 <b>보수와 수선은 임대사업자의 부담</b>으로 하<br>되, 위 주택의 전용부분과 그 내부시설물을 <b>임차인이 파손하거나 멸실한 부분 또는 소모성 자재</b>(「공동<br>주택관리법 시행규칙」 별표 1의 장기수선계획의 수립기준상 수선주기가 6년 이내인 자재를 말한다)<b>의</b><br><b>보수주기에서의 보수 또는 수선은 임차인의 부담</b>으로 한다.</p>
+  </div>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+<!-- 4쪽 -->
+<section class="page p4">
+  <p class="pg">(6쪽 중 4쪽)</p>
+  <div style="margin-top:3pt">
+  <p class="l a0" style="padding-left:18pt">② 제1항에 따른 소모성 자재와 소모성 자재 외의 소모성 자재의 <b>종류와 그 종류별 보수주기는 특약으로 따로</b><br><b>정할 수 있다</b>. 다만, 벽지ㆍ장판ㆍ전등기구 및 콘센트의 보수주기는 다음 각 호에 따른다.</p>
+  <p class="l n">1. <b>벽지 및 장판</b>: 10년(변색ㆍ훼손ㆍ오염 등이 심한 경우에는 6년으로 하며, 적치물의 제거에 임차인이 협조<br>한 경우만 해당한다)</p>
+  <p class="l n">2. <b>전등기구 및 콘센트</b>: 10년. 다만, 훼손 등을 이유로 안전상의 위험이 우려되는 경우에는 조기 교체해야 한다.</p>
+  <p class="l a0">③ 제1항에 따라 임차인이 파손하거나 멸실한 부분에 대한 원상복구 대상의 선정 및 그에 대한 수선<br>비의 산출은 다음 각 호에 따른다.</p>
+  <p class="l n">1. 임대사업자는 임차인 입주 시 상호 입회하에 시설물의 상태를 확인</p>
+  <p class="l n">2. 퇴거 시에는 제1호의 결과를 기초로 시설물 상태의 변경사항을 상호 입회하에 점검 및 확인</p>
+  <p class="l n">3. 임차인 부담비용은 상호 합의하에 산출하되, 수선비는 실제 소요되는 실비를 기준으로 시설물의<br>경과연수에 따른 감가상각률을 계산하여 산출</p>
+  <p class="l a"><b>제10조(임대차계약의 해제ㆍ해지 및 손해배상)</b> ① 임차인이 다음 각 호의 어느 하나에 해당하는 행위<br>를 한 경우를 제외하고는 <b>임대사업자는 이 계약을 해제 또는 해지하거나 임대차계약의 갱신을 거절</b><br><b>할 수 없다.</b></p>
+  <p class="l n">1. 거짓이나 그 밖의 부정한 방법으로 민간임대주택을 임대받은 경우</p>
+  <p class="l n">2. 임대사업자의 귀책사유 없이 「민간임대주택에 관한 특별법 시행령」 제34조제1항 각 호의 시점으로부<br>터 3개월 이내에 입주하지 않은 경우.</p>
+  <p class="l n">3. 월임대료를 3개월 이상 연속하여 연체한 경우</p>
+  <p class="l n">4. 민간임대주택 및 그 부대시설을 임대사업자의 동의를 받지 않고 개축ㆍ증축 또는 변경하거나 본래의<br>용도가 아닌 용도로 사용한 경우</p>
+  <p class="l n">5. 민간임대주택 및 그 부대시설을 고의로 파손 또는 멸실한 경우</p>
+  <p class="l n">6. 공공지원민간임대주택의 임차인이 다음 각 목의 어느 하나에 해당하게 된 경우</p>
+  <p class="l g">가. 임차인의 자산 또는 소득이 「민간임대주택에 관한 특별법 시행규칙」 제14조의3 및 제14조의7에 따<br>른 요건을 초과하는 경우</p>
+  <p class="l g">나. 임대차계약 기간 중 주택을 소유하게 된 경우. 다만, 다음의 어느 하나에 해당하는 경우는 제<br>외한다.</p>
+  <p class="l s">1) 상속ㆍ판결 또는 혼인 등 그 밖의 부득이한 사유로 주택을 소유하게 된 경우로서 임대차계<br>약이 해제ㆍ해지되거나 재계약이 거절될 수 있다는 내용을 통보받은 날부터 6개월 이내에<br>해당 주택을 처분하는 경우</p>
+  <p class="l s">2) 혼인 등의 사유로 주택을 소유하게 된 세대구성원이 소유권을 취득한 날부터 14일 이내에 전<br>출신고를 하여 세대가 분리된 경우</p>
+  <p class="l s">3) 공공지원민간임대주택의 입주자를 선정하고 남은 공공지원민간임대주택에 대하여 선착순의<br>방법으로 입주자로 선정된 경우</p>
+  <p class="l n">7. 법 제42조의2에 따라 임차인이 공공지원민간임대주택 또는 공공임대주택에 중복하여 입주한 것<br>으로 확인된 경우</p>
+  <p class="l n" style="margin-top:3pt">8. 그 밖에 이 표준임대차계약서상의 의무를 위반한 경우</p>
+  <p class="l a0" style="margin-top:3pt">② 임차인은 다음 각 호의 어느 하나에 해당하는 경우에 이 계약을 해제 또는 해지할 수 있다.</p>
+  <p class="l n">1. 특별자치도지사ㆍ특별자치시장ㆍ시장ㆍ군수ㆍ구청장이 민간임대주택에 거주하기 곤란할 정도의<br>중대한 하자가 있다고 인정하는 경우</p>
+  <p class="l n">2. 임대사업자가 임차인의 의사에 반하여 민간임대주택의 부대시설ㆍ복리시설을 파손시킨 경우</p>
+  <p class="l n">3. 임대사업자의 귀책사유로 입주지정기간이 끝난 날부터 3개월 이내에 입주할 수 없는 경우</p>
+  <p class="l n">4. 임대사업자가 이 표준임대차계약서상의 의무를 위반한 경우</p>
+  <p class="l n">5. 법 제49조에 따라 임대보증금에 대한 보증에 가입해야 하는 임대사업자가 임대보증금에 대한 보<br>증에 가입하지 않은 경우</p>
+  <p class="l a0">③ 임대인 또는 임차인은 제1항 또는 제2항에 따라 임대차계약을 해제 또는 해지한 경우에는 그 상대방<br>에게 「민법」 등 관계 법령에 따라 그 해제 또는 해지로 인해 입은 손해의 배상을 청구할 수 있다.</p>
+  </div>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+<!-- 5쪽 -->
+<section class="page p5">
+  <p class="pg">(6쪽 중 5쪽)</p>
+  <div style="margin-top:3pt">
+  <p class="l a"><b>제11조(임대보증금의 반환)</b> ① 임차인이 임대사업자에게 예치한 <b>임대보증금은</b> 이 계약이 끝나거나 해<br>제 또는 해지되어 <b>임차인이 임대사업자에게 주택을 명도(明渡)함과 동시에 반환</b>한다.</p>
+  <p class="l a0">② 제1항에 따라 반환할 경우 임대사업자는 주택 및 내부 일체에 대한 점검을 실시한 후 임차인이<br>임대사업자에게 내야 할 임대료, 관리비 등 모든 납부금액과 제9조제1항에 따른 임차인의 수선유지<br>불이행에 따른 보수비 및 특약으로 정한 위약금, 불법거주에 따른 배상금, 손해금 등 임차인의 채무<br>를 임대보증금에서 우선 공제하고 그 잔액을 반환한다.</p>
+  <p class="l a0">③ 임차인은 위 주택을 임대사업자에게 명도할 때까지 사용한 전기ㆍ수도ㆍ가스 등의 사용료(납부시효<br>가 끝나지 않은 것을 말한다) 지급 영수증을 임대사업자에게 제시 또는 예치해야 한다.</p>
+  <p class="l a"><b>제12조(임대보증금 보증)</b> ① 임대사업자가 법 제49조에 따라 <b>임대보증금 보증에 가입</b>을 한 경우, 「민<br>간임대주택에 관한 특별법 시행령」 제40조에 따라 <b>보증수수료의 75퍼센트는 임대사업자가 부담</b>하고,<br><b>25퍼센트는 임차인이 부담</b>한다. <b>부담 금액의 징수 방법ㆍ절차ㆍ기한에 관한 사항은 특약</b>으로 정할<br>수 있다.</p>
+  <p class="l a"><b>제13조(민간임대주택의 양도)</b> ① 임대사업자가 임대의무기간 경과 후 위 주택을 <b>임차인에게 양도할</b><br><b>경우</b> 위 주택의 양도 등에 관한 사항은 <b>특약으로 정한 바</b>에 따른다.</p>
+  <p class="l a0">② 임대사업자가 법 제43조제2항에 따라 위 주택을 다른 임대사업자에게 양도하는 경우에는 양수도<br>계약서에서 양도받는 자는 양도하는 자의 임대사업자로서의 지위를 포괄적으로 승계한다는 뜻을 분<br>명하게 밝혀야 한다.</p>
+  <p class="l a"><b>제14조(임대사업자의 설명의무)</b> ① <b>임대사업자는</b> 법 제48조에 따라 <b>임대차계약을 체결하거나 월임대</b><br><b>료를 임대보증금으로 전환하는 등 계약내용을 변경하는 경우</b>에는 다음 각 호의 사항을 <b>임차인이 이</b><br><b>해할 수 있도록 설명</b>하고, 등기사항증명서 등 <b>설명의 근거자료를 제시</b>해야 한다.</p>
+  <p class="l n">1. 임대보증금 보증가입에 관한 사항(법 제49조에 따른 임대보증금 보증가입 의무대상 주택에 한정<br>한다)</p>
+  <p class="l g">가. 해당 민간임대주택의 임대보증금 보증대상액 및 보증기간에 관한 사항</p>
+  <p class="l g">나. 임대보증금 보증 가입에 드는 보증수수료(이하 "보증수수료"라 한다) 산정방법 및 금액, 임대보증<br>금과 임차인의 보증수수료 분담비율, 임차인이 부담해야 할 보증수수료의 납부방법에 관한 사항</p>
+  <p class="l g">다. 보증기간 중 임대차계약이 해지ㆍ해제되거나 임대보증금의 증감이 있는 경우에 보증수수료의<br>환급 또는 추가 납부에 관한 사항</p>
+  <p class="l g">라. 임대차 계약기간 중 보증기간이 만료되는 경우에 재가입에 관한 사항</p>
+  <p class="l g">마. 보증약관의 내용 중 국토교통부장관이 정하여 고시하는 중요사항에 관한 내용(보증이행 조건<br>등)</p>
+  <p class="l n">2. 민간임대주택의 선순위 담보권 등 권리관계에 관한 사항</p>
+  <p class="l g">가. 민간임대주택에 설정된 제한물권, 압류ㆍ가압류ㆍ가처분 등에 관한 사항</p>
+  <p class="l g">나. 임대사업자의 국세ㆍ지방세 체납에 관한 사항</p>
+  <p class="l n">3. 임대의무기간 중 남아 있는 기간</p>
+  <p class="l n">4. 법 제44조제2항에 따른 임대료 증액 제한에 관한 사항</p>
+  <p class="l n">5. 법 제45조에 따른 임대차계약의 해제ㆍ해지 등에 관한 사항</p>
+  <p class="l n">6. 단독주택, 다중주택 및 다가구주택에 해당하는 민간임대주택에 둘 이상의 임대차계약이 존재하<br>는 경우 「주택임대차보호법」 제3조의6제2항에 따라 작성된 확정일자부에 기재된 주택의 차임<br>및 보증금 등의 정보</p>
+  <p class="l a0">② 임차인은 임대사업자로부터 제1항의 사항에 대한 설명을 듣고 이해했음을 아래와 같이 확인한다.</p>
+  <div style="border:0.8pt solid #000; margin:4pt 0 0 20pt; padding:4pt 6pt 6pt; height:96pt; position:relative">
+    <p class="l">본인은 임대보증금 보증가입, 민간임대주택의 권리관계 등에 관한 주요 내용에 대한 설명을 듣고<br>이해했음.</p>
+    <p style="position:absolute; right:6pt; bottom:6pt">임차인 성명: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SATO YUKI &nbsp;&nbsp;&nbsp;<span class="sign" style="float:none">(서명 또는 날인)</span></p>
+  </div>
+  </div>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+<!-- 6쪽 -->
+<section class="page p6">
+  <p class="pg">(6쪽 중 6쪽)</p>
+  <div style="margin-top:3pt">
+  <p class="l a"><b>제15조(소송)</b> 이 계약에 관한 소송의 관할 법원은 임대사업자와 임차인이 합의하여 결정하는 관할<br>법원으로 하며, 임대사업자와 임차인 간에 합의가 이루어지지 않은 경우에는 위 주택 소재지를 관<br>할하는 법원으로 한다.</p>
+  <p class="l a" style="padding-left:18pt; text-indent:-10pt"><b>제16조(중개대상물의 확인ㆍ설명)</b> 개업공인중개사가 임대차계약서를 작성하는 경우에는 중개대상물<br>확인ㆍ설명서를 작성하고, 업무보증 관계증서(공제증서 등) 사본을 첨부하여 임대차계약을 체결할<br>때 임대사업자와 임차인에게 교부한다.</p>
+  <p class="l a"><b>제17조(특약)</b> 임대사업자와 임차인은 제1조부터 제15조까지에서 규정한 사항 외에 필요한 사항에 대<br>해서는 따로 특약으로 정할 수 있다. 다만, 특약의 내용은 「약관의 규제에 관한 법률」을 위반해서는<br>안 된다.</p>
+  <div style="border:0.8pt solid #000; margin:6pt 0 0 18pt; padding:3pt 6pt 4pt" class="l">
+    <p>◈ 주택월세 소득공제 안내</p>
+    <p style="padding-left:2pt">근로소득이 있는 거주자(일용근로자는 제외한다)는 「소득세법」 및 「조세특례제한법」에 따<br>라 주택월세에 대한 소득공제를 받을 수 있으며, 자세한 사항은 국세청 콜센터(국번 없이 126)로<br>문의하시기 바랍니다.</p>
+  </div>
+  <h2 style="margin:20pt 0 4pt">5. 개인정보의 제3자 제공 동의서</h2>
+  <p style="line-height:18pt; padding-left:3pt">임대사업자는 「개인정보 보호법」 제17조에 따라 등록임대주택에 관한 정보제공에 필요한 개인정보를 아래와<br>같이 임차인의 동의를 받아 제공합니다. 이 경우 개인정보를 제공받은 자가 해당 개인정보를 이용하여<br>임차인에게 연락할 수 있음을 알려드립니다.</p>
+  <div class="l" style="margin-top:12pt; padding-left:3pt">
+    <p style="padding-left:72pt; text-indent:-72pt">▪ 제공받는 자: 국토교통부장관, 시장ㆍ군수ㆍ구청장, 주택도시보증공사, 그 밖에 법 제49조에 따른 임<br>대보증금에 대한 보증을 취급하는 보증회사</p>
+    <p style="padding-left:61pt; text-indent:-61pt">▪ 제공 목적: <b><u>등록임대주택에 관한 정보(보증 정보 포함) 제공을 위한 우편물 발송, 문자 발송 등 지원</u></b><br><b><u>관련</u></b></p>
+    <p>▪ 개인정보 항목: 성명, 주소, 전화번호</p>
+    <p>▪ 보유 및 이용 기간: <b><u>임대차계약 종료일까지</u></b></p>
+  </div>
+  <div style="border:0.8pt solid #000; margin:6pt 0 0 3pt; padding:5pt 8pt 8pt" class="l">
+    <p>본인의 개인정보의 제3자 제공에 동의합니다.</p>
+    <p style="text-align:right; margin:12pt 0 14pt">임차인 성명: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SATO YUKI &nbsp;&nbsp;&nbsp;<span class="sign" style="float:none">(서명 또는 날인)</span></p>
+    <p style="padding-left:24pt; text-indent:-14pt">※ 임차인은 개인정보 제공에 대한 동의를 거부할 수 있으며, 이 경우 임대사업자의 의무사항 준수 여<br>부(임대보증금에 대한 보증가입 정보 포함), 임차인의 권리, 등록임대주택에 관한 정보 등의 제공<br>이 제한되어 불이익을 받을 수 있습니다.</p>
+  </div>
+  </div>
+  <p class="fake">이 문서는 테스트용 가상 문서입니다. 실제 계약서가 아니며, 이름·번호·주소·계좌·전화는 모두 지어낸 값입니다.</p>
+  <p class="foot">210mm×297mm[백상지 80g/㎡]</p>
+</section>
+
+</body>
+</html>
