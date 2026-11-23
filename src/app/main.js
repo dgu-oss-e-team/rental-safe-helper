@@ -66,6 +66,7 @@ const STEP_TEXT = {
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
  * @property {() => Promise<void>} doubleCheckPdfs  ⑤ 마스킹 PDF를 OCR로 다시 검사
+ * @property {(checked: boolean) => void} setPdfChecked  ⑤ 경고가 난 쪽을 직접 봤다고 체크 (사진·스캔 서류, #314)
  * @property {() => void} restart
  */
 
@@ -428,23 +429,35 @@ const act = {
     const p = await pipeline();
     if (!p) return;
     const pdfs = await p.exportMaskedPdfs(analysis, prepared.maskingPlan);
-    appState.setState({ busy: null, pdfs, doubleCheck: null, step: 'done' });
+    appState.setState({ busy: null, pdfs, doubleCheck: null, pdfChecked: false, step: 'done' });
+    // 사진·스캔 서류는 OCR이 깨지게 읽은 줄을 탐지가 놓칠 수 있어서, 받기 전에 다시 확인을 자동으로 한다 (#314)
+    if (hasPhotoDocuments(analysis)) await act.doubleCheckPdfs();
   },
   async doubleCheckPdfs() {
     const state = appState.getState();
     const analysis = currentAnalysis(state);
     const { prepared, pdfs } = state;
     if (!analysis || !prepared || !pdfs) return;
-    appState.setState({ doubleCheck: 'running', error: null });
+    appState.setState({ doubleCheck: 'running', pdfChecked: false, error: null });
     const p = await pipeline();
     if (!p) {
       appState.setState({ doubleCheck: null });
       return;
     }
-    const results = await p.doubleCheckPdfs(analysis, prepared.maskingPlan, pdfs);
+    /** @type {any[]} */
+    let results;
+    try {
+      results = await p.doubleCheckPdfs(analysis, prepared.maskingPlan, pdfs);
+    } catch {
+      // 검사 자체가 실패해도 다운로드를 영영 막지 않는다: "확인하지 못함"으로 두고 사용자가 직접 보게 한다 (#314)
+      results = pdfs.map((x) => ({ documentId: x.documentId, documentType: x.documentType, status: 'UNVERIFIABLE' }));
+    }
     // 검사하는 동안 PDF가 바뀌었으면(처음부터 다시 등) 이 결과는 버린다
     if (appState.getState().pdfs !== pdfs) return;
     appState.setState({ doubleCheck: results });
+  },
+  setPdfChecked(checked) {
+    appState.setState({ pdfChecked: checked });
   },
   restart() {
     clearTimeout(previewTimer);

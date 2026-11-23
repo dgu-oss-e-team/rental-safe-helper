@@ -1,7 +1,7 @@
 # 평가 결과 (Evaluation)
 
 > 이 파일은 `npm run eval`이 만든다. 직접 고치지 말고 다시 실행한다. (#251, 지도 교수님 피드백 ②)
-> 커밋 `4ab40c1` · 서류 9건 · 정답 개인정보 117개 · 모든 서류와 값은 가짜다.
+> 커밋 `387c1b6` · 서류 9건 · 정답 개인정보 117개 · 모든 서류와 값은 가짜다.
 
 ## 평가 세트
 
@@ -31,12 +31,8 @@
 | PHONE_NUMBER | 11 | 0 | 0.0% |
 | BANK_ACCOUNT | 5 | 0 | 0.0% |
 | ADDRESS | 47 | 0 | 0.0% |
-| REGISTRY_ID | 18 | 2 | 11.1% |
-| **전체** | **117** | **2** | **1.7%** |
-
-미탐지 항목 (가짜 값):
-- set3-lease · REGISTRY_ID · `214-86-35071`
-- set4-lease · REGISTRY_ID · `11230-2020-00187`
+| REGISTRY_ID | 18 | 0 | 0.0% |
+| **전체** | **117** | **0** | **0.0%** |
 
 ## 2. 과잉 마스킹 비율
 
@@ -50,10 +46,10 @@
 | set2-registry | 30 | 0 | 0.0% |
 | set2-lease | 16 | 0 | 0.0% |
 | set3-registry | 20 | 0 | 0.0% |
-| set3-lease | 13 | 0 | 0.0% |
+| set3-lease | 14 | 0 | 0.0% |
 | set4-registry | 27 | 0 | 0.0% |
-| set4-lease | 20 | 0 | 0.0% |
-| **전체** | **182** | **0** | **0.0%** |
+| set4-lease | 21 | 0 | 0.0% |
+| **전체** | **184** | **0** | **0.0%** |
 
 ## 3. AI 전송 직전까지 남은 개인정보 (목표 0)
 
@@ -61,16 +57,9 @@
 
 | 목적 | 서류 묶음 | 남은 개인정보 | 멈춤 |
 |---|---|---|---|
-| CLAUSE_EXPLANATION | 5 | 2 / 132 | 0 |
-| FRAUD_CHECK | 5 | 2 / 132 | 0 |
-| CONTRACT_EXPLANATION | 5 | 2 / 132 | 0 |
-
-- CLAUSE_EXPLANATION · set3-lease · REGISTRY_ID
-- FRAUD_CHECK · set3-lease · REGISTRY_ID
-- CONTRACT_EXPLANATION · set3-lease · REGISTRY_ID
-- CLAUSE_EXPLANATION · set4-lease · REGISTRY_ID
-- FRAUD_CHECK · set4-lease · REGISTRY_ID
-- CONTRACT_EXPLANATION · set4-lease · REGISTRY_ID
+| CLAUSE_EXPLANATION | 5 | 0 / 132 | 0 |
+| FRAUD_CHECK | 5 | 0 / 132 | 0 |
+| CONTRACT_EXPLANATION | 5 | 0 / 132 | 0 |
 
 ## 4. 양식별 "확인 불가" 비율
 
@@ -82,7 +71,7 @@
 | 가짜세트1: 개인 등기부 + 위험 판정용 계약서 (임대인·예금주 다름, 위험 특약) | 2 | 1 | 0 | 5 | 0.0% |
 | 가짜세트2: 근저당·최근 소유권 이전 등기부 + 계약서(특약 별지) | 0 | 3 | 1 | 4 | 12.5% |
 | 가짜세트3: 법인·신탁 등기부 + 법인 임대사업자 계약서(예금주 개인, 특약 별지) | 1 | 2 | 1 | 4 | 12.5% |
-| 가짜세트4: 지금 공유 등기부 + 공인중개사 작성 계약서(공유자 1명이 임대, 특약 별지) | 0 | 2 | 2 | 4 | 25.0% |
+| 가짜세트4: 지금 공유 등기부 + 공인중개사 작성 계약서(공유자 1명이 임대, 특약 별지) | 0 | 3 | 1 | 4 | 12.5% |
 
 ## 한계
 

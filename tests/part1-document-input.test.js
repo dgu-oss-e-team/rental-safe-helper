@@ -508,4 +508,46 @@ describe('PART 1 block spans for granular PDF redaction', () => {
     expect(res.pages[0].blocks[0].spans).toHaveLength(5);
     expect(res.pages[0].blocks[1].text).toBe('47');
   });
+
+  it('recovers skipped dense table rows via PSM 4 + PSM 6 vertical gap fallback', async () => {
+    const imgFile = new File([new Uint8Array([1, 2, 3, 4])], 'dense-lease-table.png', {
+      type: 'image/png',
+    });
+
+    const spy = vi.spyOn(ocrModule, 'recognizeImageText').mockImplementationOnce(async () => ({
+      text: "1. 계약 당사자\\n임대사업자 성명(법인명) 전우치 (서명 또는 인)\\n임차인 성명(법인명) SATO YUKI (서명 또는 인)",
+      confidence: 0.85,
+      width: 1000,
+      height: 1414,
+      blocks: [
+        {
+          text: "1. 계약 당사자",
+          confidence: 0.95,
+          bbox: { x: 0.1, y: 0.14, width: 0.3, height: 0.02 },
+        },
+        {
+          text: "임대사업자 성명(법인명) 전우치 (서명 또는 인)",
+          confidence: 0.82,
+          bbox: { x: 0.1, y: 0.17, width: 0.8, height: 0.02 },
+        },
+        {
+          text: "임차인 성명(법인명) SATO YUKI (서명 또는 인)",
+          confidence: 0.81,
+          bbox: { x: 0.1, y: 0.23, width: 0.8, height: 0.02 },
+        },
+      ],
+    }));
+
+    const res = await readDocument(imgFile, { allowLowConfidence: true });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.pages[0].blocks.map((b) => b.text)).toContain(
+        "임대사업자 성명(법인명) 전우치 (서명 또는 인)"
+      );
+      expect(res.data.pages[0].blocks.map((b) => b.text)).toContain(
+        "임차인 성명(법인명) SATO YUKI (서명 또는 인)"
+      );
+    }
+    spy.mockRestore();
+  });
 });

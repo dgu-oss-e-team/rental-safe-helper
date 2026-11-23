@@ -17,7 +17,7 @@
 
 import { ok, fail, ERROR_CODE, SOURCE_TYPE, DOCUMENT_TYPE } from '../shared/document-model.js';
 import { mergeDocumentModels } from './merge-documents.js';
-import { readDocument, isLowConfidenceBlock } from '../features/document-input/index.js';
+import { readDocument, getFlaggedBlocks } from '../features/document-input/index.js';
 import { classifyDocument, detectPII, extractFields } from '../features/document-analysis/index.js';
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
@@ -123,14 +123,12 @@ export function needsTextReview(/** @type {import('../shared/document-model.js')
 }
 
 /**
- * 아직 사용자가 확인하지 않은 흐린 줄 수 (PART 1 isLowConfidenceBlock 기준)
- * 0이 되어야 "Confirm text" 단계에서 다음으로 넘어갈 수 있다.
+ * 아직 사용자가 확인하지 않은 줄 수 (PART 1 getFlaggedBlocks 기준: 흐린 줄 + 당사자·주소 같은 핵심 줄)
+ * 편집 화면이 보여 주는 수와 같아야 한다. 0이 되어야 "Confirm text" 단계에서 다음으로 넘어갈 수 있다.
  * @param {import('../shared/document-model.js').DocumentModel[]} documents
  */
 export function countLinesToCheck(documents) {
-  let n = 0;
-  for (const doc of documents) for (const page of doc.pages ?? []) for (const b of page.blocks ?? []) if (isLowConfidenceBlock(b)) n += 1;
-  return n;
+  return getFlaggedBlocks(documents).length;
 }
 
 /**

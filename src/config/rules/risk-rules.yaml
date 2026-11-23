@@ -61,6 +61,15 @@ rules:
           Check who has the right to lease the home: the company registration number, or the
           trust register (신탁원부) if there is a trust. Ask for the trustee's written consent
           to the lease.
+      UNVERIFIABLE.unreliable_name:
+        explanation: >-
+          The registered owner and the landlord look like different people, but we did not
+          treat this as a mismatch. A name may have been read incorrectly from a photo or scan
+          (it does not look like a normal Korean name, or the text was unclear).
+        action: >-
+          Check the name on the original document yourself and ask to see the landlord's ID.
+          If you uploaded a photo, correct the text in the text check step, or upload a clearer
+          photo or the original PDF.
 
   ACCOUNT_HOLDER_MISMATCH:
     title: Account holder check
@@ -95,6 +104,15 @@ rules:
         action: >-
           Send money only to an account in the landlord's own name, and ask the landlord
           to confirm the account holder.
+      UNVERIFIABLE.unreliable_name:
+        explanation: >-
+          The account holder and the landlord look like different people, but we did not
+          treat this as a mismatch. A name may have been read incorrectly from a photo or scan
+          (it does not look like a normal Korean name, or the text was unclear).
+        action: >-
+          Check the account holder's name on the original contract yourself. Send money only
+          to an account in the landlord's own name, and ask the landlord to confirm the
+          account holder.
 
   ADDRESS_MISMATCH:
     title: Property address check
@@ -111,6 +129,15 @@ rules:
       NO_FLAG:
         explanation: The address on the registry and the address on the contract match.
         action: No action needed for this check. Always check the unit number yourself.
+      CHECK.ocr_digits:
+        explanation: >-
+          The address on the registry and the address on the contract differ only in some
+          numbers (for example the lot number or the unit number). At least one of the documents
+          was read from a photo or scan, so a number may have been read incorrectly. We did not
+          treat this as a different home.
+        action: >-
+          Compare the numbers on the original registry and contract yourself, including the lot
+          number and the unit number. If they really differ, get a new registry for the exact address.
       UNVERIFIABLE:
         explanation: We could not read the address on the registry or on the contract.
         action: Compare the address on the registry and the contract yourself, including the unit number.

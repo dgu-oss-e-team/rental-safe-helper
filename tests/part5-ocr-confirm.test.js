@@ -7,6 +7,7 @@ import {
   countLinesToCheck,
 } from '../src/app/pipeline.js';
 import { SOURCE_TYPE } from '../src/shared/document-model.js';
+import { getFlaggedBlocks } from '../src/features/document-input/index.js';
 
 // 가상 데이터만 사용 (실제 개인정보 없음)
 const sampleFiles = () => [
@@ -85,5 +86,24 @@ describe('PART 5 "Confirm text" 단계 (#54)', () => {
     doc.pages[0].blocks[0].confidence = 1;
     expect(countLinesToCheck([doc])).toBe(0);
     expect(countLinesToCheck([])).toBe(0);
+  });
+
+  it('또렷해도 당사자·주소 핵심 줄은 확인 전까지 센다 (편집 화면 수와 같게)', () => {
+    const doc = fakeDoc([
+      { text: '1. 계약 당사자', confidence: 0.95 }, // 구역 시작 줄
+      { text: '임대인 성명 홍길동', confidence: 0.95 }, // 당사자 구역 안, 또렷함
+      { text: '해당 주택은 아래와 같다', confidence: 0.95 }, // 구역 끝
+      { text: '주택 소재지 서울시 중구 가상로 1', confidence: 0.95 }, // 주소 핵심 줄
+      { text: 'Lease agreement', confidence: 0.95 }, // 일반 줄, 또렷함
+    ]);
+    expect(countLinesToCheck([doc])).toBe(getFlaggedBlocks([doc]).length);
+    expect(countLinesToCheck([doc])).toBeGreaterThan(0);
+    for (const b of doc.pages[0].blocks) b.confidence = 1; // 사용자가 모두 확인
+    expect(countLinesToCheck([doc])).toBe(0);
+  });
+
+  it('글자 PDF는 핵심 줄도 세지 않는다', () => {
+    const doc = fakeDoc([{ text: '주택 소재지 서울시 중구 가상로 1', confidence: null }], SOURCE_TYPE.TEXT_PDF);
+    expect(countLinesToCheck([doc])).toBe(0);
   });
 });
