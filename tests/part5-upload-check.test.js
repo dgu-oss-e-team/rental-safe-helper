@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // PART 5. 업로드 칸과 서류 종류가 다를 때 안내 (#186). 가상 데이터만 사용한다.
 import { describe, it, expect, vi } from 'vitest';
-import { filesWithSlots, uploadSlotNotices } from '../src/app/upload-check.js';
+import { filesWithSlots, uploadSlotNotices, uploadPartNotices } from '../src/app/upload-check.js';
 import { resultsScreen } from '../src/app/screens/results.js';
 import { initialState } from '../src/app/app-state.js';
 import { DOCUMENT_TYPE } from '../src/shared/document-model.js';
@@ -83,11 +83,51 @@ describe('PART 5 uploadSlotNotices(): 칸과 판별 결과 비교', () => {
   });
 });
 
+describe('PART 5 uploadPartNotices(): 한 칸에 함께 올린 파일 중 다른 서류 (#305)', () => {
+  const R = DOCUMENT_TYPE.REGISTRY;
+  const L = DOCUMENT_TYPE.LEASE_CONTRACT;
+  const U = DOCUMENT_TYPE.UNKNOWN;
+
+  it('계약서 칸에 계약서 + 등기부 → 몇 번째 파일인지, 지우고 등기부 칸에 올리라고 안내', () => {
+    const n = uploadPartNotices([null, { types: [L, R], items: [[0], [1]] }], ['registry', 'lease']);
+    expect(n).toEqual([
+      'File 2 in the lease contract box looks like a property register. Files in one box are checked together as one document, so the results below may be incomplete or wrong. If you added it by mistake, go back, remove it from this box, and upload it in the property register box.',
+    ]);
+  });
+
+  it('등기부 칸에 등기부 + 계약서 → 계약서 칸에 올리라고 안내', () => {
+    const [n] = uploadPartNotices([{ types: [R, L], items: [[0], [1]] }], ['registry']);
+    expect(n).toContain('File 2 in the property register box looks like a lease contract.');
+    expect(n).toContain('upload it in the lease contract box.');
+  });
+
+  it('사진 여러 장이 한 조각이면 "Files 2–3"', () => {
+    const [n] = uploadPartNotices([{ types: [L, R], items: [[0], [1, 2]] }], ['lease']);
+    expect(n.startsWith('Files 2–3 in the lease contract box')).toBe(true);
+  });
+
+  it('종류를 모르는 조각(특약 별지 등)과 칸에 맞는 조각은 안내하지 않는다', () => {
+    expect(uploadPartNotices([null, { types: [L, U], items: [[0], [1]] }], ['registry', 'lease'])).toEqual([]);
+    expect(uploadPartNotices([null, { types: [L, L], items: [[0], [1]] }], ['registry', 'lease'])).toEqual([]);
+  });
+
+  it('조각 정보가 없거나(파일 하나) 시연 샘플(칸 없음)이면 안내하지 않는다', () => {
+    expect(uploadPartNotices(null, ['registry', 'lease'])).toEqual([]);
+    expect(uploadPartNotices([null, null], ['registry', 'lease'])).toEqual([]);
+    expect(uploadPartNotices([{ types: [L, R], items: [[0], [1]] }], null)).toEqual([]);
+  });
+
+  it('안내에 "safe" 같은 말이나 파일 이름을 쓰지 않는다', () => {
+    const [n] = uploadPartNotices([{ types: [R, L], items: [[0], [1]] }], ['registry']);
+    expect(n).not.toMatch(/\bsafe\b|no risk|\.pdf/i);
+  });
+});
+
 describe('PART 5 ② 결과 화면: 업로드 칸 안내 (#186)', () => {
   /** 서류 종류와 칸만 다른 가짜 분석 결과 (위험 결과·사람 없음) */
-  const screenFor = (documents, uploadSlots) => {
+  const screenFor = (documents, uploadSlots, uploadParts = null) => {
     const analysis = { documents, fields: {}, personGroups: [], riskResults: [], findings: [], files: [] };
-    const state = /** @type {any} */ ({ ...initialState(), step: 'results', analysis, uploadSlots });
+    const state = /** @type {any} */ ({ ...initialState(), step: 'results', analysis, uploadSlots, uploadParts });
     return resultsScreen(state, /** @type {any} */ ({ setPersonAnswers: vi.fn(), goTo: vi.fn(), restart: vi.fn() }));
   };
 
@@ -111,5 +151,12 @@ describe('PART 5 ② 결과 화면: 업로드 칸 안내 (#186)', () => {
 
   it('시연 샘플(칸 없음)은 안내가 없다', () => {
     expect(screenFor([REG, LEASE], null).querySelector('#upload-slot-notice')).toBeNull();
+  });
+
+  it('계약서 칸에 등기부가 섞였으면 같은 안내 상자에 나온다 (#305)', () => {
+    const parts = [null, { types: [DOCUMENT_TYPE.LEASE_CONTRACT, DOCUMENT_TYPE.REGISTRY], items: [[0], [1]] }];
+    const notice = screenFor([REG, LEASE], ['registry', 'lease'], parts).querySelector('#upload-slot-notice');
+    expect(notice?.querySelectorAll('p')).toHaveLength(1);
+    expect(notice?.textContent).toContain('File 2 in the lease contract box looks like a property register.');
   });
 });

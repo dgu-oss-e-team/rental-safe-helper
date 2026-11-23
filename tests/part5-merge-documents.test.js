@@ -86,6 +86,24 @@ describe('PART 5 readDocuments({ files, parts }) (#298)', () => {
     expect(lease.pages[2].blocks[0].blockId).toBe('p2_b0');
   });
 
+  it('조각마다 서류 종류를 판별해 partTypes로 돌려준다. 조각이 하나인 칸은 null (#305)', async () => {
+    const registryText = [['등기사항전부증명서(말소사항 포함)', '【 표 제 부 】 ( 1동의 건물의 표시 )', '【 갑 구 】 ( 소유권에 관한 사항 )', '【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )']];
+    const leaseText = [['표준임대차계약서', '임대사업자 성명(법인명)', '임차인 성명(법인명)', '임대보증금 월임대료 임대차 계약기간']];
+    const byName = {
+      'lease-part.pdf': docOf(SOURCE_TYPE.TEXT_PDF, leaseText),
+      'registry-part.pdf': docOf(SOURCE_TYPE.TEXT_PDF, registryText),
+      'terms.pdf': docOf(SOURCE_TYPE.TEXT_PDF, [['1. 실내에서 반려동물을 기르지 않는다.']]),
+      'registry.pdf': docOf(SOURCE_TYPE.TEXT_PDF, registryText),
+    };
+    readDocument.mockImplementation(async (f) => ({ ok: true, data: byName[f.name] }));
+    const r = await readDocuments({
+      files: [file('registry.pdf'), file('lease.pdf')],
+      parts: [null, [file('lease-part.pdf'), file('registry-part.pdf'), file('terms.pdf')]],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.partTypes).toEqual([null, [DOCUMENT_TYPE.LEASE_CONTRACT, DOCUMENT_TYPE.REGISTRY, DOCUMENT_TYPE.UNKNOWN]]);
+  });
+
   it('조각 하나라도 읽기에 실패하면 그 오류로 멈춘다', async () => {
     readDocument
       .mockResolvedValueOnce({ ok: true, data: docOf(SOURCE_TYPE.TEXT_PDF, [['가']]) })

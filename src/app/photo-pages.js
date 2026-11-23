@@ -188,42 +188,53 @@ export async function photosToPdfFile(photos, name) {
  * 칸 값을 분석에 넘길 모양으로 바꾼다 (#298)
  * - file: 마스킹 PDF·미리 보기를 그릴 PDF 하나 (조각을 순서대로 합친 것)
  * - parts: 따로 읽을 조각. 이어진 사진들은 보정해서 PDF 하나로(#272), PDF는 그대로
+ * - items: 조각마다 칸 목록의 몇 번째 파일들인지 (0부터). ② 화면에서 "File 2"처럼 알려 줄 때 쓴다 (#305)
  * PDF 한 개면 { file, parts: [file] }, 사진만이면 사진 PDF 하나, 섞였으면 조각마다 따로 읽고 그릴 때만 합친다.
  * @param {SlotValue} value
  * @param {string} name  합친 PDF 이름 (개인정보 없는 이름, 예 "lease.pdf")
  * @param {{ toPdf?: (photos: File[], name: string) => Promise<File>, merge?: (pdfs: File[], name: string) => Promise<File> }} [deps]  테스트에서 바꿔 끼운다
- * @returns {Promise<{ file: File, parts: File[] } | null>}
+ * @returns {Promise<{ file: File, parts: File[], items: number[][] } | null>}
  */
 export async function slotToSource(value, name, deps = {}) {
   const toPdf = deps.toPdf ?? photosToPdfFile;
   const merge = deps.merge ?? mergePdfFiles;
   if (!value) return null;
-  if (!Array.isArray(value)) return { file: value, parts: [value] };
+  if (!Array.isArray(value)) return { file: value, parts: [value], items: [[0]] };
   if (value.length === 0) return null;
   // 사진만이면 예전처럼 사진 PDF 하나 (이름 그대로)
   if (!value.some(isPdf)) {
     const file = await toPdf(value, name);
-    return { file, parts: [file] };
+    return { file, parts: [file], items: [value.map((_, i) => i)] };
   }
   const base = name.replace(/\.pdf$/i, '');
   /** @type {File[]} */
   const parts = [];
+  /** @type {number[][]} */
+  const items = [];
   /** @type {File[]} */
   let photos = [];
+  /** @type {number[]} */
+  let photoItems = [];
   const flush = async () => {
     if (photos.length === 0) return;
     parts.push(await toPdf(photos, `${base}-photos-${parts.length + 1}.pdf`));
+    items.push(photoItems);
     photos = [];
+    photoItems = [];
   };
-  for (const f of value) {
+  for (const [i, f] of value.entries()) {
     if (isPdf(f)) {
       await flush();
       parts.push(f);
-    } else photos.push(f);
+      items.push([i]);
+    } else {
+      photos.push(f);
+      photoItems.push(i);
+    }
   }
   await flush();
-  if (parts.length === 1) return { file: parts[0], parts };
-  return { file: await merge(parts, name), parts };
+  if (parts.length === 1) return { file: parts[0], parts, items };
+  return { file: await merge(parts, name), parts, items };
 }
 
 /**

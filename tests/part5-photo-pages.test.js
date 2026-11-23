@@ -159,7 +159,7 @@ describe('PART 5 칸에 PDF·사진 섞기 → 따로 읽을 조각 (#298)', () 
   it('PDF 한 개면 그 파일이 그릴 PDF이자 조각 하나다 (합치지 않음)', async () => {
     const merge = mergeMock();
     const a = pdf('a.pdf');
-    expect(await slotToSource(a, 'lease.pdf', { merge })).toEqual({ file: a, parts: [a] });
+    expect(await slotToSource(a, 'lease.pdf', { merge })).toEqual({ file: a, parts: [a], items: [[0]] });
     expect(merge).not.toHaveBeenCalled();
     expect(await slotToSource(null, 'lease.pdf', { merge })).toBeNull();
   });
@@ -170,6 +170,7 @@ describe('PART 5 칸에 PDF·사진 섞기 → 따로 읽을 조각 (#298)', () 
     const r = await slotToSource([photo('p1.jpg'), photo('p2.jpg')], 'lease.pdf', { toPdf, merge });
     expect(r?.file.name).toBe('lease.pdf');
     expect(r?.parts).toEqual([r?.file]);
+    expect(r?.items).toEqual([[0, 1]]);
     expect(merge).not.toHaveBeenCalled();
   });
 
@@ -187,6 +188,8 @@ describe('PART 5 칸에 PDF·사진 섞기 → 따로 읽을 조각 (#298)', () 
     expect(merge).toHaveBeenCalledTimes(1);
     expect(merge.mock.calls[0][0]).toEqual(r?.parts);
     expect(r?.file.name).toBe('lease.pdf');
+    // 조각마다 칸 목록의 몇 번째 파일들인지 (② 화면 "File 2" 안내용, #305)
+    expect(r?.items).toEqual([[0], [1, 2], [3], [4]]);
   });
 
   it('mergePdfFiles(): 쪽을 순서대로 이어 붙이고 문서 정보를 넣지 않는다', async () => {

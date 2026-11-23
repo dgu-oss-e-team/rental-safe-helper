@@ -7,7 +7,7 @@ import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { currentAnalysis } from '../app-state.js';
 import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
-import { uploadSlotNotices } from '../upload-check.js';
+import { uploadSlotNotices, uploadPartNotices } from '../upload-check.js';
 
 /**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
@@ -28,7 +28,11 @@ export function resultsScreen(state, act) {
   });
   const unknown = analysis.documents.filter((d) => d.documentType === DOCUMENT_TYPE.UNKNOWN).length;
   // 업로드 칸과 판별 결과가 다르면 안내한다 (#186). 결과는 내용으로 판별한 그대로 쓴다.
-  const slotNotices = uploadSlotNotices(analysis.documents, state.uploadSlots);
+  // 한 칸에 함께 올린 파일 중 칸과 다른 서류가 섞였으면 그것도 안내한다 (#305)
+  const slotNotices = [
+    ...uploadSlotNotices(analysis.documents, state.uploadSlots),
+    ...uploadPartNotices(state.uploadParts, state.uploadSlots),
+  ];
 
   // 질문 카드는 결과 목록 아래에 있어서 휴대폰에서는 화면 몇 개 아래로 밀린다.
   // 그래서 결과 요약 바로 아래에 안내와 "바로 가기" 버튼을 둔다. (#91)
