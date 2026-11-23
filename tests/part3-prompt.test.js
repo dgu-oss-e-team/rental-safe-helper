@@ -236,12 +236,20 @@ describe('PART 3 프롬프트 답변 규칙 (#274)', () => {
     expect(text).toMatch(/page number/);
     expect(text).toMatch(/Separate facts from guesses/);
     expect(text).toMatch(/came into effect/);
-    expect(text).toMatch(/you do not know/);
+    expect(text).toMatch(/say so instead of guessing/);
   });
 
   it('규칙은 서류 내용보다 앞에 있고, 프롬프트는 여전히 영어 답변 요청으로 끝난다', () => {
     const text = prompt({ results: [], legend: {} }).data;
     expect(text.indexOf('## Answer rules')).toBeLessThan(text.indexOf('## Documents (masked)'));
     expect(text.trim().endsWith('Please answer in English.')).toBe(true);
+  });
+
+  it('가명(role name)은 같은 사람이라는 뜻을 남기고, "알 수 없다고 답하라"고 하지 않는다', () => {
+    const rule = ANSWER_RULES[0];
+    expect(rule).toContain('Treat [REDACTED] as unknown');
+    expect(rule).toContain('the same role name always means the same person');
+    expect(rule).toContain('role legend');
+    expect(rule).not.toContain('cannot tell');
   });
 });

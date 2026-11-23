@@ -40,10 +40,10 @@ const UNKNOWN_ROLE_PHRASE = 'a person';
  *  - 가명 모양이나 실제 값은 쓰지 않고 고정 문구만 넣는다.
  */
 export const ANSWER_RULES = [
-  'Do not guess or reconstruct information that has been hidden. If something is shown as [REDACTED] or as a role name, treat it as unknown and say you cannot tell.',
+  'Do not guess or reconstruct information that has been hidden. Treat [REDACTED] as unknown. Role names in square brackets hide real names, but the same role name always means the same person (see the role legend if one is given). Do not guess the real name behind a role name.',
   'Say which document your answer is based on, and the page number if the text shows one. Do not invent a page number.',
   'Separate facts from guesses. Label what the documents or the check results say as "Fact", and anything else as "Guess".',
-  'When you mention a law, say the date it came into effect. If you are not sure about the law or its date, say that you do not know.',
+  'When you mention a law, name it and say the date it came into effect if you know it. If you are not sure the law still applies or what the current rule is, say so instead of guessing.',
 ];
 
 /** "[Landlord_B]" 같은 역할 가명 */
