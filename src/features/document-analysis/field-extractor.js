@@ -464,6 +464,13 @@ const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
 /** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
 const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
 /**
+ * 기록이 아닌 안내 줄 (#298 외부 AI 평가)
+ * 열람본 끝의 "* 실선으로 그어진 부분은 말소사항을 표시함. …", 쪽마다 반복되는 제목 "등기사항전부증명서(말소사항 포함)",
+ * "- - 이 하 여 백 - -"에도 "말소" 글자가 있어서, 을구의 "어느 권리인지 모르는 말소 줄"로 세면
+ * 유효한 근저당까지 cancelled: null(확인 필요)이 됐다. 이런 줄은 권리·말소 기록으로 보지 않는다.
+ */
+const NOTE_LINE = /^\s*\*|말\s*소\s*사\s*항|이\s*하\s*여\s*백/;
+/**
  * 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기).
  * 순위번호가 아닌 것: "2020년…"(날짜), "2/3"(쪽 번호), "23층(○○동)"·"101동"·"502호"(주소 둘째 줄) (#183 실제 신탁 등기부)
  */
@@ -562,6 +569,7 @@ export function findRegistryRights(lines) {
       continue;
     }
     if (section === null) continue;
+    if (NOTE_LINE.test(line)) continue; // 안내 줄의 "말소사항"은 말소 기록이 아니다
 
     const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch) {
