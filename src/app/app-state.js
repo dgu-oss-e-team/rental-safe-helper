@@ -113,6 +113,11 @@ export function initialState() {
      * @type {'running' | (import('./double-check.js').DoubleCheckResult & { documentId: string, documentType: string })[] | null}
      */
     doubleCheck: null,
+    /**
+     * 사진·스캔 서류에서 다시 확인이 경고를 냈을 때, 사용자가 그 쪽을 직접 봤다고 체크했는지 (#314)
+     * 체크해야 다운로드가 나온다. PDF를 새로 만들면 비운다.
+     */
+    pdfChecked: false,
   };
 }
 
