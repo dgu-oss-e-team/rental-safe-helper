@@ -1,4 +1,4 @@
-# PART 1 Technical Report ? Document Input, Parsing, OCR & Review UI
+# PART 1 Technical Report — Document Input, Parsing, OCR & Review UI
 
 > **Module:** `src/features/document-input/` (`index.js`, `pdf-reader.js`, `ocr.js`, `ocr-editor.js`, `ocr-editor.css`)  
 > **Owner:** Garidmaa (`@Garid1016`)
@@ -7,7 +7,7 @@
 
 ## 1. Overview & Architecture
 
-PART 1 implements client-side ingestion, text/coordinate extraction, OCR fallback, and interactive text verification inside the browser?ensuring raw PDFs and photos never leave the user's device.
+PART 1 implements client-side ingestion, text/coordinate extraction, OCR fallback, and interactive text verification inside the browser—ensuring raw PDFs and photos never leave the user's device.
 
 1. **Embedded-Text PDF Parsing & Item-Level Span Tracking (`pdf-reader.js`):**
    - Uses `pdf.js` configured with locally bundled CMap, standard font, Wasm, and ICC assets so Korean CID fonts render and extract reliably offline and on GitHub Pages.
@@ -23,5 +23,5 @@ PART 1 implements client-side ingestion, text/coordinate extraction, OCR fallbac
 
 ## 2. Known Limitations
 
-- **Single-Span Table Cells in Chrome-Printed PDFs:** Chrome's print-to-PDF engine occasionally emits an entire table row or multi-column cell as a single `pdf.js` text item. Because `pdf.js` does not expose per-glyph advance widths inside a single item, span-level redaction masks the full item bounding box rather than sub-splitting at whitespace?prioritizing zero under-masking over narrower boxes.
-- **OCR Character Substitutions on Phone Photos:** PART 5 crops the page and removes shadows before OCR (`photo-enhance.js`), but angled or shadowed phone photos can still produce visual look-alike substitutions (e.g., `"*******"` ? `"#xwssnr"` and `"??"` ? `"??"`). These are mitigated by the interactive review screen (including mandatory per-line confirmation on digit lines) and downstream PII/leak detection guards.
+- **Single-Span Table Cells in Chrome-Printed PDFs:** Chrome's print-to-PDF engine occasionally emits an entire table row or multi-column cell as a single `pdf.js` text item. Because `pdf.js` does not expose per-glyph advance widths inside a single item, span-level redaction masks the full item bounding box rather than sub-splitting at whitespace—prioritizing zero under-masking over narrower boxes.
+- **OCR Character Substitutions on Phone Photos:** PART 5 crops the page and removes shadows before OCR (`photo-enhance.js`), but angled or shadowed phone photos can still produce visual look-alike substitutions (e.g., `"*******"` → `"#xwssnr"` and `"서울"` → `"서물"`). These are mitigated by the interactive review screen (including mandatory per-line confirmation on digit lines) and downstream PII/leak detection guards.
