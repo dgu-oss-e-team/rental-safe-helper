@@ -14,7 +14,8 @@
  *  - 문구에는 실제 이름 대신 역할 가명(alias)만 쓴다
  *  - 등기부가 지번, 계약서가 도로명이면 등기부 표제부의 [도로명주소](registry.roadAddress)로 비교 (#177)
  *    (계약서에서 같은 동·호수 조각을 찾아 비교한다. 위치와 건물 이름은 상관없다)
- */
+ *  - 다르다고 나와도 이름이 한글 이름 모양(2~4자)이 아니거나 OCR 신뢰도가 낮으면 STOP이 아니라 UNVERIFIABLE (#275) 
+*/
 
 import { ok, RISK_STATUS } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
@@ -54,6 +55,29 @@ function describePeople(people) {
 /** @param {any[]} groups */
 const joinAliases = (groups) => [...new Set(groups.map((g) => g.alias))].join(' and ');
 
+/** 한글 이름 모양: 한글 2~4자. (OCR이 글자 사이에 끼워 넣는 공백은 뺀다) */
+const KOREAN_NAME = /^[가-힣]{2,4}$/;
+
+/** 이름의 OCR 신뢰도가 이 값보다 낮으면 믿고 비교하지 않는다. PART 2의 LOW_CONFIDENCE(0.8)와 같은 기준 (#275) */
+const MIN_NAME_CONFIDENCE = 0.8;
+
+/**
+ * OCR이 이름을 잘못 읽었을 수 있는 사람이 있는지. (#275)
+ * 실제 사진에서 "홍길동"을 "BUS"로 읽은 이름을 그대로 비교해 "소유자 ≠ 임대인" STOP이 나온 일이 있었다.
+ *  - 한글 이름 모양(2~4자)이 아니면 읽기 오류일 수 있다. (회사 이름은 따로 처리하므로 모양 검사에서 뺀다)
+ *  - person.confidence가 숫자이고 기준보다 낮으면 읽기 오류일 수 있다.
+ *    null이거나 없으면(글자 PDF는 신뢰도를 재지 않는다) 낮은 것으로 보지 않는다.
+ * @param {any[]} people
+ */
+function hasUnreliableName(people) {
+  return people.some((p) => {
+    const name = typeof p?.name === 'string' ? p.name.replace(/\s+/g, '') : '';
+    const lowConfidence = typeof p?.confidence === 'number' && p.confidence < MIN_NAME_CONFIDENCE;
+    if (COMPANY_NAME.test(name)) return lowConfidence;
+    return !KOREAN_NAME.test(name) || lowConfidence;
+  });
+}
+
 /**
  * members(확인 대상)가 모두 allowed(기준) 안의 사람인지 판정한다.
  * @param {object} p
@@ -82,8 +106,13 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
     [memberKey]: joinAliases(memberGroups),
     [allowedKey]: joinAliases(allowedGroups),
   };
-  if (!same) return buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values });
-
+  if (!same) {
+    // OCR이 이름을 잘못 읽었을 수 있으면 다른 사람이라고 단정하지 않는다 (#275)
+    if (hasUnreliableName([...members, ...allowed])) {
+      return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'unreliable_name', values });
+    }
+    return buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values });
+  }
   // 공동 소유: 소유자가 2명 이상인데 그중 일부만 임대인으로 서명했다면 나머지 소유자의 동의가 필요하다
   const everyOwnerSigns = [...allowedIds].every((id) => memberIds.has(id));
   if (coOwnerCheck && !everyOwnerSigns) {

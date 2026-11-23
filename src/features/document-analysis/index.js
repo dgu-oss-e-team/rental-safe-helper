@@ -13,7 +13,7 @@
  *           extractFields()는 사람 정보·주소(탐지 결과)와 보증금·월세·특약·권리(field-extractor.js)를 실제 문서에서 만든다.
  */
 
-import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS, isValidBBox } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, DOCUMENT_TYPE, PII_TYPE, REVIEW_STATUS, SOURCE_TYPE, isValidBBox } from '../../shared/document-model.js';
 import { findPatternPII } from './pii-patterns.js';
 import { toFormalAddress } from './address-normalizer.js';
 import {
@@ -27,6 +27,7 @@ import {
   lastRoleIn,
   findAddressContinuation,
   findTrailingRegion,
+  findOrphanUnitTail,
   reachesLineEnd,
   hasOpenParen,
   findMixedContinuation,
@@ -49,7 +50,10 @@ import {
 
 /** @typedef {import('../../shared/document-model.js').DocumentModel} DocumentModel */
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
-/** @typedef {{ findingId: string, name: string, birthDate: string | null, role: string | null }} Person */
+/**
+ * confidence: 이름이 있는 줄의 OCR 신뢰도(0~1). 글자 PDF는 null. (#277 후속)
+ * @typedef {{ findingId: string, name: string, birthDate: string | null, role: string | null, confidence: number | null }} Person
+ */
 
 /**
  * 판별 키워드 (TODO(PART 2): src/config/templates/*.yaml로 옮기기)
@@ -211,6 +215,14 @@ function scanDocument(document) {
               next = { hit: piece, regionOnly: false, mixed: true };
             }
           }
+        }
+
+        if (!next) {
+          // 윗줄과 이어지지 못한 "번지, 동·호수" 줄 (윗줄 주소를 OCR이 깨서 읽은 경우). 확인 필요로 표시한다.
+          const tail = findOrphanUnitTail(line);
+          /** @type {any} */
+          const orphan = tail && { ...tail, start: tail.start + offset, end: tail.end + offset, uncertain: true };
+          if (orphan && !overlapsAny(found, orphan)) found.push(orphan);
         }
 
         if (!next) {
@@ -494,7 +506,7 @@ export function detectPII(document) {
 }
 
 /**
- * 문서 안의 사람 목록을 만든다. (INTERFACES.md 5번 형식: findingId, name, birthDate, role)
+ * 문서 안의 사람 목록을 만든다. (INTERFACES.md 5번 형식: findingId, name, birthDate, role, confidence)
  * 같은 문서에서 역할과 이름이 같으면 같은 사람이므로, 한쪽에만 있는 생년월일을 다른 쪽에도 채운다.
  * 예: 위쪽 "임대인 김철수 750315-1******"과 서명란 "임대인 김철수" → 둘 다 750315
  * @param {any[]} hits scanDocument() 결과
@@ -503,7 +515,14 @@ export function detectPII(document) {
 function collectPeople(hits, rejectedIds) {
   const people = hits
     .filter((h) => h.type === PII_TYPE.PERSON_NAME && !rejectedIds.has(h.id))
-    .map((h) => ({ findingId: h.id, name: h.value, birthDate: h.birthDate ?? null, role: h.role }));
+    .map((h) => ({
+      findingId: h.id,
+      name: h.value,
+      birthDate: h.birthDate ?? null,
+      role: h.role,
+      // 이름이 있는 줄의 OCR 신뢰도 (0~1). 글자 PDF는 null. PART 3이 흐리게 읽힌 이름이면 STOP 대신 확인 불가로 본다 (#277)
+      confidence: typeof h.block?.confidence === 'number' ? h.block.confidence : null,
+    }));
 
   /** @param {{ role: string | null, name: string }} p */
   const key = (p) => `${p.role}|${p.name.replace(/\s/g, '').toUpperCase()}`;
@@ -652,6 +671,8 @@ function lineIndexById(document, hits) {
  * 등기부 소유자를 지금 소유자와 예전 소유자(갑구에 남아 있는, 이미 판 사람)로 나눈다.
  * (예전 소유자가 임대인으로 서명해도 "소유자와 같음"으로 보이지 않게, 공동 소유로 잘못 보이지 않게)
  * - current: 지금 소유자 줄을 정할 근거가 없으면('ALL') 지금처럼 전부 쓴다. (예: 순위번호 없는 등기부, Mock)
+ *   단, 사진·스캔(OCR) 서류에서 근거가 없는데 소유자가 2명 이상이면 null. 순위번호·등기목적을 못 읽은 것이라
+ *   예전 공유자까지 지금 소유자로 들어가 "공동 소유"로 잘못 보인다. (상욱님 사진 점검: 김선달·박흥부·홍길동이 모두 소유자)
  *   지금 소유자를 정할 수 없거나 그 줄에서 소유자 이름을 못 찾으면 null (못 읽음, 추측하지 않음)
  * - previous: 지금 소유자를 정했을 때만 만든다. 없으면 [], current가 정해지지 않았거나 'ALL'이면 null.
  *   role은 'PREVIOUS_OWNER' (PART 4가 [PrevOwner_E] 같은 가명을 붙인다)
@@ -664,6 +685,8 @@ function lineIndexById(document, hits) {
  */
 function splitOwners(owners, document, hits, lines) {
   const currentLines = findCurrentOwnerLines(lines);
+  const ocr = document.sourceType === SOURCE_TYPE.IMAGE || document.sourceType === SOURCE_TYPE.IMAGE_PDF;
+  if (currentLines === 'ALL' && ocr && owners.length > 1) return { current: null, previous: null };
   if (currentLines === 'ALL') return { current: owners, previous: null };
   if (currentLines === null) return { current: null, previous: null };
   const lineOf = lineIndexById(document, hits);

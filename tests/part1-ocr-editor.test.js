@@ -304,4 +304,75 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     expect(resetBtn.hidden).toBe(true);
     expect(onChange).toHaveBeenLastCalledWith([doc]);
   });
+
+  it('batch-confirms non-digit flagged lines via "Confirm this page" while keeping digit lines one-by-one', () => {
+    const sampleDocs = [
+      {
+        documentId: 'doc-1',
+        documentType: DOCUMENT_TYPE.LEASE_CONTRACT,
+        sourceType: 'IMAGE_PDF',
+        pageCount: 1,
+        fullText: '????? ??? ???\n??? ???\n??? 50,000,000?\n???? 900101-1234567',
+        pages: [
+          {
+            pageIndex: 0,
+            width: 1000,
+            height: 1414,
+            blocks: [
+              {
+                blockId: 'b0',
+                text: '????? ??? ???',
+                bbox: { x: 0.1, y: 0.1, width: 0.5, height: 0.04 },
+                confidence: 0.65,
+              },
+              {
+                blockId: 'b1',
+                text: '??? ???',
+                bbox: { x: 0.1, y: 0.16, width: 0.4, height: 0.04 },
+                confidence: 0.7,
+              },
+              {
+                blockId: 'b2',
+                text: '??? 50,000,000?',
+                bbox: { x: 0.1, y: 0.22, width: 0.6, height: 0.04 },
+                confidence: 0.75,
+              },
+              {
+                blockId: 'b3',
+                text: '???? 900101-1234567',
+                bbox: { x: 0.1, y: 0.28, width: 0.6, height: 0.04 },
+                confidence: 0.78,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const onChange = vi.fn();
+    const editor = renderOcrEditor({ documents: sampleDocs, onChange });
+
+    const confirmPageBtn = /** @type {HTMLButtonElement} */ (
+      editor.querySelectorAll('button').find((b) => b.classList.contains('ocr-confirm-page-btn'))
+    );
+    expect(confirmPageBtn).not.toBeNull();
+    expect(confirmPageBtn.hidden).toBe(false);
+    expect(editor.textContent).toContain('4 lines need careful check');
+
+    // Click "Confirm this page": non-digit lines (b0, b1) become confirmed; digit lines (b2, b3) stay flagged
+    confirmPageBtn.click();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0];
+    expect(updated[0].pages[0].blocks[0].confirmed).toBe(true);
+    expect(updated[0].pages[0].blocks[0].confidence).toBe(0.65);
+    expect(updated[0].pages[0].blocks[1].confirmed).toBe(true);
+    expect(updated[0].pages[0].blocks[1].confidence).toBe(0.7);
+    expect(updated[0].pages[0].blocks[2].confidence).toBe(0.75);
+    expect(updated[0].pages[0].blocks[3].confidence).toBe(0.78);
+
+    expect(editor.textContent).toContain('2 lines need careful check');
+    expect(confirmPageBtn.hidden).toBe(true);
+    expect(editor.querySelectorAll('.ocr-block-warn')).toHaveLength(2);
+  });
 });

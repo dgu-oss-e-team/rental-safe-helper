@@ -119,7 +119,7 @@ function report({ detection, overMask, residual, residualDetails, risks }) {
   p('# 평가 결과 (Evaluation)');
   p();
   p('> 이 파일은 `npm run eval`이 만든다. 직접 고치지 말고 다시 실행한다. (#251, 지도 교수님 피드백 ②)');
-  p(`> 커밋 \`${commit}\` · 서류 ${docs.length}장 · 정답 개인정보 ${totalItems}개 · 모든 서류와 값은 가짜다.`);
+  p(`> 커밋 \`${commit}\` · 서류 ${docs.length}건 · 정답 개인정보 ${totalItems}개 · 모든 서류와 값은 가짜다.`);
   p();
   p('## 평가 세트');
   p();
@@ -186,7 +186,8 @@ function report({ detection, overMask, residual, residualDetails, risks }) {
   p();
   p('- 글자가 들어 있는 PDF만 평가한다. 사진·스캔(OCR)은 포함하지 않는다.');
   p('- 미탐지는 "가린 글에 값이 남았는지"로 본다. PDF 위 가림 상자의 위치·넓이는 따로 평가하지 않는다.');
-  p('- 서류는 공개 양식 구조를 따른 가짜 서류 10장이라, 실제 서류의 다양한 모양을 모두 대표하지는 않는다.');
+  p(`- 서류는 실제 서식(인터넷등기소 열람본, 민간임대 표준임대차계약서)과 쪽 구성·글꼴이 같은 가짜 서류 ${docs.length}건이라, 실제 서류의 다양한 모양을 모두 대표하지는 않는다.`);
+  p('- 주택임대차 표준계약서(법무부) 양식은 평가 세트에 없다. 계약서는 모두 민간임대 표준임대차계약서다.');
   p();
   return lines.join('\n');
 }

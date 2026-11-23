@@ -15,7 +15,8 @@
  * runPipeline()은 세 부분을 한 번에 실행한다 (테스트·스크립트용).
  */
 
-import { ok, fail, ERROR_CODE, SOURCE_TYPE } from '../shared/document-model.js';
+import { ok, fail, ERROR_CODE, SOURCE_TYPE, DOCUMENT_TYPE } from '../shared/document-model.js';
+import { mergeDocumentModels } from './merge-documents.js';
 import { readDocument, isLowConfidenceBlock } from '../features/document-input/index.js';
 import { classifyDocument, detectPII, extractFields } from '../features/document-analysis/index.js';
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
@@ -73,22 +74,47 @@ export async function analyzeDocuments({ files }) {
 
 /**
  * 1-a) 서류 읽기만 한다 (PART 1). documents[i]는 files[i]를 읽은 결과.
- * @param {{ files: File[] }} input
+ * parts[i]가 있으면(조각 2개 이상) 조각마다 따로 읽고 한 서류로 잇는다 (#298: 계약서 PDF + 특약 별지 PDF·사진).
+ *   files[i]는 그 조각들을 같은 순서로 합친 PDF라서, 마스킹 PDF·미리 보기는 files[i]로 그린다.
+ *   partTypes[i]: 조각마다 판별한 서류 종류 (PART 2 classifyDocument). 한 칸에 다른 서류가 섞였는지 안내할 때 쓴다 (#305)
+ *   조각이 하나면 partTypes[i]는 null (서류 전체 판별과 같으므로).
+ * @param {{ files: File[], parts?: (File[] | null | undefined)[] }} input
  * @param {{ allowLowConfidence?: boolean }} [options]
  *   allowLowConfidence: 사진·스캔에서 흐린 줄이 있어도 멈추지 않고 돌려받는다.
  *   이때는 반드시 "Confirm text" 단계에서 흐린 줄을 사용자가 모두 확인한 뒤에 analyzeReadDocuments()로 넘긴다.
  */
-export async function readDocuments({ files }, options = {}) {
+export async function readDocuments({ files, parts }, options = {}) {
   if (!Array.isArray(files) || files.length === 0) {
     return { ...fail(ERROR_CODE.INVALID_INPUT, 'Please choose at least one file.'), step: 'input' };
   }
   const documents = [];
-  for (const file of files) {
+  /** @type {(string[] | null)[]} */
+  const partTypes = [];
+  for (const [i, file] of files.entries()) {
+    const pieces = parts?.[i];
+    if (pieces && pieces.length > 1) {
+      const read = [];
+      for (const piece of pieces) {
+        const r = await readDocument(piece, options);
+        if (!r.ok) return stoppedAt('readDocument', r);
+        read.push(r.data);
+      }
+      documents.push(mergeDocumentModels(read));
+      // 판별은 안내용이라 실패해도 멈추지 않고 "모름"으로 둔다 (서류 전체 판별은 analyzeReadDocuments에서 다시 한다)
+      partTypes.push(
+        read.map((d) => {
+          const c = classifyDocument(d);
+          return c.ok ? c.data.documentType : DOCUMENT_TYPE.UNKNOWN;
+        }),
+      );
+      continue;
+    }
     const r = await readDocument(file, options);
     if (!r.ok) return stoppedAt('readDocument', r);
     documents.push(r.data);
+    partTypes.push(null);
   }
-  return ok({ files, documents });
+  return ok({ files, documents, partTypes });
 }
 
 /** OCR로 읽은 서류인지 (사진 또는 글자 없는 스캔 PDF) → "Confirm text" 단계에서 확인한다 */

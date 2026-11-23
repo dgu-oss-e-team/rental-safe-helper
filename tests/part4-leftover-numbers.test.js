@@ -17,6 +17,64 @@ describe('PART 4 이중 안전장치: 남아 있으면 안 되는 번호 모양 
     expect(findLeftoverNumber('홍길동 800101-*******')).toBe('800101-*******');
   });
 
+  it('사진 OCR로 별표 개수가 틀린 주민번호("760423-******")도 찾는다 (별표 1개 이상, PART 2 #270과 같은 기준)', () => {
+    for (const text of ['760423-******', '690812-*****', '680918-***져', '760423-*', '760423-********', '760423-1*****', '760423 - ******', '홍길동760423-******']) {
+      expect(findLeftoverNumber(`주민등록번호 ${text}`), text).not.toBeNull();
+    }
+    // 숫자만 있고 7자리가 아니면 계좌번호 등과 헷갈려 찾지 않는다
+    expect(findLeftoverNumber('관리번호 123456-1234')).toBeNull();
+    expect(findLeftoverNumber('지번 123456-12')).toBeNull();
+    // 이미 가린 자리
+    expect(findLeftoverNumber('주민등록번호 [REDACTED]')).toBeNull();
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 "760423-******"가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임대인 [Landlord_A] 760423-******' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
+  it('사진 OCR로 뒷자리가 엉뚱한 글자로 읽힌 주민번호("760423-#xwssnr")도 찾는다 (PART 2 #291과 같은 기준)', () => {
+    // 뒷자리를 하나도 못 읽은 "760423-"도 생년월일이 남으니 찾는다 (뒤에 띄어 쓴 낱말이 있어도)
+    for (const text of ['김선달 760423-#xwssnr', '760423–abc', '760423 -#', '760423-', '760423- 서울특별시', '790521-2xx']) {
+      expect(findLeftoverNumber(text), text).not.toBeNull();
+    }
+    // 생년월일 모양이 아니거나(월 13, 일 32), 뒷자리가 숫자·하이픈만(계좌번호 모양), 날짜·기간, 뒷자리 첫 글자가 한글(#297)이면 찾지 않는다
+    for (const text of ['761323-#xwssnr', '760432-#xwssnr', '관리번호 110423-12-345678', '18.03.14', '180301~180331일', '접수 180314-등기']) {
+      expect(findLeftoverNumber(text), text).toBeNull();
+    }
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 "760423-#xwssnr"가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임대인 김선달 760423-#xwssnr' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
+  it('사진 OCR로 주소 탐지가 놓친 집 주소("서물특별시 … 가상로 30, 2층 204호")도 찾는다', () => {
+    for (const text of [
+      '서물특별시 중구 가상로 30, 2층 204호(가상동)',
+      '경기도 고양시 일산동구 가상로 1234, 101동 1001호',
+      '서울특별시 송파구 가상동 123-4 가상아파트 101동 1001호',
+      '가상길 7-2 302호',
+    ]) {
+      expect(findLeftoverNumber(text), text).not.toBeNull();
+    }
+    // 시·구까지만 남긴 주소, 이미 가린 주소, 호수만 있는 줄, 조항 번호는 멈추지 않는다
+    for (const text of [
+      '[집합건물] 서울특별시 중구',
+      '임차주택 [REDACTED]',
+      '1동의 건물의 표시 제7층 제702호',
+      '제10조 제1항 제3호에 따라 해지할 수 있다',
+      '보증금 금10,000,000원 월세 금650,000원',
+    ]) {
+      expect(findLeftoverNumber(text), text).toBeNull();
+    }
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 집 주소가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임차인 주소 서물특별시 중구 가상로 30, 2층 204호(가상동)' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
   it('외국인등록번호, 휴대폰 번호(하이픈 없이)도 찾는다', () => {
     expect(findLeftoverNumber('외국인등록번호 990505-5123456')).toBe('990505-5123456');
     expect(findLeftoverNumber('연락처 01012345678')).toBe('01012345678');

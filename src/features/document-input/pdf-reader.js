@@ -288,22 +288,41 @@ export async function readPdfText(buffer) {
         /** @type {Array<{ start: number, end: number, bbox: { x: number, y: number, width: number, height: number } }>} */
         const spans = [];
 
-        group.forEach((item, idx) => {
+        /** @type {{ text: string, x: number, y: number, w: number, h: number, normText: string } | null} */
+        let prevEmitted = null;
+
+        group.forEach((item) => {
           const normalizedItemText = item.text.replace(/\s+/g, ' ').trim();
           if (normalizedItemText.length === 0) return;
 
-          if (spans.length > 0) {
-            const prev = group[idx - 1];
-            const minH = Math.min(prev.h, item.h);
-            const gap = item.x - (prev.x + prev.w);
-            const isSeparateOverlappingField =
-              item.x <= prev.x ||
-              (prev.w > 0 && item.x <= prev.x + prev.w * 0.5) ||
-              gap <= -minH * 0.25;
+          if (prevEmitted) {
+            const minH = Math.min(prevEmitted.h, item.h);
+            const gap = item.x - (prevEmitted.x + prevEmitted.w);
+            const isSingleGlyphPair =
+              prevEmitted.normText.length === 1 && normalizedItemText.length === 1;
+            const isHalfWidthGlyphPair =
+              /^[0-9A-Za-z-]$/.test(prevEmitted.normText) && /^[0-9A-Za-z-]$/.test(normalizedItemText);
+
+            // Skip synthetic fake-bold overstrike of the exact same single glyph at nearly identical X
+            if (
+              isSingleGlyphPair &&
+              prevEmitted.normText === normalizedItemText &&
+              Math.abs(item.x - prevEmitted.x) <= Math.max(1.5, minH * 0.15)
+            ) {
+              return;
+            }
+
+            const isSeparateOverlappingField = isSingleGlyphPair
+              ? item.x <= prevEmitted.x
+              : item.x <= prevEmitted.x ||
+                (prevEmitted.w > 0 && item.x <= prevEmitted.x + prevEmitted.w * 0.5) ||
+                gap <= -minH * 0.25;
+
+            const gapThreshold = isHalfWidthGlyphPair ? minH * 0.35 : minH * 0.2;
             const needsSpace =
-              gap > minH * 0.2 ||
+              gap > gapThreshold ||
               isSeparateOverlappingField ||
-              /\s$/.test(prev.text) ||
+              /\s$/.test(prevEmitted.text) ||
               /^\s/.test(item.text);
 
             if (needsSpace) {
@@ -320,6 +339,7 @@ export async function readPdfText(buffer) {
             end,
             bbox: buildClampedSpanBbox(item, pageWidth, pageHeight, blockBbox),
           });
+          prevEmitted = { ...item, normText: normalizedItemText };
         });
 
         pageText += joinedText + '\n';

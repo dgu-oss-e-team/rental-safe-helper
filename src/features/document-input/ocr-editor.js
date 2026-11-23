@@ -36,6 +36,7 @@ const DOC_LABELS = {
  * @returns {boolean}
  */
 export function isLowConfidenceBlock(block) {
+  if (block?.confirmed === true) return false;
   if (typeof block.confidence !== 'number') return false;
   const threshold = /\d/.test(block.text)
     ? OCR_REVIEW_DIGIT_THRESHOLD
@@ -216,11 +217,42 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
     (doc.pages ?? []).forEach((page, pageIdx) => {
       const blocksList = el('div', { class: 'ocr-block-list' });
+      /** @type {Array<() => void>} */
+      const rowRefreshers = [];
+
+      const hasUnconfirmedTextBlocks = () =>
+        (page.blocks ?? []).some((b) => isLowConfidenceBlock(b) && !/\d/.test(b.text));
+
+      const confirmPageBtn = button(
+        'Confirm this page',
+        () => {
+          let changed = false;
+          (page.blocks ?? []).forEach((b) => {
+            if (isLowConfidenceBlock(b) && !/\d/.test(b.text)) {
+              b.confirmed = true;
+              changed = true;
+            }
+          });
+          if (!changed) return;
+          rowRefreshers.forEach((fn) => fn());
+          refreshPageConfirmBtn();
+          updateSummaryChip();
+          emitChange();
+        },
+        { variant: 'secondary' }
+      );
+      confirmPageBtn.classList.add('ocr-confirm-page-btn');
+
+      const refreshPageConfirmBtn = () => {
+        confirmPageBtn.hidden = !hasUnconfirmedTextBlocks();
+      };
+      refreshPageConfirmBtn();
 
       (page.blocks ?? []).forEach((block, blockIdx) => {
         const origBlock = originalDocs[docIdx]?.pages?.[pageIdx]?.blocks?.[blockIdx];
         const origText = origBlock?.text ?? block.text;
         const origConfidence = origBlock?.confidence ?? block.confidence;
+        const origConfirmed = Boolean(origBlock?.confirmed);
         const inputId = `ocr-${doc.documentId}-p${page.pageIndex}-${block.blockId}`;
 
         const rowContainer = el('div', { class: 'ocr-block' });
@@ -244,6 +276,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           () => {
             block.confidence = 1;
             refreshRowState();
+            refreshPageConfirmBtn();
             updateSummaryChip();
             emitChange();
           },
@@ -257,8 +290,14 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             textarea.value = origText;
             block.text = origText;
             block.confidence = origConfidence;
+            if (origConfirmed) {
+              block.confirmed = true;
+            } else {
+              delete block.confirmed;
+            }
             autoResizeTextarea(textarea);
             refreshRowState();
+            refreshPageConfirmBtn();
             updateSummaryChip();
             emitChange();
           },
@@ -269,7 +308,9 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         const refreshRowState = () => {
           const needsCheck = isLowConfidenceBlock(block);
           const hasDigits = /\d/.test(block.text);
-          const isConfirmed = block.confidence === 1 && origConfidence !== 1;
+          const isConfirmed =
+            (block.confidence === 1 && origConfidence !== 1) ||
+            (block.confirmed === true && !origConfirmed);
           const confPercent =
             typeof block.confidence === 'number'
               ? `${Math.round(block.confidence * 100)}%`
@@ -291,8 +332,12 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           }
 
           confirmLineBtn.hidden = !needsCheck;
-          resetBtn.hidden = textarea.value === origText && block.confidence === origConfidence;
+          resetBtn.hidden =
+            textarea.value === origText &&
+            block.confidence === origConfidence &&
+            Boolean(block.confirmed) === origConfirmed;
         };
+        rowRefreshers.push(refreshRowState);
 
         textarea.addEventListener('keydown', (evt) => {
           if (evt.key === 'Enter') {
@@ -310,6 +355,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           block.confidence = 1;
           autoResizeTextarea(textarea);
           refreshRowState();
+          refreshPageConfirmBtn();
           updateSummaryChip();
           emitChange();
         });
@@ -334,9 +380,15 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         blocksList.append(rowContainer);
       });
 
+      const pageTitle =
+        (doc.pages ?? []).length > 1
+          ? el('h3', {}, [`Page ${page.pageIndex + 1}`])
+          : el('span', { class: 'ocr-page-label' }, ['Page 1']);
+      const pageHeader = el('div', { class: 'ocr-page-header' }, [pageTitle, confirmPageBtn]);
+
       pageSections.push(
         el('div', { class: 'ocr-page' }, [
-          (doc.pages ?? []).length > 1 ? el('h3', {}, [`Page ${page.pageIndex + 1}`]) : null,
+          pageHeader,
           blocksList,
         ])
       );

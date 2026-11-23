@@ -93,6 +93,7 @@ export const ERROR_CODE = Object.freeze({
  * @property {BBox} bbox
  * @property {number | null} confidence  PDF 텍스트 추출은 null
  * @property {TextSpan[]} [spans]  선택. block.text 기준 [start, end) 오프셋과 조각별 정규화 bbox
+ * @property {boolean} [confirmed]  선택. "Confirm this page"로 확인된 줄 여부(원래 OCR confidence는 그대로 유지)
  */
 
 /**

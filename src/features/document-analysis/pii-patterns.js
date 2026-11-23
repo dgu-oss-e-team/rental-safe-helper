@@ -61,6 +61,22 @@ const REGISTRY_ID_REGEX = /(?<!\d)\d{4}-\d{4}-\d{6}(?!\d)/g;
  * 앞에 "제"가 붙은 "제2017-서울중구-00999호"도 찾는다. ("제"와 "호"는 값에 넣지 않는다, #220 리뷰)
  * 그 밖에 앞에 한글·숫자가 붙어 있으면 다른 낱말의 일부라서 찾지 않는다.
  */
+/**
+ * 사업자등록번호: 3자리-2자리-5자리 (예: 214-86-35071, 상욱님 평가 세트 #302)
+ * 민간임대 계약서 "주민등록번호(사업자등록번호)" 칸에 법인·개인 임대사업자 번호를 적는다.
+ * 개인 임대사업자는 이 번호로 사람을 찾아낼 수 있어서 가린다. 법인 관련 번호와 같이 REGISTRY_ID로 돌려준다. (INTERFACES.md)
+ * - 앞뒤에 숫자·하이픈이 더 붙어 있으면 다른 번호의 일부라서 찾지 않는다.
+ * - 번호 근처에 은행 관련 단어가 있으면 계좌번호일 수 있어서 여기서 찾지 않는다. (계좌번호 찾기가 맡는다, 상욱님 리뷰)
+ */
+const BUSINESS_ID_REGEX = /(?<![\d-])\d{3}\s?-\s?\d{2}\s?-\s?\d{5}(?![\d-])/g;
+
+/**
+ * 중개사무소 등록번호: 시·군·구 코드 5자리-등록 연도-일련번호 5자리 (예: 11230-2020-00187, 상욱님 가짜세트4)
+ * 계약서 "2. 공인중개사" 칸에 적는다. 중개사 이름·주소·전화와 같이 가린다. 등록번호라서 REGISTRY_ID로 돌려준다.
+ * 가운데가 연도(19xx·20xx)여야 하고, 앞뒤에 숫자·하이픈이 더 붙어 있으면 다른 번호의 일부라서 찾지 않는다.
+ */
+const BROKER_ID_REGEX = /(?<![\d-])\d{5}\s?-\s?(?:19|20)\d{2}\s?-\s?\d{5}(?![\d-])/g;
+
 const RENTAL_BUSINESS_ID_REGEX =
   /(?:(?<=(?<![가-힣])제\s?)|(?<![\d가-힣]))(?:19|20)\d{2}\s*-\s*[가-힣]{2,8}\s*-\s*\d{3,6}(?!\d)/g;
 
@@ -140,6 +156,22 @@ const MASKED_ID_LOOSE_REGEX =
   /(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\s?[-./–—~]\s?(?=[\d*＊]*[*＊])([1-8*＊])[\d*＊]{0,11}(?![\d*＊])/g;
 
 /**
+ * 뒷자리 별표가 전부 엉뚱한 글자로 읽힌 번호 (사진 OCR, 상욱님 점검)
+ * 예: "김선달 760423-#xwssnr" (별표 "*******"를 "#xwssnr"로 읽음), "760423-" (뒷자리를 못 읽음)
+ * 생년월일 모양 6자리(월 01~12, 일 01~31) + 하이픈(–·— 포함) + 띄어쓰기 없는 뒷자리 0~12글자면 주민·외국인등록번호로 본다.
+ * - 생년월일 6자리 뒤에 하이픈이 오는 것은 서류에서 주민번호 말고는 거의 없다.
+ * - 뒷자리가 숫자·하이픈만이면 잡지 않는다. "110423-12-345678" 같은 계좌번호일 수 있다. (숫자만인 번호는 위 정규식들이 맡는다)
+ * - 뒷자리는 하이픈에 바로 붙어 있어야 한다. 뒷자리를 하나도 못 읽은 "760423-"는 뒤가 띄어쓰기·줄 끝일 때만 잡고,
+ *   띄어 쓴 다음 낱말("760423- 서울특별시"의 "서울특별시")은 번호에 넣지 않는다.
+ * - "." "/" "~"는 받지 않는다. 날짜("18.03.14"), 기간("180301~180331일")과 헷갈린다. (별표가 섞이면 위 정규식이 "~"도 받는다)
+ * - 뒷자리 첫 글자가 한글이면 받지 않는다. ("180314-등기") 번호 앞 이름 찾기(NAME_BEFORE_ID_REGEX)와 같은 기준이다. (#291 리뷰)
+ *   별표 뒤에 한글이 붙은 "680918-***져"는 위 MASKED_ID_LOOSE_REGEX가 찾는다.
+ * - uncertain(사용자 확인 필요)이다.
+ */
+const MASKED_ID_GARBAGE_REGEX =
+  /(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\s?[-–—](?:(?=[^\s가-힣])(?=[^\s]*[^\d\s-])([^\s]{1,12})|(?=\s|$))/g;
+
+/**
  * 주민번호 모양의 번호가 법인등록번호인지 (바로 앞 글자로 판단)
  * @param {string} text
  * @param {number} start 번호가 시작하는 위치
@@ -198,6 +230,19 @@ export function findIdNumbers(text) {
         : PII_TYPE.RESIDENT_ID;
     results.push({ type, value: match[0], start, end, uncertain: true });
   }
+  // 뒷자리가 엉뚱한 글자로 읽힌 번호 (OCR, 위 정규식들이 못 찾는 것만)
+  for (const match of text.matchAll(MASKED_ID_GARBAGE_REGEX)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (results.some((r) => start < r.end && r.start < end)) continue;
+    const firstBack = (match[1] ?? '').charAt(0);
+    const type = isCorporateNumber(text, start)
+      ? PII_TYPE.REGISTRY_ID
+      : /^[5-8]$/.test(firstBack)
+        ? PII_TYPE.FOREIGNER_ID
+        : PII_TYPE.RESIDENT_ID;
+    results.push({ type, value: match[0].trimEnd(), start, end: start + match[0].trimEnd().length, uncertain: true });
+  }
   return results.sort((a, b) => a.start - b.start);
 }
 
@@ -221,11 +266,24 @@ export function findPhoneNumbers(text) {
  * 등기 고유번호와 임대사업자 등록번호 (둘 다 REGISTRY_ID)
  * @param {string} text
  */
-export function findRegistryIds(text) {
+export function findRegistryIds(text, keywordText = text) {
   return [
     ...findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID),
     ...findByRegex(text, RENTAL_BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID),
+    ...findByRegex(text, BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID).filter((r) => !nearBankWord(keywordText, r)),
+    ...findByRegex(text, BROKER_ID_REGEX, PII_TYPE.REGISTRY_ID),
   ].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+}
+
+/**
+ * 번호 앞뒤에 은행 관련 단어가 있는지 (계좌번호 찾기와 같은 범위)
+ * @param {string} keywordText
+ * @param {{ start: number, end: number }} r
+ */
+function nearBankWord(keywordText, r) {
+  const before = keywordText.slice(Math.max(0, r.start - BANK_KEYWORD_BEFORE), r.start);
+  const after = keywordText.slice(r.end, r.end + BANK_KEYWORD_AFTER);
+  return BANK_KEYWORD_REGEX.test(before) || BANK_KEYWORD_REGEX.test(after);
 }
 
 /**

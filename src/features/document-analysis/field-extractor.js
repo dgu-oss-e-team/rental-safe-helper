@@ -454,7 +454,7 @@ const RIGHT_KINDS = [
  * @property {string} kind
  * @property {number | null} maxClaimAmount 채권최고액 (근저당만, 못 읽으면 null)
  * @property {boolean | null} cancelled 말소 여부. 말소 줄이 어느 권리를 가리키는지 모르면 null(확인 필요)
- * @property {string | null} receivedAt 접수일 (아직 안 읽는다)
+ * @property {string | null} receivedAt 접수일 'YYYY-MM-DD' (못 읽으면 null)
  */
 
 /** 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)" */
@@ -463,6 +463,13 @@ const SECTION_HEADING = /^\s*[【[(]?\s*([갑을])\s*구\s*[】\])]?(?=\s|$)/;
 const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
 /** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
 const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
+/**
+ * 기록이 아닌 안내 줄 (#298 외부 AI 평가)
+ * 열람본 끝의 "* 실선으로 그어진 부분은 말소사항을 표시함. …", 쪽마다 반복되는 제목 "등기사항전부증명서(말소사항 포함)",
+ * "- - 이 하 여 백 - -"에도 "말소" 글자가 있어서, 을구의 "어느 권리인지 모르는 말소 줄"로 세면
+ * 유효한 근저당까지 cancelled: null(확인 필요)이 됐다. 이런 줄은 권리·말소 기록으로 보지 않는다.
+ */
+const NOTE_LINE = /^\s*\*|말\s*소\s*사\s*항|이\s*하\s*여\s*백/;
 /**
  * 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기).
  * 순위번호가 아닌 것: "2020년…"(날짜), "2/3"(쪽 번호), "23층(○○동)"·"101동"·"502호"(주소 둘째 줄) (#183 실제 신탁 등기부)
@@ -523,7 +530,9 @@ function joinWrappedCancel(lines, i) {
  *   어느 권리인지 모르는 말소 줄이 있으면 그 구에서 말소 표시가 없는 권리는 cancelled: null(확인 필요).
  *   (말소된 칸에 그어진 빨간 줄은 글자로 읽히지 않는다)
  * - 부기등기("1-1 근저당권변경")와 이어지는 줄("근저당권자 …")은 새 권리로 세지 않는다.
- * - receivedAt(접수일)은 아직 안 읽는다. (TODO)
+ * - receivedAt(접수일)은 'YYYY-MM-DD'로 읽는다. 표의 칸 순서가 [순위번호, 등기목적, 접수, 등기원인, …]이라
+ *   권리 줄의 첫 날짜를 접수일로 본다. 줄에 날짜가 없으면 다음 순위번호 전까지 최대 3줄에서 찾는다. (갑구 소유권이전 접수일과 같은 방식)
+ *   순위번호 없는 줄에서 찾은 권리(기록 중간의 "신탁" 줄 등)와 못 읽은 경우는 null. (#301 외부 AI 평가: 근저당 설정 시점)
  * @param {string[]} lines
  * @returns {RegistryRight[] | null}
  */
@@ -544,6 +553,9 @@ export function findRegistryRights(lines) {
   let rowKinds = new Set();
   /** 부기등기("2-1 신탁주의사항") 줄 다음의 설명 줄인지 (다음 순위번호까지) */
   let inSupplement = false;
+  /** 접수일을 다음 줄에서 기다리는 권리 (권리 줄에 날짜가 없을 때) */
+  /** @type {{ right: RegistryRight, seen: number } | null} */
+  let waitingDate = null;
 
   for (let i = 0; i < lines.length; i += 1) {
     const joined = joinWrappedCancel(lines, i);
@@ -562,16 +574,23 @@ export function findRegistryRights(lines) {
       continue;
     }
     if (section === null) continue;
+    if (NOTE_LINE.test(line)) continue; // 안내 줄의 "말소사항"은 말소 기록이 아니다
 
     const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch) {
       inSupplement = Boolean(rankMatch[2]);
+      waitingDate = null; // 다음 기록이 시작되면 앞 권리의 접수일은 더 찾지 않는다
       if (!rankMatch[2]) {
         rowRank = rankMatch[1];
         rowKinds = new Set();
       }
     } else if (inSupplement) {
       continue; // 부기등기의 설명 줄 ("이 부동산에 관하여 … 신탁원부를 통하여 …")는 권리가 아니다
+    } else if (waitingDate && waitingDate.seen < MAX_DATE_LOOKAHEAD) {
+      // 권리 줄에 없던 접수일: 이어지는 줄에서 찾는다 (좁은 칸에서 접수 칸이 다음 줄로 넘어간 경우)
+      waitingDate.seen += 1;
+      waitingDate.right.receivedAt = parseDate(line);
+      if (waitingDate.right.receivedAt !== null) waitingDate = null;
     }
 
     if (/말\s*소/.test(line)) {
@@ -600,13 +619,17 @@ export function findRegistryRights(lines) {
     // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
     if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
 
-    rights.push({
+    /** @type {RegistryRight} */
+    const right = {
       kind: found.kind,
       maxClaimAmount:
         found.kind === 'MORTGAGE' && maxClaim ? parseAmount(line.slice(maxClaim.index + maxClaim[0].length)) : null,
       cancelled: false,
-      receivedAt: null,
-    });
+      // 순위번호가 있는 권리 줄만 접수일을 읽는다 (줄의 첫 날짜 = 접수 칸)
+      receivedAt: rank !== null ? parseDate(line) : null,
+    };
+    rights.push(right);
+    if (rank !== null && right.receivedAt === null) waitingDate = { right, seen: 0 };
     // 순위번호 없는 신탁 줄은 지금 기록의 순위번호를 쓴다. ("3번신탁등기말소"가 이 신탁을 가리킬 수 있게)
     places.push({ section, rank: rank ?? (found.kind === 'TRUST' ? rowRank : null) });
     rowKinds.add(found.kind);
@@ -678,6 +701,11 @@ const PRESERVE_PURPOSE = /^\s*소\s*유\s*권\s*보\s*존/;
  * "공유자전원지분전부이전"은 전부 넘어간 것이라 일부가 아니다.
  */
 const PARTIAL_TRANSFER = /^\s*(?:소\s*유\s*권\s*일\s*부|(?![가-힣]{0,3}전\s*원\s*지\s*분\s*전\s*부)[가-힣]{0,10}지\s*분)/;
+/**
+ * "소유권일부이전": 소유자가 지분 일부를 넘긴 것이라 넘긴 사람도 나머지 지분으로 계속 소유자다.
+ * ("김철수지분전부이전"은 공유자 한 명이 빠지는 것이라 누가 빠졌는지 이름을 맞춰야 해서 여기에 넣지 않는다)
+ */
+const WHOLE_OWNERSHIP_PARTIAL = /^\s*소\s*유\s*권\s*일\s*부\s*이\s*전/;
 /** 다음 줄로 넘어간 등기목적의 끝 "이전" ("공유자전원지분전부" / "이전 제80246호 매매 …") */
 const WRAPPED_TRANSFER_END = /^\s*이\s*전(?![가-힣])/;
 
@@ -704,6 +732,7 @@ const MAX_DATE_LOOKAHEAD = 3;
  * @property {string | null} date 첫 날짜 (소유권이전이면 접수일)
  * @property {boolean} cancelled 말소됐는지
  * @property {number[]} lineIndexes 이 기록에 속한 줄 번호 (lines 기준. 이어지는 줄 포함)
+ * @property {boolean} [keepsRest] "소유권일부이전": 넘긴 사람이 나머지 지분을 그대로 갖는 일부 이전
  */
 
 /**
@@ -766,6 +795,7 @@ function readGapRows(lines) {
     const startRow = (kind) => {
       /** @type {GapRow} */
       const row = { rank, kind, date: parseDate(rest), cancelled: false, lineIndexes: [i] };
+      if (kind === 'PARTIAL' && WHOLE_OWNERSHIP_PARTIAL.test(rest)) row.keepsRest = true;
       rows.push(row);
       current = row;
       waiting = (kind === 'TRANSFER' || kind === 'PARTIAL') && row.date === null ? { row, seen: 0 } : null;
@@ -885,6 +915,10 @@ export function findCurrentOwnerCompanies(lines) {
 
 /**
  * 갑구의 소유권 기록을 지금 소유자 기록과 예전 소유자 기록으로 나눈다.
+ * - 지금 소유자: 말소되지 않은 마지막 소유권보존·소유권이전(전부) 기록
+ * - 그 뒤에 "소유권일부이전"만 이어지면, 넘긴 사람도 나머지 지분으로 계속 소유자라서 그 기록들을 합쳐 지금 소유자로 본다.
+ *   예: "1 소유권보존 전우치" → "2 소유권일부이전 공유자 지분 2분의 1 황진이" → 지금 소유자 전우치·황진이 (상욱님 가짜세트4)
+ * - 그 뒤에 다른 일부 이전("김철수지분전부이전" 등)이 있으면 누가 빠졌는지 이름을 맞춰야 해서 정하지 않는다(null).
  * @param {string[]} lines
  * @returns {{ current: GapRow, previous: GapRow[] } | 'ALL' | null}
  */
@@ -894,9 +928,18 @@ function readOwnershipRecords(lines) {
   if (!seenGap || ownership.length === 0) return 'ALL';
   if (ambiguous) return null;
   const live = ownership.filter((r) => !r.cancelled);
-  const current = live[live.length - 1];
-  if (!current || current.kind === 'PARTIAL') return null;
-  return { current, previous: ownership.filter((r) => r !== current) };
+  let lastWhole = -1;
+  live.forEach((r, i) => {
+    if (r.kind !== 'PARTIAL') lastWhole = i;
+  });
+  if (lastWhole === -1) return null;
+  const after = live.slice(lastWhole + 1);
+  if (!after.every((r) => r.keepsRest)) return null;
+  const group = [live[lastWhole], ...after];
+  /** @type {GapRow} */
+  const current =
+    after.length === 0 ? live[lastWhole] : { ...live[lastWhole], lineIndexes: group.flatMap((r) => r.lineIndexes) };
+  return { current, previous: ownership.filter((r) => !group.includes(r)) };
 }
 
 /** "계약일", "계약일자", "계약체결일" 라벨. 바로 뒤에 날짜가 와야 한다. ("계약일로부터 30일"은 아니다) */

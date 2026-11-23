@@ -127,10 +127,13 @@ const STANDALONE_NAME_REGEX = new RegExp(
  * 등기부 공유자는 "공유자" 라벨이 윗줄에 있고, 이름은 아랫줄에 "이몽룡 790521-*******"처럼 번호와 함께 나온다. (#165)
  * - 한글 2-4자 + 공백 + 번호(생년월일 6자리 + 구분 기호 + 뒷자리 첫 글자). 앞에 한글·영문이 붙어 있으면 아니다.
  *   ("주식회사가상건설 110111-…"의 "가상건설"은 이름이 아니다)
+ * - 사진 OCR이 뒷자리 별표를 엉뚱한 글자로 읽은 "김선달 760423-#xwssnr"도 받는다.
+ *   (하이픈 뒤 첫 글자가 숫자·별표가 아니어도 한글·띄어쓰기만 아니면, pii-patterns.js의 MASKED_ID_GARBAGE_REGEX와 같은 기준)
  * - 라벨 단어("임대인 750315-…"), notNames("번호 …")는 이름이 아니다.
  * - 역할은 "성명" 칸처럼 위쪽에서 가장 최근에 나온 역할 라벨을 이어받는다. ("공유자" → OWNER)
  */
-const NAME_BEFORE_ID_REGEX = /(?<![가-힣A-Za-z])([가-힣]{2,4})[ \t]+(?=\d{6}\s?[-./]\s?[1-8*])/g;
+const NAME_BEFORE_ID_REGEX =
+  /(?<![가-힣A-Za-z])([가-힣]{2,4})[ \t]+(?=\d{6}\s?(?:[-./]\s?[1-8*＊]|[-–—][^\s\d가-힣-]))/g;
 /** 이름이 아닌 라벨 단어 (역할 라벨, 이름만 찾는 라벨, "성명" 같은 칸 이름) */
 const LABEL_WORDS = new Set([
   ...rules.persons.flatMap((p) => p.labels),
@@ -477,23 +480,54 @@ function withParenTail(text, end) {
 /** 주소가 줄 끝에서 괄호를 열고 닫지 않았는지 ("… 304호(가" → 아랫줄 "상동,가상빌라)"로 이어짐) */
 export const hasOpenParen = (/** @type {string} */ value) => /\([^)]*$/.test(value);
 
+/*
+ * 사진(OCR)이 시·도나 시·군·구 이름을 틀리게 읽은 주소 (상욱님 사진 점검)
+ *   "서물특별시 중구 가상로 30, 2층 204호(가상동)", "서득별시 중구 기싱동2가 47-12 기상하우스 제4층 제402호",
+ *   "서울특별시 AdET 가상로 14,301호(가상동,가상빌라)"
+ * 위 ADDRESS_REGEX는 시·도 이름이 목록(person-labels.json의 addressRegions)에 있고 시·군·구가 한글이어야 해서 놓친다.
+ * 틀린 글자를 목록에 넣는 대신 주소 모양으로 찾는다. 일상 문장과 헷갈리지 않게 뒤에 도로명·동 + 번지 숫자가 꼭 있어야 한다.
+ * 1) 시·도 이름이 깨짐: "○○시"·"○○도"로 끝나는 낱말(3~7글자) + 시·군·구 + 도로명·동 + 숫자
+ * 2) 시·군·구 이름이 깨짐: 목록의 시·도 이름 + 띄어쓰기 없는 아무 낱말(1~8글자) + 도로명·동 + 숫자
+ * OCR 추측이라 uncertain(④에서 확인)으로 표시한다. 시·도 이름이 정식이 아니라 extractFields의 주소 비교는 확인 불가가 된다.
+ */
+const OCR_ROAD_OR_DONG_AHEAD = '(?=[가-힣0-9]+(?:로|길|동|가|읍|면|리)[ \\t]*\\d)';
+const OCR_ADDRESS_REGEX = new RegExp(
+  `(?<![가-힣A-Za-z0-9])(?:[가-힣]{2,6}[시도][ \\t]*${SIGUNGU_WORD}(?![가-힣])|(?:${REGION_ANY})[^\\s(]{1,8})` +
+    `[ \\t]+${OCR_ROAD_OR_DONG_AHEAD}[^\\n(]*[^\\s\\n(]`,
+  'g',
+);
+
+/**
+ * 정규식으로 찾은 주소 하나를 표 옆 칸 끊기·뒤 괄호 붙이기까지 마친 결과로 만든다.
+ * @param {string} text
+ * @param {RegExpMatchArray} match
+ */
+function addressResult(text, match) {
+  const start = match.index ?? 0;
+  const cut = cutAtTableCell(match[0]);
+  // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
+  const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
+  const value = text.slice(start, end).trimEnd();
+  // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
+  const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
+  return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) };
+}
+
 /**
  * @param {string} text
- * @returns {{type: string, value: string, start: number, end: number}[]}
+ * @returns {{type: string, value: string, start: number, end: number, uncertain?: boolean}[]}
  */
 export function findAddresses(text) {
+  /** @type {{type: string, value: string, start: number, end: number, tableCut?: boolean, uncertain?: boolean}[]} */
   const results = [];
-  for (const match of text.matchAll(ADDRESS_REGEX)) {
-    const start = match.index ?? 0;
-    const cut = cutAtTableCell(match[0]);
-    // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
-    const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
-    const value = text.slice(start, end).trimEnd();
-    // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
-    const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
-    results.push({ type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) });
+  for (const match of text.matchAll(ADDRESS_REGEX)) results.push(addressResult(text, match));
+  // OCR이 시·도·시·군·구 이름을 틀리게 읽은 주소 (위에서 찾은 것과 겹치지 않는 것만)
+  for (const match of text.matchAll(OCR_ADDRESS_REGEX)) {
+    const r = addressResult(text, match);
+    if (results.some((p) => r.start < p.end && p.start < r.end)) continue;
+    results.push({ ...r, uncertain: true });
   }
-  return results;
+  return results.sort((a, b) => a.start - b.start);
 }
 
 /*
@@ -542,6 +576,34 @@ export function findAddressContinuation(line, afterRegion = false, openParen = f
   const m =
     line.match(afterRegion ? CONTINUATION_AFTER_REGION_REGEX : CONTINUATION_REGEX) ??
     (afterRegion ? null : line.match(BUILDING_THEN_UNIT_INSIDE));
+  if (!m) return null;
+  const start = (m.index ?? 0) + m[0].length - m[1].length;
+  const cut = cutAtTableCell(m[1]);
+  const end = cut === m[1] ? withParenTail(line, start + cut.length) : start + cut.length;
+  const value = line.slice(start, end).trimEnd();
+  return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
+}
+
+/**
+ * 윗줄 주소와 이어지지 못한 "번지, 동·호수" 줄 (사진 OCR, 상욱님 점검)
+ * 두 줄 주소의 윗줄("서울특별시 노원구 가상로")을 OCR이 깨서 읽으면 윗줄이 주소로 안 잡히고,
+ * 아랫줄 "88,205동1103호(가상동,가상그린아파트)"만 남아 동·호수가 AI 글에 간다.
+ * 줄 맨 앞이 "번지(쉼표) [동] 호" 모양이면 그 자체로 집을 가리키는 주소 조각이다.
+ * - "번지 + 쉼표"가 있어야 한다. 쉼표 없는 "제40517호"(접수번호), "제3층 제301호"(전유부분, 따로 찾음)는 아니다.
+ * - 줄 맨 앞에서만 찾는다. (줄 중간의 모양은 표 칸이 섞인 경우라 findMixedContinuation이 맡는다)
+ * - 두 줄 주소의 아랫줄을 이어 붙이는 단계(findAddressContinuation)가 끝난 뒤, 이어지지 못한 줄에만 쓴다.
+ *   (윗줄이 바르게 읽힌 주소면 지금처럼 같은 groupId 조각이 된다)
+ */
+const ORPHAN_UNIT_TAIL_REGEX = new RegExp(
+  `^[ \\t]*(\\d{1,5}(?:-\\d{1,5})?[ \\t]*,[ \\t]*(?:\\d{1,4}[ \\t]*동[ \\t]*)?\\d{1,5}[ \\t]*호(?![가-힣])${ADDRESS_TAIL})`,
+);
+
+/**
+ * @param {string} line 한 줄 (줄바꿈 없음)
+ * @returns {{ type: string, value: string, start: number, end: number } | null}
+ */
+export function findOrphanUnitTail(line) {
+  const m = line.match(ORPHAN_UNIT_TAIL_REGEX);
   if (!m) return null;
   const start = (m.index ?? 0) + m[0].length - m[1].length;
   const cut = cutAtTableCell(m[1]);

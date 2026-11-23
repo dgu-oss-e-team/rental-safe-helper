@@ -1,0 +1,83 @@
+{
+  "document": "set2-registry",
+  "file": "tests/eval/docs/set2-registry.pdf",
+  "documentType": "REGISTRY",
+  "form": "가짜세트2 등기부: 개인 소유, 가압류 말소·근저당 재설정·최근 소유권 이전 (열람본 3쪽, 바탕체)",
+  "pii": [
+    {
+      "type": "REGISTRY_ID",
+      "value": "1101-2016-012384"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "이몽룡"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "성춘향"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "850707-*******",
+      "secret": "850707"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "880214-*******",
+      "secret": "880214"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-0234567"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "110111-0012345"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 마포구 가상동 128-3 가상빌 제3층 제301호",
+      "secret": "128-3 가상빌 제3층 제301호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 마포구 가상동 128-3 가상빌",
+      "secret": [
+        "128-3",
+        "가상빌"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 마포구 가상로11길 7",
+      "secret": "가상로11길"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "제3층 제301호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 마포구 가상로11길 7, 301호(가상동)",
+      "secret": "7, 301호(가상동)"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 은평구 가상로 45, 1203호(가상동,가상타워)",
+      "secret": [
+        "45, 1203호",
+        "가상타워"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 영등포구 가상대로 88(가상동)",
+      "secret": "가상대로 88"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 중구 가상대로 100(가상동)",
+      "secret": "가상대로 100"
+    }
+  ]
+}

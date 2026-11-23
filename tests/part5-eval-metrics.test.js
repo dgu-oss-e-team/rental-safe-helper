@@ -97,10 +97,10 @@ describe('PART 5 평가 지표: 집계·정답표 검사 (#251)', () => {
     expect(checkTruthDoc(bad, Object.values(PII_TYPE))).toEqual(['모르는 종류: NAME', '같은 항목이 두 번: PERSON_NAME']);
   });
 
-  it('저장소의 정답표 10개는 모두 형식이 맞고, 서류 파일이 있다', () => {
+  it('저장소의 정답표 9개(가짜세트 1·2·3·4, #300)는 모두 형식이 맞고, 서류 파일이 있다', () => {
     const dir = new URL('./eval/truth/', import.meta.url);
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
-    expect(files).toHaveLength(10);
+    expect(files).toHaveLength(9);
     for (const f of files) {
       const doc = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
       expect(checkTruthDoc(doc, Object.values(PII_TYPE)), f).toEqual([]);

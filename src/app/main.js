@@ -10,8 +10,9 @@
 import './style.css';
 import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
+import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
-import { slotToFile } from './photo-pages.js';
+import { slotToSource } from './photo-pages.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -57,6 +58,7 @@ const STEP_TEXT = {
  * @property {(docs: any[]) => number} countOcrLinesToCheck
  * @property {() => Promise<void>} confirmOcr  흐린 줄을 다 확인했으면 분석을 이어서 한다
  * @property {() => void} cancelOcr  ①로 돌아간다 (고른 파일은 그대로)
+ * @property {() => void} reviewText  분석 뒤 "Check the text"로 다시 간다 (사진·스캔 서류, 고친 글자는 그대로, #286)
  * @property {(answers: Record<string, string | null>) => Promise<void>} setPersonAnswers  PART 4 "같은 사람인가요?"의 onChange
  * @property {(purpose: string) => void} setPurpose
  * @property {() => Promise<void>} prepare
@@ -176,20 +178,35 @@ async function refreshPreviews() {
 }
 
 /**
+ * 읽은 조각 종류 + 칸 목록 번호 → ② 안내용 (#305). 조각이 하나뿐인 칸은 null.
+ * @param {(string[] | null)[] | undefined} partTypes
+ * @param {(number[][] | null)[] | null} partItems
+ * @returns {(import('./upload-check.js').UploadParts | null)[] | null}
+ */
+function uploadPartsOf(partTypes, partItems) {
+  if (!partTypes || !partItems) return null;
+  return partTypes.map((types, i) => (types && partItems[i] ? { types, items: /** @type {number[][]} */ (partItems[i]) } : null));
+}
+
+/**
  * 서류를 읽고, 사진·스캔이 있으면 "Confirm text" 단계로, 없으면 바로 분석으로 간다. (#54)
  * @param {File[]} files
  * @param {import('./upload-check.js').UploadSlot[] | null} [slots]  파일마다 올린 칸 (시연 샘플은 null, #186)
+ * @param {(File[] | null)[] | null} [parts]  files[i]를 따로 읽을 조각 (#298, 없으면 files[i]를 그대로 읽음)
+ * @param {(number[][] | null)[] | null} [partItems]  조각마다 칸 목록의 몇 번째 파일들인지 (#305)
  */
-async function runAnalysis(files, slots = null) {
+async function runAnalysis(files, slots = null, parts = null, partItems = null) {
   appState.setState({ busy: 'Reading your documents…', error: null });
   const p = await pipeline();
   if (!p) return;
   // 흐린 줄이 있어도 멈추지 않고 받아서 사용자가 확인하게 한다 (확인 전에는 다음으로 못 감)
-  const read = await p.readDocuments({ files }, { allowLowConfidence: true });
+  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true });
   if (!read.ok) {
     appState.setState({ busy: null, error: toError(read) });
     return;
   }
+  // 한 칸에 함께 올린 조각의 종류 (#305). 글자 확인 단계를 거쳐도 ② 화면에서 쓰도록 바로 남겨 둔다.
+  appState.setState({ uploadParts: uploadPartsOf(read.data.partTypes, partItems) });
   const ocrIndexes = read.data.documents.map((d, i) => (p.needsTextReview(d) ? i : -1)).filter((i) => i >= 0);
   if (ocrIndexes.length > 0) {
     ocrDraft = structuredClone(ocrIndexes.map((i) => read.data.documents[i]));
@@ -244,23 +261,25 @@ const act = {
   },
   async analyze() {
     const chosen = appState.getState().files;
-    // 사진 여러 장은 칸마다 PDF 하나로 합친다 (#268). 브라우저 안에서만 한다.
-    const manyPhotos = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 1);
-    if (manyPhotos) appState.setState({ busy: 'Preparing your photos…', error: null, uploadNotice: null });
-    /** @type {{ registry: File | null, lease: File | null }} */
-    let files;
+    // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
+    const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
+    if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
+    /** @type {{ registry: Awaited<ReturnType<typeof slotToSource>>, lease: Awaited<ReturnType<typeof slotToSource>> }} */
+    let sources;
     try {
-      files = {
-        registry: await slotToFile(chosen.registry, 'registry-photos.pdf'),
-        lease: await slotToFile(chosen.lease, 'lease-photos.pdf'),
+      sources = {
+        registry: await slotToSource(chosen.registry, 'registry.pdf'),
+        lease: await slotToSource(chosen.lease, 'lease.pdf'),
       };
     } catch {
       appState.setState({ busy: null, error: { step: 'input', code: 'PHOTO_READ_FAILED', message: 'A photo could not be prepared.' } });
       return;
     }
     // 파일마다 올린 칸을 같이 넘긴다. ②에서 판별 결과와 다르면 안내한다 (#186)
-    const { files: list, slots } = filesWithSlots(files);
-    await runAnalysis(list, slots);
+    const { files: list, slots } = filesWithSlots({ registry: sources.registry?.file ?? null, lease: sources.lease?.file ?? null });
+    const parts = slots.map((slot) => sources[slot]?.parts ?? null);
+    const partItems = slots.map((slot) => sources[slot]?.items ?? null);
+    await runAnalysis(list, slots, parts, partItems);
   },
   async analyzeSample() {
     // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.
@@ -322,6 +341,14 @@ const act = {
   cancelOcr() {
     ocrDraft = [];
     appState.setState({ ocrReview: null, step: 'upload', error: null });
+  },
+  reviewText() {
+    // 보내기 전 검사가 멈춘 사진 서류: 이미 확인한 글자로 글자 확인 단계를 다시 연다 (#286)
+    const { analysis, uploadSlots } = appState.getState();
+    const back = analysis ? textReviewFromAnalysis(analysis, uploadSlots) : null;
+    if (!back) return;
+    ocrDraft = back.draft;
+    appState.setState({ ocrReview: back.ocrReview, step: 'confirm', error: null });
   },
   async setPersonAnswers(answers) {
     const { analysis } = appState.getState();
@@ -445,7 +472,13 @@ const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
  * @param {string} screenStep  지금 보고 있는 화면
  */
 function errorCard(error, screenStep) {
-  const { title, help } = errorHelp(error);
+  // 사진·스캔 서류가 보내기 전 검사에서 멈췄으면 글자 확인 단계로 돌아가게 안내한다 (#286)
+  const photo = hasPhotoDocuments(appState.getState().analysis);
+  const { title, help } = errorHelp(error, { photo });
+  const fixText =
+    photo && error.step === 'validateMaskedText'
+      ? button('Go back and fix the text', () => act.reviewText(), { id: 'error-fix-text' })
+      : null;
   // ①에서 실패하면 파일을 바꿔 다시 하면 되고, 그 뒤 단계에서는 이전 상태가 남아 있으므로 닫고 계속하면 된다
   // (인터넷 문제나 위험 점검 실패는 서류 탓이 아니어서 같은 파일로 다시 하면 되므로 "Try again")
   const retryLabel = error.code === 'LOAD_FAILED' || error.step === 'assessRisks' ? 'Try again' : 'Try another file';
@@ -460,7 +493,7 @@ function errorCard(error, screenStep) {
       el('p', { class: 'hint' }, [
         `We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}. Error code: ${error.code}`,
       ]),
-      actions([retry, button('Start over', () => act.restart(), { variant: 'secondary' })]),
+      actions([fixText, retry, button('Start over', () => act.restart(), { variant: 'secondary' })]),
     ],
     'error-card',
   );

@@ -475,4 +475,37 @@ describe('PART 1 block spans for granular PDF redaction', () => {
     expect(block.text.slice(block.spans[1].start, block.spans[1].end)).toBe('REG-2026-9999');
     expect(block.spans[0].end + 1).toBe(block.spans[1].start);
   });
+
+  it('keeps per-glyph bold font characters together without splitting numbers like "47-12"', async () => {
+    mockGetDocument.mockImplementationOnce(() => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getViewport: () => ({ width: 595, height: 842, transform: [1, 0, 0, -1, 0, 842] }),
+          getTextContent: async () => ({
+            items: [
+              // Bold BatangChe per-glyph output with ~2.5px advance gap on 10pt font
+              { str: '4', width: 5, height: 10, transform: [10, 0, 0, 10, 100, 700] },
+              { str: '7', width: 5, height: 10, transform: [10, 0, 0, 10, 107.5, 700] },
+              { str: '-', width: 5, height: 10, transform: [10, 0, 0, 10, 115, 700] },
+              { str: '1', width: 5, height: 10, transform: [10, 0, 0, 10, 122.5, 700] },
+              { str: '2', width: 5, height: 10, transform: [10, 0, 0, 10, 130, 700] },
+              // Synthetic double-strike bold at identical X on next line
+              { str: '4', width: 6, height: 10, transform: [10, 0, 0, 10, 100, 660] },
+              { str: '4', width: 6, height: 10, transform: [10, 0, 0, 10, 100.3, 660] },
+              { str: '7', width: 6, height: 10, transform: [10, 0, 0, 10, 106, 660] },
+              { str: '7', width: 6, height: 10, transform: [10, 0, 0, 10, 106.3, 660] },
+            ],
+          }),
+        }),
+      }),
+      destroy: async () => {},
+    }));
+
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+    const res = await pdfReader.readPdfText(dummyPdf);
+    expect(res.pages[0].blocks[0].text).toBe('47-12');
+    expect(res.pages[0].blocks[0].spans).toHaveLength(5);
+    expect(res.pages[0].blocks[1].text).toBe('47');
+  });
 });

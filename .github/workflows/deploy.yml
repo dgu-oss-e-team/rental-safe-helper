@@ -2,10 +2,17 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # Actions 탭에서 손으로 다시 배포할 수 있게 (#285)
+  workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
+# PR을 연달아 병합하면 배포가 겹쳐서 하나가 실패했다 (#269, #270 병합 때). 배포는 한 번에 하나씩, 차례대로 돈다 (#285)
+# cancel-in-progress: false → 돌고 있는 배포를 중간에 끊지 않고, 기다리던 마지막 배포가 그다음에 돈다
+concurrency:
+  group: pages
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
