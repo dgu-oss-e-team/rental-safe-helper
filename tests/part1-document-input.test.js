@@ -551,3 +551,58 @@ describe('PART 1 block spans for granular PDF redaction', () => {
     spy.mockRestore();
   });
 });
+
+describe('PART 1 scanned PDF page progress callback', () => {
+  it('calls options.onPage once per page before OCR with pageIndex and pageCount', async () => {
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595, 842]);
+    pdfDoc.addPage([595, 842]);
+    pdfDoc.addPage([595, 842]);
+    const pdfBytes = await pdfDoc.save();
+    const file = new File([pdfBytes], 'scanned-lease.pdf', { type: 'application/pdf' });
+
+    vi.spyOn(pdfReader, 'renderPdfToImages').mockResolvedValue([
+      { pageIndex: 0, buffer: new Uint8Array([1, 2, 3, 4]).buffer, width: 1190, height: 1684 },
+      { pageIndex: 1, buffer: new Uint8Array([1, 2, 3, 4]).buffer, width: 1190, height: 1684 },
+      { pageIndex: 2, buffer: new Uint8Array([1, 2, 3, 4]).buffer, width: 1190, height: 1684 },
+    ]);
+
+    const events = [];
+    vi.spyOn(ocrModule, 'recognizeImageText').mockImplementation(async () => {
+      events.push('ocr');
+      return {
+        text: '??? ???',
+        confidence: 0.92,
+        width: 1190,
+        height: 1684,
+        blocks: [
+          {
+            text: '??? ???',
+            confidence: 0.94,
+            bbox: { x: 0.1, y: 0.2, width: 0.5, height: 0.03 },
+          },
+        ],
+      };
+    });
+
+    const onPage = vi.fn((info) => {
+      events.push(`page:${info.pageIndex}/${info.pageCount}`);
+    });
+
+    const r = await readDocument(file, { onPage });
+    expect(r.ok).toBe(true);
+    expect(r.data.sourceType).toBe(SOURCE_TYPE.IMAGE_PDF);
+    expect(onPage).toHaveBeenCalledTimes(3);
+    expect(onPage).toHaveBeenNthCalledWith(1, { pageIndex: 0, pageCount: 3 });
+    expect(onPage).toHaveBeenNthCalledWith(2, { pageIndex: 1, pageCount: 3 });
+    expect(onPage).toHaveBeenNthCalledWith(3, { pageIndex: 2, pageCount: 3 });
+    expect(events).toEqual([
+      'page:0/3',
+      'ocr',
+      'page:1/3',
+      'ocr',
+      'page:2/3',
+      'ocr',
+    ]);
+  });
+});

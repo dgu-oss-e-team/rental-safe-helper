@@ -172,6 +172,7 @@ async function extractScannedPdfPages(buffer, options = {}) {
   const ocrPages = [];
 
   for (const pageImg of pageImages) {
+    options.onPage?.({ pageIndex: pageImg.pageIndex, pageCount: pageImages.length });
     let ocrRes;
     try {
       ocrRes = await recognizeImageText(pageImg.buffer);
