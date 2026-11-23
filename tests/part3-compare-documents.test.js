@@ -761,8 +761,8 @@ describe('PART 3 OCR이 불확실한 이름은 STOP 대신 UNVERIFIABLE (#275)',
     return g;
   };
 
-  it('"BUS" vs "홍길동"은 STOP이 아니라 UNVERIFIABLE이고, 설명에 이름이 없다', () => {
-    const r = compareOwnerAndLandlord(withLandlordName('BUS'), groups());
+  it('사진(OCR)의 "BUS" vs "홍길동"은 STOP이 아니라 UNVERIFIABLE이고, 설명에 이름이 없다', () => {
+    const r = compareOwnerAndLandlord(withLandlordName('BUS', { confidence: 0.9 }), groups());
     expect(r.ok).toBe(true);
     expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
     expect(r.data.explanation).toContain('read incorrectly');
@@ -771,15 +771,17 @@ describe('PART 3 OCR이 불확실한 이름은 STOP 대신 UNVERIFIABLE (#275)',
     for (const secret of ['BUS', '홍길동']) expect(text).not.toContain(secret);
   });
 
-  it('한글이 섞이거나 숫자가 붙은 이름도 한글 이름 모양이 아니라서 UNVERIFIABLE', () => {
+  it('사진(OCR)에서 한글이 섞이거나 숫자가 붙은 이름도 한글 이름 모양이 아니라서 UNVERIFIABLE', () => {
     for (const name of ['홍길동1', '홍AB', '홍', '홍길동길동이']) {
-      expect(compareOwnerAndLandlord(withLandlordName(name), groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+      const f = withLandlordName(name, { confidence: 0.9 });
+      expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
     }
   });
 
-  it('소유자 쪽 이름이 깨졌어도 UNVERIFIABLE', () => {
+  it('사진(OCR)에서 소유자 쪽 이름이 깨졌어도 UNVERIFIABLE', () => {
     const f = fields();
     f.registry.owners[0].name = 'AdET';
+    f.registry.owners[0].confidence = 0.9;
     expect(compareOwnerAndLandlord(f, groups()).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
   });
 
@@ -815,8 +817,124 @@ describe('PART 3 OCR이 불확실한 이름은 STOP 대신 UNVERIFIABLE (#275)',
       return compareAccountHolderAndLandlord(f, confirmedHolderGroups());
     };
     expect(run({}).data.status).toBe(RISK_STATUS.STOP);
-    expect(run({ name: 'AdET' }).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(run({ name: 'AdET', confidence: 0.9 }).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
     expect(run({ confidence: 0.3 }).data.status).toBe(RISK_STATUS.UNVERIFIABLE);
-    expect(run({ name: 'AdET' }).data.explanation).toContain('read incorrectly');
+    expect(run({ name: 'AdET', confidence: 0.9 }).data.explanation).toContain('read incorrectly');
+  });
+});
+
+describe('PART 3 이름 모양 검사는 OCR 이름(confidence가 숫자)에만 (#312)', () => {
+  const withLandlordName = (name, extra = {}) => {
+    const f = fields();
+    f.registry.owners[0].name = '홍길동';
+    Object.assign(f.contract.landlords[0], { name, ...extra });
+    return f;
+  };
+  const status = (f) => compareOwnerAndLandlord(f, groups()).data.status;
+
+  it('글자 PDF(confidence가 null이거나 없음)의 영문 이름 임대인이 진짜 다른 사람이면 STOP', () => {
+    for (const extra of [{ confidence: null }, {}]) {
+      expect(status(withLandlordName('John Smith', extra))).toBe(RISK_STATUS.STOP);
+    }
+  });
+
+  it('같은 영문 이름이어도 OCR(confidence가 숫자)이면 UNVERIFIABLE', () => {
+    expect(status(withLandlordName('John Smith', { confidence: 0.95 }))).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('글자 PDF의 영문 소유자도 STOP (소유자 쪽)', () => {
+    const f = fields();
+    f.registry.owners[0].name = 'John Smith';
+    f.registry.owners[0].confidence = null;
+    expect(status(f)).toBe(RISK_STATUS.STOP);
+  });
+
+  it('5자 한글 이름: 글자 PDF는 STOP, OCR은 UNVERIFIABLE', () => {
+    expect(status(withLandlordName('남궁가나다'))).toBe(RISK_STATUS.STOP);
+    expect(status(withLandlordName('남궁가나다', { confidence: 0.9 }))).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  it('신뢰도가 낮으면 이름 모양과 상관없이 UNVERIFIABLE (기존 동작)', () => {
+    expect(status(withLandlordName('김철수', { confidence: 0.5 }))).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+});
+
+describe('PART 3 사진 서류의 주소 숫자 차이는 STOP 대신 CHECK (#312)', () => {
+  const LOT_REGISTRY = '서울특별시 가상구 가상동 212-5 가상빌라 제203호';
+  const ROAD = '서울특별시 가상구 가상로 45';
+
+  /** photo: true면 계약서 임대인에 OCR 신뢰도(숫자)를 넣어 사진 서류로 만든다 */
+  const addressFields = (registryAddress, contractAddress, { photo = false, road = null, registry = {}, contract = {} } = {}) => {
+    const f = fields();
+    f.registry.address = registryAddress;
+    f.registry.roadAddress = road;
+    f.contract.address = contractAddress;
+    Object.assign(f.registry, registry);
+    Object.assign(f.contract, contract);
+    if (photo) f.contract.landlords[0].confidence = 0.9;
+    return f;
+  };
+  const status = (f) => compareAddresses(f).data.status;
+
+  it('사진 서류에서 번지·호수 숫자만 다르면(212-5 ↔ 210-5, 203호 ↔ 208호) CHECK', () => {
+    const f = addressFields(LOT_REGISTRY, '서울특별시 가상구 가상동 210-5 가상빌라 208호', { photo: true });
+    const r = compareAddresses(f);
+    expect(r.ok).toBe(true);
+    expect(r.data.status).toBe(RISK_STATUS.CHECK);
+    expect(r.data.explanation).toContain('read incorrectly');
+    expect(r.data.action.length).toBeGreaterThan(0);
+  });
+
+  it('같은 주소인데 글자 PDF끼리면 숫자만 달라도 STOP', () => {
+    const f = addressFields(LOT_REGISTRY, '서울특별시 가상구 가상동 210-5 가상빌라 208호');
+    expect(status(f)).toBe(RISK_STATUS.STOP);
+  });
+
+  it('사진 서류라도 동 이름·건물 이름이 다르면 STOP', () => {
+    const otherDong = addressFields(LOT_REGISTRY, '서울특별시 가상구 나상동 212-5 가상빌라 203호', { photo: true });
+    const otherBuilding = addressFields(LOT_REGISTRY, '서울특별시 가상구 가상동 212-5 나상빌라 203호', { photo: true });
+    expect(status(otherDong)).toBe(RISK_STATUS.STOP);
+    expect(status(otherBuilding)).toBe(RISK_STATUS.STOP);
+  });
+
+  it('서류의 sourceType이 있으면 그것을 따른다 (image_pdf면 사진, text_pdf면 글자 PDF)', () => {
+    const different = '서울특별시 가상구 가상동 210-5 가상빌라 208호';
+    expect(status(addressFields(LOT_REGISTRY, different, { contract: { sourceType: 'image_pdf' } }))).toBe(RISK_STATUS.CHECK);
+    expect(status(addressFields(LOT_REGISTRY, different, { registry: { sourceType: 'image' } }))).toBe(RISK_STATUS.CHECK);
+    expect(
+      status(
+        addressFields(LOT_REGISTRY, different, {
+          photo: true,
+          registry: { sourceType: 'text_pdf' },
+          contract: { sourceType: 'text_pdf' },
+        }),
+      ),
+    ).toBe(RISK_STATUS.STOP);
+  });
+
+  it('주소가 같으면 NO_FLAG, 못 읽었으면 UNVERIFIABLE (기존 동작)', () => {
+    expect(status(addressFields(LOT_REGISTRY, '서울특별시 가상구 가상동 212-5 가상빌라 203호', { photo: true }))).toBe(
+      RISK_STATUS.NO_FLAG,
+    );
+    expect(status(addressFields(LOT_REGISTRY, null, { photo: true }))).toBe(RISK_STATUS.UNVERIFIABLE);
+  });
+
+  describe('지번 등기부 ↔ 도로명 계약서', () => {
+    const road = (contractAddress, opts = {}) => addressFields(LOT_REGISTRY, contractAddress, { road: ROAD, ...opts });
+
+    it('사진 서류에서 호수만 다르면(203호 ↔ 208호) CHECK, 글자 PDF면 STOP', () => {
+      const contract = '서울특별시 가상구 가상로 45 가상빌라 208호';
+      expect(status(road(contract, { photo: true }))).toBe(RISK_STATUS.CHECK);
+      expect(status(road(contract))).toBe(RISK_STATUS.STOP);
+    });
+
+    it('사진 서류에서 도로 번호만 다르면(45 ↔ 46) CHECK', () => {
+      expect(status(road('서울특별시 가상구 가상로 46 가상빌라 203호', { photo: true }))).toBe(RISK_STATUS.CHECK);
+    });
+
+    it('도로 이름이 다르면 사진 서류라도 STOP, 같은 집이면 NO_FLAG', () => {
+      expect(status(road('서울특별시 가상구 나상로 45 가상빌라 203호', { photo: true }))).toBe(RISK_STATUS.STOP);
+      expect(status(road('서울특별시 가상구 가상로 45 가상빌라 203호', { photo: true }))).toBe(RISK_STATUS.NO_FLAG);
+    });
   });
 });
