@@ -28,6 +28,30 @@ describe('PART 4 사진 서류 안전망 (findPhotoLeftover)', () => {
     }
   });
 
+  it('평범한 계약 문구는 이름으로 보지 않는다 (#310 리뷰: 뒤에 한글 낱말이 이어지거나 조사로 끝나는 낱말)', () => {
+    for (const line of [
+      '수리비는 임차인 부담으로 한다',
+      '임차인 명의로 전입한다',
+      '임대인 소유의 주택',
+      '임대인 사정으로 해지',
+      '공유자 전원의 동의',
+      '임차인 우선 변제',
+      '임대인 본인',
+      '임차인 지정 계좌',
+      '임대인 변경 시',
+      '임차인 부담',
+      '임대인 동의 없이',
+    ]) {
+      expect(findPhotoLeftover(line), line).toBeNull();
+    }
+  });
+
+  it('조사 글자로 끝나는 이름도 이름 칸 모양이면 찾는다 ("임차인 | 김지은 |", "예금주 이정의 (서명")', () => {
+    for (const line of ['임차인 | 김지은 |', '예금주 이정의 (서명 또는 인)']) {
+      expect(findPhotoLeftover(line), line).toBe('NAME');
+    }
+  });
+
   it('동 이름 괄호가 붙은 호수를 찾는다 (OCR이 502를 505로 읽어 원래 값과 비교로 안 잡히는 경우)', () => {
     for (const line of ['203호(가상동) |', '63, 505호(가상동,가[REDACTED]', '1103 호 (가상동)']) {
       expect(findPhotoLeftover(line), line).toBe('UNIT');

@@ -189,6 +189,7 @@ const NOT_NAME_AFTER_ROLE = new Set([
   ...ROLE_WORDS,
   // 계약서에서 역할 낱말 뒤에 자주 오는 낱말
   '전입', '전입신고', '전세', '확정일자', '주민센터', '명도', '원상복구', '정보', '사항', '신청', '상호', '사업자',
+  '부담', '명의', '소유', '사정', '전원', '우선', '동의', '본인', '지정', '변경', '전부', '일부', '모두', '각각', '공동',
 ]);
 /** 흔한 성씨 (이름 모양인지 볼 때 첫 글자). "임차인 간에"의 "간에" 같은 문장 낱말이 이름으로 보이지 않게 한다. */
 const SURNAMES = new Set(
@@ -197,6 +198,8 @@ const SURNAMES = new Set(
 const TWO_LETTER_SURNAMES = ['남궁', '황보', '제갈', '선우', '독고', '사공', '서문'];
 /** @param {string} word */
 const looksLikeName = (word) => SURNAMES.has(word[0]) || TWO_LETTER_SURNAMES.some((x) => word.startsWith(x));
+/** 조사로 끝나는 낱말 ("부담으로", "소유의") → 문장 낱말 (PART 2 nameParticles) */
+const ENDS_WITH_PARTICLE = new RegExp(`(?:${(personLabels.nameParticles ?? []).join('|')})$`);
 /** 이름 뒤에 오면 회사 이름으로 보는 낱말 ("임대인 가상리츠 주식회사") */
 const COMPANY_AFTER = /^\s*(?:주식회사|유한회사|회사|법인|㈜|\(주\))/;
 /** 역할 낱말 + (띄어쓰기·세로줄·쌍점) + 한글 2~4자 낱말. OCR이 표 칸 선을 "|", "⎸"로 읽는다. */
@@ -215,7 +218,13 @@ const UNIT_WITH_DONG = /(?<![제\d])\d{1,4}\s?호\s?\([가-힣]/;
 export function findPhotoLeftover(line) {
   for (const m of line.matchAll(ROLE_NEXT_WORD)) {
     if (NOT_NAME_AFTER_ROLE.has(m[1]) || !looksLikeName(m[1])) continue;
-    if (COMPANY_AFTER.test(line.slice((m.index ?? 0) + m[0].length))) continue;
+    const rest = line.slice((m.index ?? 0) + m[0].length);
+    if (COMPANY_AFTER.test(rest)) continue;
+    // 서식의 이름 칸은 이름 뒤에 줄 끝, 칸 선("|"), "(서명", 번호가 온다. 뒤에 한글 낱말이 이어지면 문장이다.
+    // ("수리비는 임차인 부담으로 한다", "임차인 우선 변제", #310 리뷰)
+    if (/^\s*[가-힣]/.test(rest)) continue;
+    // 조사로 끝나는 낱말은 문장 낱말이다. 단, 이름 칸 모양(뒤에 칸 선·"(")이면 "김지은"처럼 조사 글자로 끝나는 이름일 수 있어 본다.
+    if (ENDS_WITH_PARTICLE.test(m[1]) && !/^\s*[|⎸│(（]/.test(rest)) continue;
     return 'NAME';
   }
   return UNIT_WITH_DONG.test(line) ? 'UNIT' : null;
