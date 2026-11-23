@@ -80,17 +80,24 @@ function isSameLineBand(a, b) {
   return overlapX / minW > 0.35;
 }
 
+const LEASE_PARTY_PAGE_RE = new RegExp(
+  "(표준임대차계약서|계약\\s*당사자|임대사업자|임차인|개업공인)"
+);
+
 /**
- * Checks if sorted line blocks contain suspicious vertical gaps where table rows may have been skipped.
- * @param {Array<{ bbox: { y: number, height: number } }>} blocks
+ * Runs a second OCR pass only on lease party table pages when vertical gaps suggest skipped rows.
+ * @param {Array<{ text: string, bbox: { y: number, height: number } }>} blocks
  */
-function hasSuspiciousVerticalGaps(blocks) {
-  if (blocks.length < 4) return true;
+function shouldRunLeaseTableRecovery(blocks) {
+  if (blocks.length === 0) return false;
+  const isLeasePartyPage = blocks.some((b) => LEASE_PARTY_PAGE_RE.test(b.text));
+  if (!isLeasePartyPage) return false;
+
   const sorted = [...blocks].sort((a, b) => a.bbox.y - b.bbox.y);
   for (let i = 1; i < sorted.length; i += 1) {
     const prevBottom = sorted[i - 1].bbox.y + sorted[i - 1].bbox.height;
     const gap = sorted[i].bbox.y - prevBottom;
-    if (gap > 0.035) return true;
+    if (gap > 0.032) return true;
   }
   return false;
 }
@@ -113,14 +120,14 @@ export async function recognizeImageText(buffer) {
     const imageHeight = imageBitmap.height || 1414;
     imageBitmap.close(); // Clean up memory
 
-    // 2. Reuse worker and perform OCR with table-friendly PSM.SINGLE_COLUMN ('4')
+    // 2. Keep default PSM.AUTO ('3') as primary pass so registry rank numbers and columns stay intact
     const worker = await getWorker();
     const uint8Array = new Uint8Array(buffer);
     const canSetParams = typeof worker.setParameters === 'function';
 
     if (canSetParams) {
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
+        tessedit_pageseg_mode: PSM?.AUTO ?? '3',
         preserve_interword_spaces: '1',
       });
     }
@@ -138,10 +145,10 @@ export async function recognizeImageText(buffer) {
       normalizedConfidence
     );
 
-    // 3. Recovery pass with PSM.SINGLE_BLOCK ('6') if dense table rows left vertical gaps
-    if (canSetParams && hasSuspiciousVerticalGaps(blocks)) {
+    // 3. Targeted recovery pass with PSM.SINGLE_COLUMN ('4') only on lease party pages with skipped rows
+    if (canSetParams && shouldRunLeaseTableRecovery(blocks)) {
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM?.SINGLE_BLOCK ?? '6',
+        tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
         preserve_interword_spaces: '1',
       });
       // @ts-ignore

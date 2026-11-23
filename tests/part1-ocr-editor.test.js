@@ -376,7 +376,8 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     expect(editor.querySelectorAll('.ocr-block-warn')).toHaveLength(2);
   });
 
-  it('always flags critical lease party/address/agent lines even at high confidence and supports "+ Add missing line"', () => {
+  it('always flags critical lease party/address lines even at high confidence without flagging general clauses, and matches getFlaggedBlocks()', async () => {
+    const { getFlaggedBlocks } = await import('../src/features/document-input/ocr-editor.js');
     const onChange = vi.fn();
     const doc = {
       documentId: 'doc-lease-photo-1',
@@ -418,6 +419,12 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
               bbox: { x: 0.1, y: 0.4, width: 0.8, height: 0.02 },
               confidence: 0.91,
             },
+            {
+              blockId: 'p0_b5',
+              text: "제11조(임대보증금의 반환) 임차인이 임대사업자에게 예치한 임대보증금은 반환한다.",
+              bbox: { x: 0.1, y: 0.5, width: 0.8, height: 0.02 },
+              confidence: 0.93,
+            },
           ],
         },
       ],
@@ -426,14 +433,11 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
     const editor = renderOcrEditor({ documents: [doc], onChange });
     const warnRows = editor.querySelectorAll('.ocr-block-warn');
     expect(warnRows).toHaveLength(4);
-
-    const addBtn = editor.querySelectorAll('button').find((b) => b.classList.contains('ocr-add-line-btn'));
-    expect(addBtn).toBeDefined();
-    addBtn.click();
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-    const updated = onChange.mock.calls[0][0];
-    expect(updated[0].pages[0].blocks).toHaveLength(6);
-    expect(updated[0].pages[0].blocks[5].blockId).toContain('_added');
+    expect(getFlaggedBlocks([doc]).map((b) => b.blockId)).toEqual([
+      'p0_b0',
+      'p0_b1',
+      'p0_b2',
+      'p0_b4',
+    ]);
   });
 });

@@ -25,10 +25,17 @@ export const OCR_REVIEW_DIGIT_THRESHOLD = 0.8;
 export const OCR_REVIEW_TEXT_THRESHOLD = 0.75;
 
 const DOC_LABELS = {
-  [DOCUMENT_TYPE.REGISTRY]: 'Property register (?????)',
-  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract (??????)',
+  [DOCUMENT_TYPE.REGISTRY]: "Property register (등기부등본)",
+  [DOCUMENT_TYPE.LEASE_CONTRACT]: "Lease contract (임대차계약서)",
   [DOCUMENT_TYPE.UNKNOWN]: 'Scanned document',
 };
+
+const RE_PARTY_LINE = new RegExp("(임대사업자|임차인|개업공인|소속공인중개사|대표자|성명|예금주)");
+const RE_SECTION_START = new RegExp("1\\.\\s*계약\\s*당사자|계약\\s*당사자");
+const RE_SECTION_END = new RegExp("^[◈◆◇]|해당\\s*주택은");
+const RE_ADDR_KEYWORD = new RegExp("(\\[집합건물\\]|고유번호|주택\\s*소재지|소재지번|도로명주소|건물번호)");
+const RE_ADDR_UNIT_NUM = new RegExp("\\d+\\s*-\\s*\\d+|\\d+\\s*호|제\\s*\\d+\\s*층");
+const RE_ADDR_SUFFIX = new RegExp("(시|구|동|로|길|호|층|번지)");
 
 /**
  * ??/?? ???? ?? ??("Confirm this page")?? ???? ? ?? ?? ????? ??? ????.
@@ -36,25 +43,19 @@ const DOC_LABELS = {
  * @returns {boolean}
  */
 function isCriticalPartyOrNameLine(text) {
-  return new RegExp("(임대사업자|임차인|개업공인|소속공인중개사|대표자|성명|소유자|공유자|예금주|채무자|근저당권자|서명|날인)").test(text);
+  return RE_PARTY_LINE.test(text);
 }
 
 /**
  * ??/?? ???? OCR ???? ???? ??? ??? ??? ??? ?? ?? ????.
  * - ?????? 1?? "1. ?? ???" ~ "?" ?? ?? ?? ?? ?
- * - ?????????? ???/??/??, ???/??, ??/?? ??? ? ? ? ???(|, ?) ??? ?
+ * - ?????????? ?? ???, ??/??? ?? ? ???? ?
  * @param {import('../../shared/document-model.js').DocumentModel[]} docs
  * @returns {WeakSet<object>}
  */
-function collectCriticalBlocks(docs) {
+export function collectCriticalBlocks(docs) {
   const criticalSet = new WeakSet();
-  const reStart = new RegExp("1\\.\\s*계약\\s*당사자|계약\\s*당사자");
-  const reEnd = new RegExp("^[◈◆◇]|해당\\s*주택은");
-  const reAddrKw = new RegExp("(\\[집합건물\\]|고유번호|주택\\s*소재지|소재지번|도로명주소|건물번호|주소)");
-  const reAddrNum = new RegExp("\\d+\\s*-\\s*\\d+|\\d+\\s*호|제\\s*\\d+\\s*층");
-  const reAddrSuf = new RegExp("(시|구|동|로|길|호|층|번지|가상)");
-  const reMoneyRight = new RegExp("(임대보증금|월임대료|계약금|잔\\s*금|계좌번호|선순위|근저당|채권최고액|갑\\s*구|을\\s*구|지분)");
-  const rePipe = new RegExp("[|⎸│]");
+  if (!Array.isArray(docs)) return criticalSet;
 
   for (const doc of docs) {
     if (!doc || doc.sourceType === 'text_pdf') continue;
@@ -66,24 +67,17 @@ function collectCriticalBlocks(docs) {
         const text = String(block.text || '').trim();
         if (!text) continue;
 
-        if (reStart.test(text)) {
+        if (RE_SECTION_START.test(text)) {
           inLeasePartySection = true;
-        } else if (reEnd.test(text)) {
+        } else if (RE_SECTION_END.test(text)) {
           inLeasePartySection = false;
         }
 
         const isKeyAddressOrPropertyLine =
-          reAddrKw.test(text) || (reAddrNum.test(text) && reAddrSuf.test(text));
-        const isKeyMoneyOrRightLine = reMoneyRight.test(text);
-        const hasTablePipeArtifact = rePipe.test(text);
+          RE_ADDR_KEYWORD.test(text) ||
+          (RE_ADDR_UNIT_NUM.test(text) && RE_ADDR_SUFFIX.test(text));
 
-        if (
-          inLeasePartySection ||
-          isCriticalPartyOrNameLine(text) ||
-          isKeyAddressOrPropertyLine ||
-          isKeyMoneyOrRightLine ||
-          hasTablePipeArtifact
-        ) {
+        if (inLeasePartySection || isKeyAddressOrPropertyLine) {
           criticalSet.add(block);
         }
       }
@@ -108,6 +102,31 @@ export function isLowConfidenceBlock(block, options = {}) {
     ? OCR_REVIEW_DIGIT_THRESHOLD
     : OCR_REVIEW_TEXT_THRESHOLD;
   return block.confidence < threshold;
+}
+
+/**
+ * ?? ???? ??? ??? ??? ?? ??(?? ??? + ?? ?? ?????? ?)? ????.
+ * PART 5? countLinesToCheck()? ocr-editor? ??? ??? ????? ????.
+ * @param {import('../../shared/document-model.js').DocumentModel[]} documents
+ * @returns {import('../../shared/document-model.js').Block[]}
+ */
+export function getFlaggedBlocks(documents) {
+  const docs = Array.isArray(documents) ? documents : [];
+  const criticalBlocks = collectCriticalBlocks(docs);
+  /** @type {import('../../shared/document-model.js').Block[]} */
+  const flagged = [];
+
+  for (const doc of docs) {
+    for (const page of doc.pages ?? []) {
+      for (const block of page.blocks ?? []) {
+        if (isLowConfidenceBlock(block, { forceReview: criticalBlocks.has(block) })) {
+          flagged.push(block);
+        }
+      }
+    }
+  }
+
+  return flagged;
 }
 
 /**
@@ -178,14 +197,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
   ]);
 
   const updateSummaryChip = () => {
-    let remaining = 0;
-    for (const doc of draftDocs) {
-      for (const page of doc.pages ?? []) {
-        for (const block of page.blocks ?? []) {
-          if (isBlockFlagged(block)) remaining += 1;
-        }
-      }
-    }
+    const remaining = getFlaggedBlocks(draftDocs).length;
     warnChip.className = remaining > 0 ? 'chip chip-check' : 'chip';
     warnChip.textContent =
       remaining > 0
@@ -323,7 +335,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
       };
       refreshPageConfirmBtn();
 
-      const renderBlockRow = (block, blockIdx) => {
+      (page.blocks ?? []).forEach((block, blockIdx) => {
         const origBlock = originalDocs[docIdx]?.pages?.[pageIdx]?.blocks?.[blockIdx];
         const origText = origBlock?.text ?? block.text;
         const origConfidence = origBlock?.confidence ?? block.confidence;
@@ -335,7 +347,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         const statusBadge = el('span', { class: 'ocr-badge' }, []);
         const digitHint = el('p', { class: 'ocr-digit-hint' }, [
           isCriticalField
-            ? 'Key field (address, party name, or number) ? verify carefully against the image.'
+            ? "Key field (address or party line) — verify carefully against the image."
             : 'Fix any wrong characters (like ^ or extra spaces) before confirming.',
         ]);
 
@@ -458,35 +470,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
 
         rowContainer.append(rowHeader, digitHint, rowControls);
         blocksList.append(rowContainer);
-      };
-
-      (page.blocks ?? []).forEach((block, blockIdx) => {
-        renderBlockRow(block, blockIdx);
       });
-
-      const addLineBtn = button(
-        '+ Add missing line',
-        () => {
-          page.blocks = page.blocks ?? [];
-          const newIdx = page.blocks.length;
-          const prevBlock = page.blocks[newIdx - 1];
-          const nextY = prevBlock
-            ? Math.min(0.96, Number((prevBlock.bbox.y + prevBlock.bbox.height + 0.005).toFixed(4)))
-            : 0.1;
-          const newBlock = {
-            blockId: `p${page.pageIndex}_b${newIdx}_added`,
-            text: '',
-            bbox: { x: 0.05, y: nextY, width: 0.9, height: 0.025 },
-            confidence: 1,
-          };
-          page.blocks.push(newBlock);
-          renderBlockRow(newBlock, newIdx);
-          updateSummaryChip();
-          emitChange();
-        },
-        { variant: 'secondary' }
-      );
-      addLineBtn.classList.add('ocr-add-line-btn');
 
       const pageTitle =
         (doc.pages ?? []).length > 1
@@ -498,7 +482,6 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         el('div', { class: 'ocr-page' }, [
           pageHeader,
           blocksList,
-          addLineBtn,
         ])
       );
     });
