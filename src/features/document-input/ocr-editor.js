@@ -36,6 +36,7 @@ const DOC_LABELS = {
  * @returns {boolean}
  */
 export function isLowConfidenceBlock(block) {
+  if (block?.confirmed === true) return false;
   if (typeof block.confidence !== 'number') return false;
   const threshold = /\d/.test(block.text)
     ? OCR_REVIEW_DIGIT_THRESHOLD
@@ -228,7 +229,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           let changed = false;
           (page.blocks ?? []).forEach((b) => {
             if (isLowConfidenceBlock(b) && !/\d/.test(b.text)) {
-              b.confidence = 1;
+              b.confirmed = true;
               changed = true;
             }
           });
@@ -251,6 +252,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         const origBlock = originalDocs[docIdx]?.pages?.[pageIdx]?.blocks?.[blockIdx];
         const origText = origBlock?.text ?? block.text;
         const origConfidence = origBlock?.confidence ?? block.confidence;
+        const origConfirmed = Boolean(origBlock?.confirmed);
         const inputId = `ocr-${doc.documentId}-p${page.pageIndex}-${block.blockId}`;
 
         const rowContainer = el('div', { class: 'ocr-block' });
@@ -288,6 +290,11 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             textarea.value = origText;
             block.text = origText;
             block.confidence = origConfidence;
+            if (origConfirmed) {
+              block.confirmed = true;
+            } else {
+              delete block.confirmed;
+            }
             autoResizeTextarea(textarea);
             refreshRowState();
             refreshPageConfirmBtn();
@@ -301,7 +308,9 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
         const refreshRowState = () => {
           const needsCheck = isLowConfidenceBlock(block);
           const hasDigits = /\d/.test(block.text);
-          const isConfirmed = block.confidence === 1 && origConfidence !== 1;
+          const isConfirmed =
+            (block.confidence === 1 && origConfidence !== 1) ||
+            (block.confirmed === true && !origConfirmed);
           const confPercent =
             typeof block.confidence === 'number'
               ? `${Math.round(block.confidence * 100)}%`
@@ -323,7 +332,10 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
           }
 
           confirmLineBtn.hidden = !needsCheck;
-          resetBtn.hidden = textarea.value === origText && block.confidence === origConfidence;
+          resetBtn.hidden =
+            textarea.value === origText &&
+            block.confidence === origConfidence &&
+            Boolean(block.confirmed) === origConfirmed;
         };
         rowRefreshers.push(refreshRowState);
 

@@ -364,8 +364,10 @@ describe('PART 1 ocr-editor & readDocument({ allowLowConfidence })', () => {
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const updated = onChange.mock.calls[0][0];
-    expect(updated[0].pages[0].blocks[0].confidence).toBe(1);
-    expect(updated[0].pages[0].blocks[1].confidence).toBe(1);
+    expect(updated[0].pages[0].blocks[0].confirmed).toBe(true);
+    expect(updated[0].pages[0].blocks[0].confidence).toBe(0.65);
+    expect(updated[0].pages[0].blocks[1].confirmed).toBe(true);
+    expect(updated[0].pages[0].blocks[1].confidence).toBe(0.7);
     expect(updated[0].pages[0].blocks[2].confidence).toBe(0.75);
     expect(updated[0].pages[0].blocks[3].confidence).toBe(0.78);
 
