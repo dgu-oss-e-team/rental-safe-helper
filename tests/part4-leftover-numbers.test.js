@@ -33,6 +33,22 @@ describe('PART 4 이중 안전장치: 남아 있으면 안 되는 번호 모양 
     expect(r.ok).toBe(false);
   });
 
+  it('사진 OCR로 뒷자리가 엉뚱한 글자로 읽힌 주민번호("760423-#xwssnr")도 찾는다 (PART 2 #291과 같은 기준)', () => {
+    // 뒷자리를 하나도 못 읽은 "760423-"도 생년월일이 남으니 찾는다 (뒤에 띄어 쓴 낱말이 있어도)
+    for (const text of ['김선달 760423-#xwssnr', '760423–abc', '760423 -#', '760423-', '760423- 서울특별시', '790521-2xx']) {
+      expect(findLeftoverNumber(text), text).not.toBeNull();
+    }
+    // 생년월일 모양이 아니거나(월 13, 일 32), 뒷자리가 숫자·하이픈만(계좌번호 모양), 날짜·기간이면 찾지 않는다
+    for (const text of ['761323-#xwssnr', '760432-#xwssnr', '관리번호 110423-12-345678', '18.03.14', '180301~180331일']) {
+      expect(findLeftoverNumber(text), text).toBeNull();
+    }
+  });
+
+  it('보내기 전 검사: 탐지되지 않은 "760423-#xwssnr"가 남으면 멈춘다', () => {
+    const r = validateMaskedText({ D: '임대인 김선달 760423-#xwssnr' }, [], EMPTY_PLAN);
+    expect(r.ok).toBe(false);
+  });
+
   it('사진 OCR로 주소 탐지가 놓친 집 주소("서물특별시 … 가상로 30, 2층 204호")도 찾는다', () => {
     for (const text of [
       '서물특별시 중구 가상로 30, 2층 204호(가상동)',
