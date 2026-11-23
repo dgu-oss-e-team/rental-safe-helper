@@ -734,3 +734,19 @@ a.ai-link {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* 보내기 전 검사가 멈춘 줄 (#316): 사용자가 서류와 비교하고 줄 전체를 가릴지 고른다 */
+.stop-line-list {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stop-line-list li {
+  margin: 4px 0;
+}
+
+.stop-line-text {
+  font-family: ui-monospace, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
