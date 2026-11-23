@@ -70,6 +70,13 @@ const REGISTRY_ID_REGEX = /(?<!\d)\d{4}-\d{4}-\d{6}(?!\d)/g;
  */
 const BUSINESS_ID_REGEX = /(?<![\d-])\d{3}\s?-\s?\d{2}\s?-\s?\d{5}(?![\d-])/g;
 
+/**
+ * 중개사무소 등록번호: 시·군·구 코드 5자리-등록 연도-일련번호 5자리 (예: 11230-2020-00187, 상욱님 가짜세트4)
+ * 계약서 "2. 공인중개사" 칸에 적는다. 중개사 이름·주소·전화와 같이 가린다. 등록번호라서 REGISTRY_ID로 돌려준다.
+ * 가운데가 연도(19xx·20xx)여야 하고, 앞뒤에 숫자·하이픈이 더 붙어 있으면 다른 번호의 일부라서 찾지 않는다.
+ */
+const BROKER_ID_REGEX = /(?<![\d-])\d{5}\s?-\s?(?:19|20)\d{2}\s?-\s?\d{5}(?![\d-])/g;
+
 const RENTAL_BUSINESS_ID_REGEX =
   /(?:(?<=(?<![가-힣])제\s?)|(?<![\d가-힣]))(?:19|20)\d{2}\s*-\s*[가-힣]{2,8}\s*-\s*\d{3,6}(?!\d)/g;
 
@@ -264,6 +271,7 @@ export function findRegistryIds(text, keywordText = text) {
     ...findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID),
     ...findByRegex(text, RENTAL_BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID),
     ...findByRegex(text, BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID).filter((r) => !nearBankWord(keywordText, r)),
+    ...findByRegex(text, BROKER_ID_REGEX, PII_TYPE.REGISTRY_ID),
   ].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
 }
 
