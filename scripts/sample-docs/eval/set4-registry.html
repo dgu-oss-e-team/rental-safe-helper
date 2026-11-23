@@ -1,0 +1,131 @@
+<!doctype html>
+<!--
+  가상 등기사항전부증명서(말소사항 포함) - 집합건물. 테스트·시연용 가짜 문서다.
+  이름·생년월일·주소·고유번호·접수번호는 모두 지어낸 값이다. 실제 서류에서 가져온 값은 없다.
+  인터넷등기소 열람본의 쪽 구성(3쪽)과 표 모양을 따랐다.
+  시나리오(가짜세트4, 지금 공유 + 공인중개사 계약): 전우치 단독 소유(2019 보존) → 1-1 전우치 주소 변경(부기)
+           → 2022년 전우치 지분 2분의 1을 황진이에게 증여 = 지금 공유(전우치 1/2, 황진이 1/2).
+           을구: 전우치이 채무자인 근저당(채권최고액 9,600만 원), 유효.
+  짝 계약서: set4-lease.html (임대사업자 = 공유자 중 전우치 한 사람, 공인중개사가 작성)
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>가짜 등기부등본 (가짜세트4)</title>
+<style>
+  /* 인터넷등기소 열람본과 같은 글꼴: 바탕체 하나 (이 PC에 설치된 Windows 글꼴, 로컬 시연·점검용) */
+  @page { size: A4; margin: 14mm 12mm 12mm; }
+  /* 바탕체에는 굵은 글꼴이 없어서 굵게 쓰면 Chrome이 글자를 한 자씩 따로 찍는다 → 진짜 열람본처럼 굵게 쓰지 않는다 */
+  body { font-family: 'BatangChe', '바탕체', serif; font-size: 8.8pt; line-height: 1.35; color: #000; margin: 0; }
+  .page { break-after: page; position: relative; min-height: 262mm; }
+  .page:last-child { break-after: auto; }
+  h1 { text-align: center; font-size: 15pt; font-weight: 400; margin: 2mm 0 0; letter-spacing: 0.5mm; }
+  .kind { text-align: center; font-size: 11pt; margin: 0 0 3mm; }
+  .uid { text-align: right; font-size: 8.5pt; margin: 0 0 1mm; }
+  .bldg { font-weight: 400; margin: 1mm 0 2mm; }
+  .sec { font-size: 10pt; font-weight: 400; margin: 3mm 0 1mm; text-align: center; background: #ddd; border: 1px solid #000; border-bottom: 0; padding: 0.6mm 0; }
+  .sub { font-size: 8.5pt; text-align: center; margin: 2mm 0 1mm; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #000; padding: 0.8mm 1.2mm; vertical-align: top; }
+  th { font-weight: 400; text-align: center; }
+  .no { width: 8%; } .recv { width: 14%; } .cause { width: 21%; } .purpose { width: 18%; }
+  .t1 .addr { width: 30%; } .t1 .bd { width: 26%; }
+  .land .addr { width: 44%; } .land .kind2 { width: 8%; } .land .area { width: 10%; }
+  .unit .num { width: 22%; } .unit .bd { width: 28%; }
+  .right .kind2 { width: 26%; } .right .ratio { width: 20%; }
+  .strike { text-decoration: line-through; }
+  .view { position: absolute; top: 95mm; left: 0; right: 0; text-align: center; font-size: 30pt; color: #bbb; letter-spacing: 8mm; z-index: -1; }
+  .end { text-align: center; margin: 4mm 0; letter-spacing: 2mm; }
+  .court { text-align: right; margin: 2mm 0; }
+  .notes { font-size: 7.5pt; margin-top: 4mm; }
+  .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8pt; }
+  .fake { font-size: 7.5pt; color: #555; text-align: center; margin-top: 2mm; }
+</style>
+</head>
+<body>
+  <!-- 1쪽 -->
+  <section class="page">
+    <h1>등기사항전부증명서(말소사항 포함)</h1>
+    <p class="kind">- 집합건물 -</p>
+    <p class="uid">고유번호 1104-2019-006271</p>
+    <p class="bldg">[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호</p>
+
+    <p class="sec">【 표 제 부 】 ( 1동의 건물의 표시 )</p>
+    <table class="t1">
+      <tr><th class="no">표시번호</th><th class="recv">접 수</th><th class="addr">소재지번,건물명칭 및 번호</th><th class="bd">건 물 내 역</th><th class="cause">등기원인 및 기타사항</th></tr>
+      <tr>
+        <td>1</td><td>2019년4월2일</td>
+        <td>서울특별시 동대문구 가상동<br>212-5<br>가상스테이<br>[도로명주소]<br>서울특별시 동대문구 가상로17길<br>9</td>
+        <td>철근콘크리트구조<br>(철근)콘크리트지붕<br>5층 다세대주택<br>1층 46.20㎡<br>2층 168.54㎡<br>3층 168.54㎡<br>4층 168.54㎡<br>5층 132.80㎡<br>옥탑1층<br>14.60㎡(연면적제외)</td>
+        <td></td>
+      </tr>
+    </table>
+
+    <p class="sub">( 대지권의 목적인 토지의 표시 )</p>
+    <table class="land">
+      <tr><th class="no">표시번호</th><th class="addr">소 재 지 번</th><th class="kind2">지 목</th><th class="area">면 적</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>1. 서울특별시 동대문구 가상동<br>212-5</td><td>대</td><td>318㎡</td><td>2019년4월2일 등기</td></tr>
+    </table>
+
+    <p class="sec">【 표 제 부 】 ( 전유부분의 건물의 표시 )</p>
+    <table class="unit">
+      <tr><th class="no">표시번호</th><th class="recv">접 수</th><th class="num">건 물 번 호</th><th class="bd">건 물 내 역</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>2019년4월2일</td><td>제2층 제203호</td><td>철근콘크리트구조<br>33.06㎡</td><td></td></tr>
+    </table>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월21일 16시18분44초</span><span>1/3</span></div>
+  </section>
+
+  <!-- 2쪽 -->
+  <section class="page">
+    <p class="bldg">[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호</p>
+    <p class="sub">( 대지권의 표시 )</p>
+    <table class="right">
+      <tr><th class="no">표시번호</th><th class="kind2">대지권종류</th><th class="ratio">대지권비율</th><th>등기원인 및 기타사항</th></tr>
+      <tr><td>1</td><td>1 소유권대지권</td><td>318분의 21.73</td><td>2019년3월20일 대지권<br>2019년4월2일 등기</td></tr>
+    </table>
+
+    <p class="sec">【 갑 구 】 ( 소유권에 관한 사항 )</p>
+    <table>
+      <tr><th class="no">순위번호</th><th class="purpose">등 기 목 적</th><th class="recv">접 수</th><th class="recv">등 기 원 인</th><th>권리자 및 기타사항</th></tr>
+      <tr>
+        <td>1</td><td>소유권보존</td><td>2019년4월2일<br>제23118호</td><td></td>
+        <td>소유자 전우치 790318-*******<br>서울특별시 동대문구 가상로17길 9,<br>203호(가상동)</td>
+      </tr>
+      <tr>
+        <td>1-1</td><td>1번등기명의인표시<br>변경</td><td></td><td>2022년5월30일<br>전거</td>
+        <td>전우치의 주소 서울특별시 성북구 가상로<br>63, 502호(가상동,가상맨션)<br>2022년6월20일 부기</td>
+      </tr>
+      <tr>
+        <td>2</td><td>소유권일부이전</td><td>2022년6월20일<br>제48821호</td><td>2022년6월13일<br>증여</td>
+        <td>공유자 지분 2분의 1<br>황진이 820605-*******<br>서울특별시 성북구 가상로 63,<br>502호(가상동,가상맨션)</td>
+      </tr>
+    </table>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월21일 16시18분44초</span><span>2/3</span></div>
+  </section>
+
+  <!-- 3쪽 -->
+  <section class="page">
+    <p class="bldg">[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호</p>
+    <p class="sec">【 을 구 】 ( 소유권 이외의 권리에 관한 사항 )</p>
+    <table>
+      <tr><th class="no">순위번호</th><th class="purpose">등 기 목 적</th><th class="recv">접 수</th><th class="recv">등 기 원 인</th><th>권리자 및 기타사항</th></tr>
+      <tr>
+        <td>1</td><td>근저당권설정</td><td>2022년6월20일<br>제48822호</td><td>2022년6월20일<br>설정계약</td>
+        <td>채권최고액 금96,000,000원<br>채무자 전우치<br>서울특별시 성북구 가상로 63, 502호(가상동,가상맨션)<br>근저당권자 주식회사가상은행 110111-0012345<br>서울특별시 중구 가상대로 100(가상동)<br>공동담보 지분 전부</td>
+      </tr>
+    </table>
+    <p class="end">-- 이 하 여 백 --</p>
+    <p class="court">관할등기소 서울북부지방법원 동대문등기소</p>
+    <div class="notes">
+      <p>* 실선으로 그어진 부분은 말소사항을 표시함. * 기록사항 없는 갑구, 을구는 '기록사항 없음'으로 표시함.</p>
+      <p>* 증명서는 컬러 또는 흑백으로 출력 가능함.</p>
+      <p>* 본 등기사항증명서는 열람용이므로 출력하신 등기사항증명서는 법적인 효력이 없습니다.</p>
+    </div>
+    <p class="fake">이 문서는 테스트용 가상 문서입니다. 실제 등기사항증명서가 아니며, 이름·번호·주소는 모두 지어낸 값입니다.</p>
+    <p class="view">열 람 용</p>
+    <div class="foot"><span>열람일시 : 2026년11월21일 16시18분44초</span><span>3/3</span></div>
+  </section>
+</body>
+</html>

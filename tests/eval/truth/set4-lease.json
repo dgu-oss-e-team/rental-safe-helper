@@ -1,0 +1,79 @@
+{
+  "document": "set4-lease",
+  "file": "tests/eval/docs/set4-lease.pdf",
+  "documentType": "LEASE_CONTRACT",
+  "form": "가짜세트4 계약서: 공인중개사 작성, 공유자 1명이 임대사업자, 외국인 임차인 + 특약 별지, 7쪽",
+  "pii": [
+    {
+      "type": "PERSON_NAME",
+      "value": "전우치"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "SATO YUKI"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "김삿갓"
+    },
+    {
+      "type": "PERSON_NAME",
+      "value": "임꺽정"
+    },
+    {
+      "type": "RESIDENT_ID",
+      "value": "790318-1538204"
+    },
+    {
+      "type": "FOREIGNER_ID",
+      "value": "030721-7642915"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "010-8826-1490"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "010-4570-2268"
+    },
+    {
+      "type": "PHONE_NUMBER",
+      "value": "02-0000-7319"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "2022-서울동대문-00415"
+    },
+    {
+      "type": "REGISTRY_ID",
+      "value": "11230-2020-00187"
+    },
+    {
+      "type": "BANK_ACCOUNT",
+      "value": "3333-07-2981546"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 성북구 가상로 63, 502호(가상동,가상맨션)",
+      "secret": [
+        "63, 502호",
+        "가상맨션"
+      ]
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 동대문구 가상로 4, 2층 201호(가상동)",
+      "secret": "가상로 4, 2층 201호"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 동대문구 가상로 21, 1층(가상동)",
+      "secret": "가상로 21, 1층"
+    },
+    {
+      "type": "ADDRESS",
+      "value": "서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제203호",
+      "secret": "212-5 가상스테이 제2층 제203호"
+    }
+  ]
+}

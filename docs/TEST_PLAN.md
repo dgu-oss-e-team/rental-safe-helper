@@ -15,8 +15,11 @@ npm test -- --run   # 한 번만 실행 (PR 올리기 전)
 npm run eval        # 평가 세트로 4가지 지표를 계산해 docs/EVALUATION.md를 새로 쓴다
 ```
 
-- 평가 세트: 가짜 서류 10장(`public/samples/sample-*.pdf`, `tests/fixtures/dense-*.pdf`, `tests/fixtures/form-*.pdf`)과
+- 평가 세트: 실제 서식과 쪽 구성·글꼴이 같은 가짜 서류 9건(가짜세트 1·2·3·4, `tests/eval/docs/set*.pdf`, #300)과
   서류마다 정답표 `tests/eval/truth/<서류>.json`, 함께 올리는 묶음 `tests/eval/set.json`
+  - 원본 HTML은 `scripts/sample-docs/eval/`, PDF는 `node scripts/make-sample-pdfs.mjs "<Chrome 경로>" --eval`로 다시 만든다
+    (실제 서류처럼 Windows 글꼴을 쓰므로 Windows에서 만든다. 특약 별지는 계약서 뒤에 붙여 한 PDF로)
+  - 예전 평가 서류(`public/samples/`, `tests/fixtures/`)는 다른 테스트가 쓰므로 그대로 두었다
 - 정답표 한 항목 = 서류에 나오는 개인정보 값 하나 (`type`, `value`, AI 글에 남으면 안 되는 부분 `secret`)
   - 주소의 `secret`은 시·군·구 뒤의 자세한 부분이다 (사기 위험 확인 목적은 시·구까지 남기므로)
   - 도로명이 다른 주소와 같으면(가짜 서류의 "가상로") 도로명은 빼고 건물번호·호수만 `secret`으로 둔다.
