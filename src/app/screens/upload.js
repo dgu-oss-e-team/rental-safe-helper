@@ -3,7 +3,21 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { resumeStep } from '../step-history.js';
-import { addPicked, removePhoto } from '../photo-pages.js';
+import { addPicked, removePhoto, isPdf } from '../photo-pages.js';
+
+/** @param {number} n @param {string} word */
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * 칸 상태 글 (#298): 사진만이면 "3 photos (3 pages)", 섞였으면 "2 PDFs, 1 photo"
+ * @param {File[]} files
+ */
+function listStatus(files) {
+  const pdfs = files.filter(isPdf).length;
+  const photos = files.length - pdfs;
+  if (pdfs === 0) return `${plural(photos, 'photo')} (${plural(photos, 'page')})`;
+  return [pdfs ? plural(pdfs, 'PDF') : '', photos ? plural(photos, 'photo') : ''].filter(Boolean).join(', ');
+}
 
 /**
  * 이전 결과가 남아 있으면 ① 위쪽에 보여 주는 안내 (#124)
@@ -124,7 +138,9 @@ function photoViewer() {
 function filePicker({ id, label, hint, docName, current, notice, onChange, viewer }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
-  const photos = Array.isArray(current) ? current : null;
+  // 목록(사진만, 또는 PDF·사진 섞임 #298) / PDF 한 개
+  const list = Array.isArray(current) ? current : null;
+  const photosOnly = Boolean(list && !list.some(isPdf));
   const pdf = current && !Array.isArray(current) ? current : null;
   // 브라우저 기본 파일 칸은 컴퓨터 언어로 "파일 선택 / 선택된 파일 없음"이 나와서 영어 화면과 섞인다.
   // 기본 칸은 보이지 않게 두고(키보드·화면 낭독기로는 그대로 쓸 수 있음), 영어 버튼과 상태 글을 따로 보여 준다. (#188)
@@ -151,13 +167,16 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
   // 지우기: 작은 글자 버튼 (주 버튼 "Check my documents"보다 눈에 덜 띄게)
   let remove = null;
   if (current) {
-    remove = button(photos ? 'Remove all' : 'Remove', () => {
+    remove = button(list ? 'Remove all' : 'Remove', () => {
       onChange(null);
       // 화면이 바로 다시 그려진다. 키보드 사용자가 길을 잃지 않게 같은 칸의 파일 선택으로 포커스를 옮긴다.
       document.getElementById(id)?.focus();
     }, { id: `${id}-remove` });
     remove.className = 'link-button';
-    remove.setAttribute('aria-label', photos ? `Remove all photos of the ${docName}` : `Remove the ${docName} file`);
+    remove.setAttribute(
+      'aria-label',
+      photosOnly ? `Remove all photos of the ${docName}` : list ? `Remove all files of the ${docName}` : `Remove the ${docName} file`,
+    );
   }
 
   // PDF는 새 탭에서 열어 모든 쪽을 확인한다 (브라우저의 PDF 보기, 이 기기 안에서만)
@@ -168,12 +187,9 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
     view.setAttribute('aria-label', `View the ${docName} file`);
   }
 
-  const buttonText = photos ? 'Add another page' : pdf ? 'Change file' : 'Choose file';
-  const statusText = photos
-    ? `${photos.length} photo${photos.length === 1 ? '' : 's'} (${photos.length} page${photos.length === 1 ? '' : 's'})`
-    : pdf
-      ? pdf.name
-      : 'No file chosen';
+  // PDF가 들어 있으면 새로 고른 파일은 바꾸지 않고 뒤에 덧붙인다 (특약 별지 PDF·사진, #298). 바꾸려면 Remove 후 다시 고른다.
+  const buttonText = photosOnly ? 'Add another page' : current ? 'Add another file' : 'Choose file';
+  const statusText = list ? listStatus(list) : pdf ? pdf.name : 'No file chosen';
 
   return el('div', { class: 'picker' }, [
     el('label', { for: id }, [label]),
@@ -187,7 +203,7 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
       view,
       remove,
     ]),
-    photos ? photoList(id, docName, photos, onChange, viewer) : null,
+    list ? photoList(id, docName, list, onChange, viewer) : null,
     notice ? el('p', { class: 'picker-notice', role: 'status', id: `${id}-notice` }, [notice]) : null,
   ]);
 }
@@ -201,22 +217,42 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
  * @param {ReturnType<typeof photoViewer>} viewer
  */
 function photoList(id, docName, photos, onChange, viewer) {
+  // 사진만이면 "Page 1, 2…", PDF가 섞이면 PDF 한 개가 여러 쪽일 수 있어 "File 1, 2…"로 센다 (#298)
+  const photosOnly = !photos.some(isPdf);
+  const unit = photosOnly ? 'page' : 'file';
   return el(
     'ol',
-    { class: 'photo-pages', id: `${id}-pages`, 'aria-label': `Photos of the ${docName}` },
-    photos.map((photo, i) => {
-      const pageText = `Page ${i + 1} of the ${docName} (your photo)`;
-      const thumb = el('button', { type: 'button', class: 'photo-thumb', id: `${id}-page-${i}`, 'aria-label': `View page ${i + 1}` }, [
-        el('img', { src: urlOf(photo), alt: '' }),
-      ]);
-      thumb.addEventListener('click', () => viewer.open(urlOf(photo), pageText));
+    {
+      class: 'photo-pages',
+      id: `${id}-pages`,
+      'aria-label': photosOnly ? `Photos of the ${docName}` : `Files of the ${docName}, in page order`,
+    },
+    photos.map((file, i) => {
+      const n = i + 1;
+      const Unit = unit === 'page' ? 'Page' : 'File';
+      /** @type {HTMLElement} */
+      let thumb;
+      if (isPdf(file)) {
+        // PDF는 새 탭에서 열어 모든 쪽을 확인한다 (이 기기 안에서만). 파일 이름은 화면에만 보여 준다
+        thumb = el('button', { type: 'button', class: 'photo-thumb pdf-thumb', id: `${id}-page-${i}`, 'aria-label': `View file ${n} (PDF)` }, [
+          el('span', { class: 'pdf-mark', 'aria-hidden': 'true' }, ['PDF']),
+          el('span', { class: 'pdf-name' }, [file.name]),
+        ]);
+        thumb.addEventListener('click', () => window.open(urlOf(file), '_blank', 'noopener'));
+      } else {
+        const pageText = `${Unit} ${n} of the ${docName} (your photo)`;
+        thumb = el('button', { type: 'button', class: 'photo-thumb', id: `${id}-page-${i}`, 'aria-label': `View ${unit} ${n}` }, [
+          el('img', { src: urlOf(file), alt: '' }),
+        ]);
+        thumb.addEventListener('click', () => viewer.open(urlOf(file), pageText));
+      }
       const rm = button('Remove', () => {
         onChange(removePhoto(photos, i));
         document.getElementById(id)?.focus();
       }, { id: `${id}-remove-${i}` });
       rm.className = 'link-button';
-      rm.setAttribute('aria-label', `Remove page ${i + 1} of the ${docName}`);
-      return el('li', { class: 'photo-page' }, [thumb, el('span', { class: 'photo-page-label' }, [`Page ${i + 1}`]), rm]);
+      rm.setAttribute('aria-label', `Remove ${unit} ${n} of the ${docName}`);
+      return el('li', { class: 'photo-page' }, [thumb, el('span', { class: 'photo-page-label' }, [`${Unit} ${n}`]), rm]);
     }),
   );
 }
@@ -258,7 +294,8 @@ export function uploadScreen(state, act) {
         // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
         hint:
           'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
-          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page").',
+          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
+          'If the special terms page is a separate PDF or photo, add it here too with "Add another file".',
         docName: 'lease contract',
         current: lease,
         notice: notice?.slot === 'lease' ? notice.text : null,

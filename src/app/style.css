@@ -707,3 +707,30 @@ a.ai-link {
   margin: 6px 0 0;
   color: var(--ink);
 }
+
+/* 목록 속 PDF (#298): 그림 대신 "PDF"와 파일 이름, 누르면 새 탭에서 연다 */
+.pdf-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.pdf-mark {
+  font-weight: 700;
+  color: var(--stop);
+}
+
+.pdf-name {
+  max-width: 100%;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
