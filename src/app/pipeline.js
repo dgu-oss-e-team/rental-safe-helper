@@ -221,7 +221,9 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   const masked = applyMaskingPlan(documents, plan.data, findings, personGroups, userEdits);
   if (!masked.ok) return stoppedAt('applyMaskingPlan', masked);
 
-  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits);
+  // 사진(OCR) 서류는 PART 4 사진용 안전망(역할 옆 이름, 동이 붙은 호수)도 본다
+  const photoDocumentIds = documents.filter(needsTextReview).map((d) => d.documentId);
+  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits, { photoDocumentIds });
   if (!check.ok) return stoppedAt('validateMaskedText', check);
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
