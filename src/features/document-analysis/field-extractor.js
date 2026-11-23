@@ -454,7 +454,7 @@ const RIGHT_KINDS = [
  * @property {string} kind
  * @property {number | null} maxClaimAmount 채권최고액 (근저당만, 못 읽으면 null)
  * @property {boolean | null} cancelled 말소 여부. 말소 줄이 어느 권리를 가리키는지 모르면 null(확인 필요)
- * @property {string | null} receivedAt 접수일 (아직 안 읽는다)
+ * @property {string | null} receivedAt 접수일 'YYYY-MM-DD' (못 읽으면 null)
  */
 
 /** 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)" */
@@ -523,7 +523,9 @@ function joinWrappedCancel(lines, i) {
  *   어느 권리인지 모르는 말소 줄이 있으면 그 구에서 말소 표시가 없는 권리는 cancelled: null(확인 필요).
  *   (말소된 칸에 그어진 빨간 줄은 글자로 읽히지 않는다)
  * - 부기등기("1-1 근저당권변경")와 이어지는 줄("근저당권자 …")은 새 권리로 세지 않는다.
- * - receivedAt(접수일)은 아직 안 읽는다. (TODO)
+ * - receivedAt(접수일)은 'YYYY-MM-DD'로 읽는다. 표의 칸 순서가 [순위번호, 등기목적, 접수, 등기원인, …]이라
+ *   권리 줄의 첫 날짜를 접수일로 본다. 줄에 날짜가 없으면 다음 순위번호 전까지 최대 3줄에서 찾는다. (갑구 소유권이전 접수일과 같은 방식)
+ *   순위번호 없는 줄에서 찾은 권리(기록 중간의 "신탁" 줄 등)와 못 읽은 경우는 null. (#301 외부 AI 평가: 근저당 설정 시점)
  * @param {string[]} lines
  * @returns {RegistryRight[] | null}
  */
@@ -544,6 +546,9 @@ export function findRegistryRights(lines) {
   let rowKinds = new Set();
   /** 부기등기("2-1 신탁주의사항") 줄 다음의 설명 줄인지 (다음 순위번호까지) */
   let inSupplement = false;
+  /** 접수일을 다음 줄에서 기다리는 권리 (권리 줄에 날짜가 없을 때) */
+  /** @type {{ right: RegistryRight, seen: number } | null} */
+  let waitingDate = null;
 
   for (let i = 0; i < lines.length; i += 1) {
     const joined = joinWrappedCancel(lines, i);
@@ -566,12 +571,18 @@ export function findRegistryRights(lines) {
     const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch) {
       inSupplement = Boolean(rankMatch[2]);
+      waitingDate = null; // 다음 기록이 시작되면 앞 권리의 접수일은 더 찾지 않는다
       if (!rankMatch[2]) {
         rowRank = rankMatch[1];
         rowKinds = new Set();
       }
     } else if (inSupplement) {
       continue; // 부기등기의 설명 줄 ("이 부동산에 관하여 … 신탁원부를 통하여 …")는 권리가 아니다
+    } else if (waitingDate && waitingDate.seen < MAX_DATE_LOOKAHEAD) {
+      // 권리 줄에 없던 접수일: 이어지는 줄에서 찾는다 (좁은 칸에서 접수 칸이 다음 줄로 넘어간 경우)
+      waitingDate.seen += 1;
+      waitingDate.right.receivedAt = parseDate(line);
+      if (waitingDate.right.receivedAt !== null) waitingDate = null;
     }
 
     if (/말\s*소/.test(line)) {
@@ -600,13 +611,17 @@ export function findRegistryRights(lines) {
     // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
     if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
 
-    rights.push({
+    /** @type {RegistryRight} */
+    const right = {
       kind: found.kind,
       maxClaimAmount:
         found.kind === 'MORTGAGE' && maxClaim ? parseAmount(line.slice(maxClaim.index + maxClaim[0].length)) : null,
       cancelled: false,
-      receivedAt: null,
-    });
+      // 순위번호가 있는 권리 줄만 접수일을 읽는다 (줄의 첫 날짜 = 접수 칸)
+      receivedAt: rank !== null ? parseDate(line) : null,
+    };
+    rights.push(right);
+    if (rank !== null && right.receivedAt === null) waitingDate = { right, seen: 0 };
     // 순위번호 없는 신탁 줄은 지금 기록의 순위번호를 쓴다. ("3번신탁등기말소"가 이 신탁을 가리킬 수 있게)
     places.push({ section, rank: rank ?? (found.kind === 'TRUST' ? rowRank : null) });
     rowKinds.add(found.kind);
