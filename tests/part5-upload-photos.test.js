@@ -79,16 +79,61 @@ describe('PART 5 ① 화면: 사진 여러 장 (#268)', () => {
     expect(act.setFiles).toHaveBeenLastCalledWith({ registry: null }, null);
   });
 
-  it('PDF와 사진을 섞어 고르면 칸은 그대로 두고 그 칸 아래에 안내한다', () => {
+  it('지원하지 않는 파일을 고르면 칸은 그대로 두고 그 칸 아래에 안내한다', () => {
     const p1 = photo('p1.jpg');
     const { node, act } = screenWith({ lease: [p1] });
-    choose(/** @type {HTMLInputElement} */ (node.querySelector('#lease-file')), [pdf('a.pdf'), photo('p2.jpg')]);
-    expect(act.setFiles).toHaveBeenCalledWith({ lease: [p1] }, { slot: 'lease', text: PHOTO_NOTICE.MIXED });
+    choose(/** @type {HTMLInputElement} */ (node.querySelector('#lease-file')), [new File(['x'], 'a.heic', { type: 'image/heic' })]);
+    expect(act.setFiles).toHaveBeenCalledWith({ lease: [p1] }, { slot: 'lease', text: PHOTO_NOTICE.UNSUPPORTED });
 
-    const shown = screenWith({ lease: [p1] }, { uploadNotice: { slot: 'lease', text: PHOTO_NOTICE.MIXED } }).node;
-    expect(shown.querySelector('#lease-file-notice')?.textContent).toBe(PHOTO_NOTICE.MIXED);
+    const shown = screenWith({ lease: [p1] }, { uploadNotice: { slot: 'lease', text: PHOTO_NOTICE.UNSUPPORTED } }).node;
+    expect(shown.querySelector('#lease-file-notice')?.textContent).toBe(PHOTO_NOTICE.UNSUPPORTED);
     expect(shown.querySelector('#lease-file-notice')?.getAttribute('role')).toBe('status');
     expect(shown.querySelector('#registry-file-notice')).toBeNull();
+  });
+
+  it('계약서 PDF가 있는 칸에 특약 별지 사진·PDF를 더 고르면 뒤에 덧붙인다 (#298)', () => {
+    const lease = pdf('lease.pdf');
+    const { node, act } = screenWith({ lease });
+    choose(/** @type {HTMLInputElement} */ (node.querySelector('#lease-file')), [photo('terms.jpg')]);
+    const [patch, notice] = act.setFiles.mock.calls[0];
+    expect(patch.lease.map((f) => f.name)).toEqual(['lease.pdf', 'terms.jpg']);
+    expect(notice).toBeNull();
+  });
+
+  it('PDF·사진이 섞인 칸: 상태 글, "Add another file", PDF는 새 탭으로 보기, 하나씩 지우기 (#298)', () => {
+    const lease = pdf('lease.pdf');
+    const terms = photo('terms.jpg');
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { node, act } = screenWith({ lease: [lease, terms] });
+    expect(node.querySelector('#lease-file-status')?.textContent).toBe('1 PDF, 1 photo');
+    expect(node.querySelector('label.file-button[for="lease-file"]')?.textContent).toBe('Add another file');
+    expect(node.querySelector('#lease-file-pages')?.getAttribute('aria-label')).toBe('Files of the lease contract, in page order');
+    expect(node.querySelector('#lease-file-remove')?.getAttribute('aria-label')).toBe('Remove all files of the lease contract');
+
+    const first = /** @type {HTMLButtonElement} */ (node.querySelector('#lease-file-page-0'));
+    expect(first.classList.contains('pdf-thumb')).toBe(true);
+    expect(first.getAttribute('aria-label')).toBe('View file 1 (PDF)');
+    first.click();
+    expect(open).toHaveBeenCalledWith(expect.any(String), '_blank', 'noopener');
+    open.mockRestore();
+    expect(node.querySelector('#lease-file-page-1 img')).not.toBeNull();
+    expect([...node.querySelectorAll('.photo-page-label')].map((n) => n.textContent)).toEqual(['File 1', 'File 2']);
+
+    // 사진을 빼면 PDF 한 개로 돌아간다
+    const rm = /** @type {HTMLButtonElement} */ (node.querySelector('#lease-file-remove-1'));
+    expect(rm.getAttribute('aria-label')).toBe('Remove file 2 of the lease contract');
+    rm.click();
+    expect(act.setFiles).toHaveBeenCalledWith({ lease }, null);
+  });
+
+  it('PDF 여러 개면 "2 PDFs"로 보여 준다 (#298)', () => {
+    const { node } = screenWith({ lease: [pdf('a.pdf'), pdf('b.pdf')] });
+    expect(node.querySelector('#lease-file-status')?.textContent).toBe('2 PDFs');
+  });
+
+  it('계약서 칸은 따로 된 특약 쪽(PDF·사진)도 같은 칸에 더하라고 안내한다 (#298)', () => {
+    const hint = screenWith({}).node.querySelector('#lease-file-hint')?.textContent ?? '';
+    expect(hint).toContain('If the special terms page is a separate PDF or photo, add it here too with "Add another file".');
   });
 
   it('사진 팁 상자에 휴대폰 문서 스캔을 권하는 선택 팁이 있다 (그냥 사진도 된다고 함께 알림, #272)', () => {

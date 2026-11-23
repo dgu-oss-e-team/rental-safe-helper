@@ -12,7 +12,7 @@ import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
-import { slotToFile } from './photo-pages.js';
+import { slotToSource } from './photo-pages.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -181,13 +181,14 @@ async function refreshPreviews() {
  * 서류를 읽고, 사진·스캔이 있으면 "Confirm text" 단계로, 없으면 바로 분석으로 간다. (#54)
  * @param {File[]} files
  * @param {import('./upload-check.js').UploadSlot[] | null} [slots]  파일마다 올린 칸 (시연 샘플은 null, #186)
+ * @param {(File[] | null)[] | null} [parts]  files[i]를 따로 읽을 조각 (#298, 없으면 files[i]를 그대로 읽음)
  */
-async function runAnalysis(files, slots = null) {
+async function runAnalysis(files, slots = null, parts = null) {
   appState.setState({ busy: 'Reading your documents…', error: null });
   const p = await pipeline();
   if (!p) return;
   // 흐린 줄이 있어도 멈추지 않고 받아서 사용자가 확인하게 한다 (확인 전에는 다음으로 못 감)
-  const read = await p.readDocuments({ files }, { allowLowConfidence: true });
+  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true });
   if (!read.ok) {
     appState.setState({ busy: null, error: toError(read) });
     return;
@@ -246,23 +247,24 @@ const act = {
   },
   async analyze() {
     const chosen = appState.getState().files;
-    // 사진은 칸마다 보정해서 PDF 하나로 만든다 (#268, #272). 브라우저 안에서만 한다.
-    const hasPhotos = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
-    if (hasPhotos) appState.setState({ busy: 'Preparing your photos…', error: null, uploadNotice: null });
-    /** @type {{ registry: File | null, lease: File | null }} */
-    let files;
+    // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
+    const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
+    if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
+    /** @type {{ registry: { file: File, parts: File[] } | null, lease: { file: File, parts: File[] } | null }} */
+    let sources;
     try {
-      files = {
-        registry: await slotToFile(chosen.registry, 'registry-photos.pdf'),
-        lease: await slotToFile(chosen.lease, 'lease-photos.pdf'),
+      sources = {
+        registry: await slotToSource(chosen.registry, 'registry.pdf'),
+        lease: await slotToSource(chosen.lease, 'lease.pdf'),
       };
     } catch {
       appState.setState({ busy: null, error: { step: 'input', code: 'PHOTO_READ_FAILED', message: 'A photo could not be prepared.' } });
       return;
     }
     // 파일마다 올린 칸을 같이 넘긴다. ②에서 판별 결과와 다르면 안내한다 (#186)
-    const { files: list, slots } = filesWithSlots(files);
-    await runAnalysis(list, slots);
+    const { files: list, slots } = filesWithSlots({ registry: sources.registry?.file ?? null, lease: sources.lease?.file ?? null });
+    const parts = slots.map((slot) => sources[slot]?.parts ?? null);
+    await runAnalysis(list, slots, parts);
   },
   async analyzeSample() {
     // 사이트에 있는 가짜 등기부·계약서 PDF(public/samples)를 받아서 실제 서류처럼 처리한다.

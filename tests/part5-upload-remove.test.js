@@ -42,10 +42,10 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
     expect(document.activeElement?.id).toBe('registry-file');
   });
 
-  it('고른 파일이 있으면 이름과 "Change file" 버튼을 보여 준다', () => {
+  it('고른 파일이 있으면 이름과 "Add another file" 버튼을 보여 준다 (#298)', () => {
     const { node } = screenWith({ registry: file('가상_등기부.pdf') });
     expect(node.querySelector('#registry-file-status')?.textContent).toBe('가상_등기부.pdf');
-    expect(node.querySelector('label.file-button[for="registry-file"]')?.textContent).toBe('Change file');
+    expect(node.querySelector('label.file-button[for="registry-file"]')?.textContent).toBe('Add another file');
   });
 
   it('파일 칸 글자는 영어다 (브라우저 기본 "파일 선택 / 선택된 파일 없음" 대신)', () => {
@@ -90,17 +90,19 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
   });
 });
 
-describe('PART 5 ① 화면: 파일 바꾸기 (#188)', () => {
+describe('PART 5 ① 화면: 파일 더하기 (#188, #298)', () => {
   /** 파일 선택 칸에 파일을 넣은 것처럼 change를 보낸다 */
   const choose = (/** @type {HTMLInputElement} */ input, /** @type {File[]} */ files) => {
     Object.defineProperty(input, 'files', { value: files, configurable: true });
     input.dispatchEvent(new Event('change'));
   };
 
-  it('다른 파일을 고르면 그 칸이 새 파일로 바뀐다', () => {
+  it('PDF가 있는 칸에 다른 PDF를 고르면 바꾸지 않고 뒤에 덧붙인다 (특약 별지, #298). 바꾸려면 Remove 후 다시 고른다', () => {
     const { node, act } = screenWith({ lease: file('old.pdf') });
     choose(/** @type {HTMLInputElement} */ (node.querySelector('#lease-file')), [file('new.pdf')]);
-    expect(act.setFiles).toHaveBeenCalledWith({ lease: expect.objectContaining({ name: 'new.pdf' }) }, null);
+    const [patch, notice] = act.setFiles.mock.calls[0];
+    expect(patch.lease.map((f) => f.name)).toEqual(['old.pdf', 'new.pdf']);
+    expect(notice).toBeNull();
   });
 
   it('고르기 창에서 취소해서 빈 change가 와도 고른 파일을 지우지 않는다 (지우기는 Remove로만)', () => {

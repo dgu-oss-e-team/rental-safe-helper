@@ -7,6 +7,8 @@ import {
   pageSizeFor,
   buildPhotoPdf,
   slotToFile,
+  slotToSource,
+  mergePdfFiles,
   isPhoto,
   MAX_PHOTOS,
   PHOTO_NOTICE,
@@ -34,19 +36,37 @@ describe('PART 5 사진 여러 장: 칸에 더하기 (#268)', () => {
     expect(many.notice).toBeNull();
   });
 
-  it('PDF 한 개를 고르면 칸이 그 PDF로 바뀐다 (사진·이전 PDF는 없어짐)', () => {
-    expect(names(addPicked([photo('p1.jpg')], [pdf('a.pdf')]).value)).toBe('a.pdf');
-    expect(names(addPicked(pdf('old.pdf'), [pdf('new.pdf')]).value)).toBe('new.pdf');
+  it('빈 칸에 PDF 한 개를 고르면 PDF 한 개(File)로 둔다', () => {
+    const a = pdf('a.pdf');
+    expect(addPicked(null, [a])).toEqual({ value: a, notice: null });
   });
 
-  it('PDF가 있던 칸에 사진을 고르면 사진으로 바뀐다', () => {
-    expect(names(addPicked(pdf('a.pdf'), [photo('p1.jpg')]).value)).toEqual(['p1.jpg']);
+  it('PDF가 있는 칸에 PDF·사진을 더 고르면 바꾸지 않고 뒤에 덧붙인다 (특약 별지, #298)', () => {
+    expect(names(addPicked(pdf('lease.pdf'), [pdf('terms.pdf')]).value)).toEqual(['lease.pdf', 'terms.pdf']);
+    expect(names(addPicked(pdf('lease.pdf'), [photo('terms.jpg')]).value)).toEqual(['lease.pdf', 'terms.jpg']);
+    expect(names(addPicked([photo('p1.jpg')], [pdf('a.pdf')]).value)).toEqual(['p1.jpg', 'a.pdf']);
   });
 
-  it('PDF와 사진을 섞거나, PDF를 여러 개 고르거나, 다른 형식이면 그대로 두고 안내한다', () => {
+  it('PDF와 사진, PDF 여러 개를 한 번에 골라도 고른 순서대로 담는다 (#298)', () => {
+    const r = addPicked([photo('p1.jpg')], [pdf('a.pdf'), photo('p2.jpg'), pdf('b.pdf')]);
+    expect(r).toEqual({ value: expect.any(Array), notice: null });
+    expect(names(r.value)).toEqual(['p1.jpg', 'a.pdf', 'p2.jpg', 'b.pdf']);
+    expect(names(addPicked(null, [pdf('a.pdf'), pdf('b.pdf')]).value)).toEqual(['a.pdf', 'b.pdf']);
+  });
+
+  it('removePhoto(): 하나를 빼고 PDF 한 개만 남으면 PDF 한 개로, 다 빠지면 null (#298)', () => {
+    const a = pdf('a.pdf');
+    expect(removePhoto([a, photo('t.jpg')], 1)).toBe(a);
+    expect(names(removePhoto([a, photo('t.jpg'), photo('u.jpg')], 0))).toEqual(['t.jpg', 'u.jpg']);
+    expect(removePhoto([a], 0)).toBeNull();
+  });
+
+  it('PDF·JPG·PNG가 아닌 파일이 있으면 그대로 두고 안내한다', () => {
     const current = [photo('p1.jpg')];
-    expect(addPicked(current, [pdf('a.pdf'), photo('p2.jpg')])).toEqual({ value: current, notice: PHOTO_NOTICE.MIXED });
-    expect(addPicked(current, [pdf('a.pdf'), pdf('b.pdf')])).toEqual({ value: current, notice: PHOTO_NOTICE.ONE_PDF });
+    expect(addPicked(current, [pdf('a.pdf'), new File(['x'], 'a.docx', { type: 'application/msword' })])).toEqual({
+      value: current,
+      notice: PHOTO_NOTICE.UNSUPPORTED,
+    });
     expect(addPicked(current, [new File(['x'], 'a.heic', { type: 'image/heic' })])).toEqual({
       value: current,
       notice: PHOTO_NOTICE.UNSUPPORTED,
@@ -129,5 +149,58 @@ describe('PART 5 사진 여러 장 → PDF 하나 (#268)', () => {
     expect(toPdf).toHaveBeenCalledTimes(2);
     expect(names(toPdf.mock.calls[0][0])).toEqual(['p1.jpg']);
     expect(names(toPdf.mock.calls[1][0])).toEqual(['p1.jpg', 'p2.jpg']);
+  });
+});
+
+describe('PART 5 칸에 PDF·사진 섞기 → 따로 읽을 조각 (#298)', () => {
+  const toPdfMock = () => vi.fn(async (photos, name) => pdf(name));
+  const mergeMock = () => vi.fn(async (_pdfs, name) => pdf(name));
+
+  it('PDF 한 개면 그 파일이 그릴 PDF이자 조각 하나다 (합치지 않음)', async () => {
+    const merge = mergeMock();
+    const a = pdf('a.pdf');
+    expect(await slotToSource(a, 'lease.pdf', { merge })).toEqual({ file: a, parts: [a] });
+    expect(merge).not.toHaveBeenCalled();
+    expect(await slotToSource(null, 'lease.pdf', { merge })).toBeNull();
+  });
+
+  it('사진만이면 사진 PDF 하나 (예전과 같음)', async () => {
+    const toPdf = toPdfMock();
+    const merge = mergeMock();
+    const r = await slotToSource([photo('p1.jpg'), photo('p2.jpg')], 'lease.pdf', { toPdf, merge });
+    expect(r?.file.name).toBe('lease.pdf');
+    expect(r?.parts).toEqual([r?.file]);
+    expect(merge).not.toHaveBeenCalled();
+  });
+
+  it('PDF + 사진: 이어진 사진끼리 묶어 PDF로 만들고, 조각을 순서대로 합친 PDF로 그린다', async () => {
+    const toPdf = toPdfMock();
+    const merge = mergeMock();
+    const lease = pdf('my-lease.pdf');
+    const terms = pdf('terms.pdf');
+    const r = await slotToSource([lease, photo('t1.jpg'), photo('t2.jpg'), terms, photo('t3.jpg')], 'lease.pdf', { toPdf, merge });
+    expect(toPdf).toHaveBeenCalledTimes(2);
+    expect(names(toPdf.mock.calls[0][0])).toEqual(['t1.jpg', 't2.jpg']);
+    expect(names(toPdf.mock.calls[1][0])).toEqual(['t3.jpg']);
+    // 사진 PDF 이름에 원래 파일 이름(개인정보일 수 있음)을 쓰지 않는다
+    expect(names(r?.parts)).toEqual(['my-lease.pdf', 'lease-photos-2.pdf', 'terms.pdf', 'lease-photos-4.pdf']);
+    expect(merge).toHaveBeenCalledTimes(1);
+    expect(merge.mock.calls[0][0]).toEqual(r?.parts);
+    expect(r?.file.name).toBe('lease.pdf');
+  });
+
+  it('mergePdfFiles(): 쪽을 순서대로 이어 붙이고 문서 정보를 넣지 않는다', async () => {
+    const make = async (sizes, name) => {
+      const d = await PDFDocument.create({ updateMetadata: false });
+      for (const w of sizes) d.addPage([w, 800]);
+      return new File([await d.save()], name, { type: 'application/pdf' });
+    };
+    const merged = await mergePdfFiles([await make([500, 510], 'a.pdf'), await make([520], 'b.pdf')], 'lease.pdf');
+    expect(merged.name).toBe('lease.pdf');
+    expect(merged.type).toBe('application/pdf');
+    const doc = await PDFDocument.load(new Uint8Array(await merged.arrayBuffer()), { updateMetadata: false });
+    expect(doc.getPages().map((p) => Math.round(p.getWidth()))).toEqual([500, 510, 520]);
+    expect(doc.getProducer()).toBeUndefined();
+    expect(doc.getCreator()).toBeUndefined();
   });
 });
