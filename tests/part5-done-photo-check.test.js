@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // PART 5. ⑤ 완료 화면: 사진·스캔 서류는 다시 확인이 끝나고 결과를 본 뒤에 마스킹 PDF를 받는다 (#314). 가상 데이터만 사용한다.
 import { describe, it, expect, vi } from 'vitest';
-import { doneScreen, hasCheckWarning } from '../src/app/screens/done.js';
+import { doneScreen, hasCheckWarning, promptHoldReason } from '../src/app/screens/done.js';
 import { initialState } from '../src/app/app-state.js';
 import { CHECK_STATUS } from '../src/app/double-check.js';
 
@@ -116,5 +116,42 @@ describe('PART 5 ⑤ 완료 화면: 사진·스캔 서류는 확인 뒤에 받�
     const doubleCheck = [result('LEASE_CONTRACT', CHECK_STATUS.MAYBE_VISIBLE, { hits: [{ type: 'PERSON_NAME', pageIndex: 5 }] })];
     const text = screen({ analysis: analysisOf('image_pdf'), doubleCheck }).node.textContent ?? '';
     expect(text).not.toContain('.pdf');
+  });
+});
+
+describe('PART 5 ⑤ Ask AI: 사진·스캔 서류는 다운로드와 같은 조건으로 프롬프트를 보여 준다 (#315 리뷰)', () => {
+  const prompt = (node) => node.querySelector('#prompt');
+  const copy = (node) => node.querySelector('#copy');
+
+  it('글자 PDF는 지금처럼 바로 보인다', () => {
+    const { node } = screen({ analysis: analysisOf('text_pdf'), doubleCheck: null });
+    expect(prompt(node)).not.toBeNull();
+    expect(copy(node)).not.toBeNull();
+    expect(promptHoldReason({ ...initialState(), analysis: analysisOf('text_pdf') })).toBeNull();
+  });
+
+  it('사진은 다시 확인이 끝나기 전에는 프롬프트·복사·AI 링크가 없다', () => {
+    for (const doubleCheck of [null, 'running']) {
+      const { node } = screen({ analysis: analysisOf('image_pdf'), doubleCheck });
+      expect(prompt(node)).toBeNull();
+      expect(copy(node)).toBeNull();
+      expect(node.querySelectorAll('a.ai-link')).toHaveLength(0);
+      expect(node.querySelector('#prompt-wait')).not.toBeNull();
+    }
+  });
+
+  it('경고가 있으면 체크하기 전에는 숨기고, 체크하면 보인다', () => {
+    const doubleCheck = [result('REGISTRY', CHECK_STATUS.NOT_FOUND), result('LEASE_CONTRACT', CHECK_STATUS.MAYBE_VISIBLE, { hits: [] })];
+    const before = screen({ analysis: analysisOf('image_pdf'), doubleCheck, pdfChecked: false }).node;
+    expect(prompt(before)).toBeNull();
+    expect(before.querySelector('#prompt-wait')?.textContent).toContain('misread');
+    const after = screen({ analysis: analysisOf('image_pdf'), doubleCheck, pdfChecked: true }).node;
+    expect(prompt(after)).not.toBeNull();
+    expect(copy(after)).not.toBeNull();
+  });
+
+  it('경고가 없으면 바로 보인다', () => {
+    const doubleCheck = [result('REGISTRY', CHECK_STATUS.NOT_FOUND), result('LEASE_CONTRACT', CHECK_STATUS.NOT_FOUND)];
+    expect(prompt(screen({ analysis: analysisOf('image_pdf'), doubleCheck }).node)).not.toBeNull();
   });
 });

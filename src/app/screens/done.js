@@ -79,7 +79,9 @@ function doubleCheckSection(state, act, photo = false) {
   // 사진·스캔 서류는 보통 자동으로 시작한다. 시작하지 못했을 때(검사 도구를 못 받음 등)만 이 버튼이 보인다 (#314)
   if (!doubleCheck && photo) {
     return el('div', { class: 'double-check' }, [
-      el('p', { class: 'hint' }, ['Before you download, we read the masked pages again to look for personal information that is still visible.']),
+      el('p', { class: 'hint' }, [
+        'Before you download, we read the masked pages again to look for personal information that is still visible.',
+      ]),
       actions([button('Check the masked PDF', () => act.doubleCheckPdfs(), { id: 'double-check' })]),
     ]);
   }
@@ -150,9 +152,31 @@ function photoDownloads(state, act) {
         'Open the PDF and look at the pages listed above before you share it. If something is still visible, go back and hide it.',
     ]),
     actions([button('Go back and hide more', () => act.goTo('review'), { id: 'back-to-review', variant: 'secondary' })]),
-    el('label', { class: 'confirm', for: 'pdf-checked' }, [box, ' I looked at these pages myself. Show the download links.']),
+    el('label', { class: 'confirm', for: 'pdf-checked' }, [
+      box,
+      ' I looked at these pages myself. Show the download links and the AI prompt.',
+    ]),
     state.pdfChecked ? el('div', { class: 'downloads' }, downloads(state.pdfs ?? [])) : null,
   ];
+}
+
+/**
+ * 사진·스캔 서류에서 AI 프롬프트를 아직 보여 주면 안 되는 까닭 (#315 리뷰)
+ * 다시 확인에서 경고가 나는 줄은 보통 처음 OCR이 잘못 읽은 줄이고, 프롬프트의 가린 글도 같은 OCR 글이다.
+ * 보내기 전 검사는 탐지한 값만 비교하므로 이런 줄은 못 잡는다. 그래서 다운로드와 같은 조건으로 프롬프트를 보여 준다.
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @returns {string | null}  보여 줄 안내 (null이면 프롬프트를 보여 줘도 됨)
+ */
+export function promptHoldReason(state) {
+  if (!hasPhotoDocuments(state.analysis)) return null;
+  if (!Array.isArray(state.doubleCheck)) return 'The prompt appears after the check above.';
+  if (hasCheckWarning(state.doubleCheck) && !state.pdfChecked) {
+    return (
+      'Photo or scan text may still contain misread personal information, and the prompt is made from the same text. ' +
+      'Check the pages listed above first. If something is still visible, go back and hide it — the prompt is updated too.'
+    );
+  }
+  return null;
 }
 
 /**
@@ -182,24 +206,40 @@ export function doneScreen(state, act) {
             doubleCheckSection(state, act),
           ],
     ),
-    card('Ask AI', [
-      el('p', {}, ['Copy the prompt and paste it into the AI chat. This website does not send anything to AI by itself.']),
-      el('label', { for: 'prompt' }, ['Prompt']),
-      box,
-      actions([button('Copy prompt', () => copyPrompt(prepared.prompt, box, status), { id: 'copy' })]),
-      el(
-        'div',
-        { class: 'ai-links' },
-        AI_SERVICES.map((s) => {
-          const link = el('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer', class: 'ai-link' }, [
-            `Copy and open ${s.name}`,
-          ]);
-          link.addEventListener('click', () => copyPrompt(prepared.prompt, box, status));
-          return link;
-        }),
-      ),
-      status,
-    ]),
+    card('Ask AI', askAi(state, prepared, box, status)),
     actions([button('Check other documents', () => act.restart(), { variant: 'secondary' })]),
   ]);
+}
+
+/**
+ * "Ask AI" 카드 내용. 사진·스캔 서류는 다시 확인 결과를 본 뒤에만 프롬프트를 보여 준다 (promptHoldReason)
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @param {import('../pipeline.js').Prepared} prepared
+ * @param {HTMLTextAreaElement} box
+ * @param {HTMLElement} status
+ */
+function askAi(state, prepared, box, status) {
+  const hold = promptHoldReason(state);
+  if (hold) {
+    return [
+      el('p', {}, ['Copy the prompt and paste it into the AI chat. This website does not send anything to AI by itself.']),
+      el('p', { class: 'hint', id: 'prompt-wait' }, [hold]),
+    ];
+  }
+  return [
+    el('p', {}, ['Copy the prompt and paste it into the AI chat. This website does not send anything to AI by itself.']),
+    el('label', { for: 'prompt' }, ['Prompt']),
+    box,
+    actions([button('Copy prompt', () => copyPrompt(prepared.prompt, box, status), { id: 'copy' })]),
+    el(
+      'div',
+      { class: 'ai-links' },
+      AI_SERVICES.map((s) => {
+        const link = el('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer', class: 'ai-link' }, [`Copy and open ${s.name}`]);
+        link.addEventListener('click', () => copyPrompt(prepared.prompt, box, status));
+        return link;
+      }),
+    ),
+    status,
+  ];
 }
