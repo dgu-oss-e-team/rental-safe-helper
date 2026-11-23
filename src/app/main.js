@@ -10,6 +10,7 @@
 import './style.css';
 import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
+import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
 import { slotToFile } from './photo-pages.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
@@ -57,6 +58,7 @@ const STEP_TEXT = {
  * @property {(docs: any[]) => number} countOcrLinesToCheck
  * @property {() => Promise<void>} confirmOcr  흐린 줄을 다 확인했으면 분석을 이어서 한다
  * @property {() => void} cancelOcr  ①로 돌아간다 (고른 파일은 그대로)
+ * @property {() => void} reviewText  분석 뒤 "Check the text"로 다시 간다 (사진·스캔 서류, 고친 글자는 그대로, #286)
  * @property {(answers: Record<string, string | null>) => Promise<void>} setPersonAnswers  PART 4 "같은 사람인가요?"의 onChange
  * @property {(purpose: string) => void} setPurpose
  * @property {() => Promise<void>} prepare
@@ -323,6 +325,14 @@ const act = {
     ocrDraft = [];
     appState.setState({ ocrReview: null, step: 'upload', error: null });
   },
+  reviewText() {
+    // 보내기 전 검사가 멈춘 사진 서류: 이미 확인한 글자로 글자 확인 단계를 다시 연다 (#286)
+    const { analysis, uploadSlots } = appState.getState();
+    const back = analysis ? textReviewFromAnalysis(analysis, uploadSlots) : null;
+    if (!back) return;
+    ocrDraft = back.draft;
+    appState.setState({ ocrReview: back.ocrReview, step: 'confirm', error: null });
+  },
   async setPersonAnswers(answers) {
     const { analysis } = appState.getState();
     if (!analysis) return;
@@ -445,7 +455,13 @@ const app = /** @type {HTMLElement} */ (document.querySelector('#app'));
  * @param {string} screenStep  지금 보고 있는 화면
  */
 function errorCard(error, screenStep) {
-  const { title, help } = errorHelp(error);
+  // 사진·스캔 서류가 보내기 전 검사에서 멈췄으면 글자 확인 단계로 돌아가게 안내한다 (#286)
+  const photo = hasPhotoDocuments(appState.getState().analysis);
+  const { title, help } = errorHelp(error, { photo });
+  const fixText =
+    photo && error.step === 'validateMaskedText'
+      ? button('Go back and fix the text', () => act.reviewText(), { id: 'error-fix-text' })
+      : null;
   // ①에서 실패하면 파일을 바꿔 다시 하면 되고, 그 뒤 단계에서는 이전 상태가 남아 있으므로 닫고 계속하면 된다
   // (인터넷 문제나 위험 점검 실패는 서류 탓이 아니어서 같은 파일로 다시 하면 되므로 "Try again")
   const retryLabel = error.code === 'LOAD_FAILED' || error.step === 'assessRisks' ? 'Try again' : 'Try another file';
@@ -460,7 +476,7 @@ function errorCard(error, screenStep) {
       el('p', { class: 'hint' }, [
         `We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}. Error code: ${error.code}`,
       ]),
-      actions([retry, button('Start over', () => act.restart(), { variant: 'secondary' })]),
+      actions([fixText, retry, button('Start over', () => act.restart(), { variant: 'secondary' })]),
     ],
     'error-card',
   );
