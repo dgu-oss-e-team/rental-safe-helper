@@ -122,3 +122,20 @@
   min-height: 40px;
   font-size: 13px;
 }
+.ocr-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ocr-page-header h3,
+.ocr-page-label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ocr-confirm-page-btn {
+  white-space: nowrap;
+}
