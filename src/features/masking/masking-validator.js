@@ -2,13 +2,14 @@
 /**
  * PART 4. 외부로 보내기 전 검사 (masking-validator)
  *
- *   validateMaskedText(maskedText, findings, plan, edits?) → Result<{ checked: number }>
+ *   validateMaskedText(maskedText, findings, plan, edits?, options?) → Result<{ checked: number }>
  *   가려야 하는 원본 값이 가린 글에 남아 있으면 실패한다. 실패 메시지에는 실제 값을 넣지 않는다.
  *   OCR이 숫자를 비슷한 글자로 잘못 읽은 번호("75O315-1")가 남아 있어도 실패한다. (안전망, 아래 findLookalikeNumber)
  */
 
 import { ok, fail, ERROR_CODE, MASKING_ACTION, PII_TYPE } from '../../shared/document-model.js';
 import { validAdds, isNonRemovable } from './user-edits.js';
+import personLabels from '../../config/templates/person-labels.json';
 
 /** @typedef {import('../../shared/document-model.js').PiiFinding} PiiFinding */
 /** @typedef {import('../../shared/document-model.js').MaskingPlan} MaskingPlan */
@@ -169,6 +170,55 @@ function findSpans(text, words) {
 function isShortNumberPiece(f) {
   return f.type === PII_TYPE.ADDRESS && /^\d[\d-]*$/.test(f.value) && f.value.replace(/-/g, '').length < 6;
 }
+/** 사진 서류에서 바로 옆에 이름이 오는 역할 낱말 (person-labels.json + 줄여 읽힌 "개업공인", 등기부 "채무자" 등) */
+const ROLE_WORDS = [
+  ...new Set([
+    ...(personLabels.persons ?? []).flatMap((p) => p.labels),
+    ...(personLabels.otherPersonLabels ?? []),
+    '개업공인',
+    '중개사',
+    '대표자',
+  ]),
+].sort((a, b) => b.length - a.length);
+/** 역할 낱말 뒤에 와도 이름이 아닌 낱말 (PART 2 notNames, 이름 칸 낱말, 역할 낱말) */
+const NOT_NAME_AFTER_ROLE = new Set([
+  ...(personLabels.notNames ?? []),
+  ...(personLabels.nameFieldWords ?? []),
+  ...(personLabels.addressStopWords ?? []),
+  ...ROLE_WORDS,
+  // 계약서에서 역할 낱말 뒤에 자주 오는 낱말
+  '전입', '전입신고', '전세', '확정일자', '주민센터', '명도', '원상복구', '정보', '사항', '신청', '상호', '사업자',
+]);
+/** 흔한 성씨 (이름 모양인지 볼 때 첫 글자). "임차인 간에"의 "간에" 같은 문장 낱말이 이름으로 보이지 않게 한다. */
+const SURNAMES = new Set(
+  '김이박최정강조윤장임한오서신권황안송류유전홍고문양손배백허남심노하곽성차주우구나민진지엄채원천방공현함변염여추도소석선설마길연위표명기반라왕금옥육인맹제모탁국어은편용예경봉사부가복태목형피두감음빈동온호범좌갈'.split(''),
+);
+const TWO_LETTER_SURNAMES = ['남궁', '황보', '제갈', '선우', '독고', '사공', '서문'];
+/** @param {string} word */
+const looksLikeName = (word) => SURNAMES.has(word[0]) || TWO_LETTER_SURNAMES.some((x) => word.startsWith(x));
+/** 이름 뒤에 오면 회사 이름으로 보는 낱말 ("임대인 가상리츠 주식회사") */
+const COMPANY_AFTER = /^\s*(?:주식회사|유한회사|회사|법인|㈜|\(주\))/;
+/** 역할 낱말 + (띄어쓰기·세로줄·쌍점) + 한글 2~4자 낱말. OCR이 표 칸 선을 "|", "⎸"로 읽는다. */
+const ROLE_NEXT_WORD = new RegExp(`(?:${ROLE_WORDS.join('|')})[\\s|⎸│:：·]+([가-힣]{2,4})(?![가-힣])`, 'g');
+/** "203호(가상동)"처럼 호수 바로 뒤에 동 이름 괄호. "제24호서식", "제1호"는 앞에 "제"가 붙거나 괄호가 없어서 빠진다. */
+const UNIT_WITH_DONG = /(?<![제\d])\d{1,4}\s?호\s?\([가-힣]/;
+
+/**
+ * 사진(OCR) 서류에서만 보는 남은 개인정보 모양 (PART 2가 OCR 오독으로 놓친 것, 상욱님 가짜세트4 사진 점검)
+ * - 역할 낱말 바로 옆에 가려지지 않은 이름 모양 ("개업공인 ⎸ 김삿갓 ⎸ GLEE]")
+ * - 동 이름 괄호가 붙은 호수 ("203호(가상동)", OCR이 502를 505로 읽어 원래 값과 비교로도 안 잡힘)
+ * 글자 PDF에서는 보지 않는다. 서식 문구가 많아 잘못 멈추기 쉽고, 글자 PDF는 PART 2 탐지가 정확하다.
+ * @param {string} line  일부러 남긴 자리(가명 등)를 뺀 줄
+ * @returns {'NAME' | 'UNIT' | null}
+ */
+export function findPhotoLeftover(line) {
+  for (const m of line.matchAll(ROLE_NEXT_WORD)) {
+    if (NOT_NAME_AFTER_ROLE.has(m[1]) || !looksLikeName(m[1])) continue;
+    if (COMPANY_AFTER.test(line.slice((m.index ?? 0) + m[0].length))) continue;
+    return 'NAME';
+  }
+  return UNIT_WITH_DONG.test(line) ? 'UNIT' : null;
+}
 
 /**
  * 외부로 보내기 전에, 가려야 하는 원본 값이 남아 있지 않은지 검사한다.
@@ -176,8 +226,9 @@ function isShortNumberPiece(f) {
  * @param {PiiFinding[]} findings
  * @param {MaskingPlan} plan
  * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자가 더 가린 글자(add)도 검사한다
+ * @param {{ photoDocumentIds?: Iterable<string> }} [options]  사진(OCR) 서류 id. 이 서류에서는 findPhotoLeftover도 본다.
  */
-export function validateMaskedText(maskedText, findings, plan, edits) {
+export function validateMaskedText(maskedText, findings, plan, edits, options) {
   const all = Object.values(maskedText).join('\n');
   // 서류마다 all 안에서 차지하는 자리 [시작, 끝]
   /** @type {Map<string, [number, number]>} */
@@ -239,6 +290,23 @@ export function validateMaskedText(maskedText, findings, plan, edits) {
   if (outsideLines.some((line) => findLeftoverNumber(line) !== null)) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a number that looks like personal information is still visible.');
   }
+
+  // 사진(OCR) 서류: 역할 낱말 옆 이름, 동 이름이 붙은 호수가 남아 있으면 안 된다 (탐지가 OCR 오독으로 놓친 것)
+  const outsideText = outside.join('');
+  for (const id of options?.photoDocumentIds ?? []) {
+    const range = docRange.get(id);
+    if (!range) continue;
+    const kind = outsideText.slice(range[0], range[1]).split('\n').map(findPhotoLeftover).find((k) => k !== null);
+    if (kind) {
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        kind === 'NAME'
+          ? 'Masking check failed: a name next to a role word may still be visible in a photo document.'
+          : 'Masking check failed: a unit number of an address may still be visible in a photo document.',
+      );
+    }
+  }
+
   // 사용자가 더 가린 글자도 남아 있으면 안 된다
   for (const a of validAdds(edits)) {
     checked += 1;
