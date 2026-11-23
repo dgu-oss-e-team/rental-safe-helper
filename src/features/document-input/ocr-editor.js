@@ -1,17 +1,17 @@
 // @ts-check
 /**
- * PART 1. OCR ?? ?? ?? (ocr-editor)
+ * PART 1. OCR 결과 수정 화면 (ocr-editor)
  *
- * ????? (docs/INTERFACES.md / #93 / #54):
+ * 인터페이스 (docs/INTERFACES.md / #93 / #54):
  *   renderOcrEditor({ documents, files, onChange }) -> HTMLElement
- *   - documents: DocumentModel[] (??/?? ??)
- *   - files: ?? File[] (??? ?? ?? PDF? ??? ?? ?? ??? ???? ?? ??)
- *   - onChange(editedDocuments): ???? ????? ?? ??? ??? ?? DocumentModel[] ????? ??
- *   - blockId? bbox? ?? ???? ???(PDF ??? ??? ??).
- *   - ???? ??(Confirm)? ?? confidence? 1? ????.
+ *   - documents: DocumentModel[] (사진/스캔 서류)
+ *   - files: 원본 File[] (이미지 또는 스캔 PDF면 텍스트 옆에 원본 페이지 이미지를 함께 표시)
+ *   - onChange(editedDocuments): 사용자가 수정하거나 줄을 확인할 때마다 전체 DocumentModel[] 복사본으로 호출
+ *   - blockId와 bbox는 절대 변경하지 않는다(PDF 마스킹 위치가 의존).
+ *   - 사용자가 확인(Confirm)한 줄은 confidence를 1로 설정한다.
  *
- * ?? ??: ?? ???? innerHTML? ?? ?? textContent / textarea.value? ????(XSS ??).
- *            ????? ?? ??? ?? ???? ??? ???.
+ * 보안 규칙: 서류 텍스트는 innerHTML에 넣지 않고 textContent / textarea.value만 사용한다(XSS 방지).
+ *            개인정보를 콘솔 로그나 오류 메시지에 남기지 않는다.
  */
 
 import './ocr-editor.css';
@@ -19,9 +19,9 @@ import { el, button, card } from '../../app/ui.js';
 import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { renderPdfToImages } from './pdf-reader.js';
 
-/** ?? ?? ?? ?? ?? ??? (PART 1 ??? ??) */
+/** 숫자 포함 줄의 주의 기준 신뢰도 (PART 1 기준과 동일) */
 export const OCR_REVIEW_DIGIT_THRESHOLD = 0.8;
-/** ?? ?? ?? ?? ??? */
+/** 일반 줄의 주의 기준 신뢰도 */
 export const OCR_REVIEW_TEXT_THRESHOLD = 0.75;
 
 const DOC_LABELS = {
@@ -38,7 +38,7 @@ const RE_ADDR_UNIT_NUM = new RegExp("\\d+\\s*-\\s*\\d+|\\d+\\s*호|제\\s*\\d+\\
 const RE_ADDR_SUFFIX = new RegExp("(시|구|동|로|길|호|층|번지)");
 
 /**
- * ??/?? ???? ?? ??("Confirm this page")?? ???? ? ?? ?? ????? ??? ????.
+ * Returns true if the line represents a critical party/role row that must not be skipped via batch confirmation.
  * @param {string} text
  * @returns {boolean}
  */
@@ -47,9 +47,9 @@ function isCriticalPartyOrNameLine(text) {
 }
 
 /**
- * ??/?? ???? OCR ???? ???? ??? ??? ??? ??? ?? ?? ????.
- * - ?????? 1?? "1. ?? ???" ~ "?" ?? ?? ?? ?? ?
- * - ?????????? ?? ???, ??/??? ?? ? ???? ?
+ * Collects critical blocks on photo/scan documents that always require user review regardless of confidence:
+ * - All lines on Page 1 of a lease contract between "1. 계약 당사자" and the "◈" notice box
+ * - Property location, lot/road address, and floor/unit number lines
  * @param {import('../../shared/document-model.js').DocumentModel[]} docs
  * @returns {WeakSet<object>}
  */
@@ -88,7 +88,7 @@ export function collectCriticalBlocks(docs) {
 }
 
 /**
- * ??? ??? ??? ??? ?? ???(?? ?? ?? ??)?? ????.
+ * Returns true if the block requires user verification due to low confidence or critical-field review.
  * @param {{ text: string, confidence?: number | null, confirmed?: boolean }} block
  * @param {{ forceReview?: boolean }} [options]
  * @returns {boolean}
@@ -105,8 +105,8 @@ export function isLowConfidenceBlock(block, options = {}) {
 }
 
 /**
- * ?? ???? ??? ??? ??? ?? ??(?? ??? + ?? ?? ?????? ?)? ????.
- * PART 5? countLinesToCheck()? ocr-editor? ??? ??? ????? ????.
+ * Returns all blocks in the documents that require user confirmation (low confidence + critical lease party/address lines).
+ * Shared by PART 5 countLinesToCheck() and ocr-editor so both show the exact same count.
  * @param {import('../../shared/document-model.js').DocumentModel[]} documents
  * @returns {import('../../shared/document-model.js').Block[]}
  */
@@ -130,7 +130,7 @@ export function getFlaggedBlocks(documents) {
 }
 
 /**
- * textarea ??? ?? ? ?? ?? ???? ????.
+ * Automatically adjusts textarea height to fit its wrapped content.
  * @param {HTMLTextAreaElement} textarea
  */
 function autoResizeTextarea(textarea) {
@@ -142,7 +142,7 @@ function autoResizeTextarea(textarea) {
 }
 
 /**
- * OCR ?? ?? ? ?? UI? ?????.
+ * Renders the OCR text review and editing UI.
  *
  * @param {{
  *   documents?: import('../../shared/document-model.js').DocumentModel[],
@@ -351,7 +351,10 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             : 'Fix any wrong characters (like ^ or extra spaces) before confirming.',
         ]);
 
-        const textarea = /** @type {HTMLTextAreaElement} */ (
+        const textarea = /**
+ * Automatically adjusts textarea height to fit its wrapped content.
+ * @param {HTMLTextAreaElement} textarea
+ */ (
           el('textarea', {
             rows: '1',
             id: inputId,
@@ -443,7 +446,7 @@ export function renderOcrEditor({ documents = [], files = [], onChange } = {}) {
             textarea.value = sanitized;
           }
           block.text = sanitized;
-          // ???? ?? ???? ??? ?? ??(confidence = 1)? ??
+          // Mark line as confirmed (confidence = 1) once edited by the user
           block.confidence = 1;
           autoResizeTextarea(textarea);
           refreshRowState();
