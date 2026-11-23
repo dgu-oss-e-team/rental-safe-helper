@@ -701,6 +701,11 @@ const PRESERVE_PURPOSE = /^\s*소\s*유\s*권\s*보\s*존/;
  * "공유자전원지분전부이전"은 전부 넘어간 것이라 일부가 아니다.
  */
 const PARTIAL_TRANSFER = /^\s*(?:소\s*유\s*권\s*일\s*부|(?![가-힣]{0,3}전\s*원\s*지\s*분\s*전\s*부)[가-힣]{0,10}지\s*분)/;
+/**
+ * "소유권일부이전": 소유자가 지분 일부를 넘긴 것이라 넘긴 사람도 나머지 지분으로 계속 소유자다.
+ * ("김철수지분전부이전"은 공유자 한 명이 빠지는 것이라 누가 빠졌는지 이름을 맞춰야 해서 여기에 넣지 않는다)
+ */
+const WHOLE_OWNERSHIP_PARTIAL = /^\s*소\s*유\s*권\s*일\s*부\s*이\s*전/;
 /** 다음 줄로 넘어간 등기목적의 끝 "이전" ("공유자전원지분전부" / "이전 제80246호 매매 …") */
 const WRAPPED_TRANSFER_END = /^\s*이\s*전(?![가-힣])/;
 
@@ -727,6 +732,7 @@ const MAX_DATE_LOOKAHEAD = 3;
  * @property {string | null} date 첫 날짜 (소유권이전이면 접수일)
  * @property {boolean} cancelled 말소됐는지
  * @property {number[]} lineIndexes 이 기록에 속한 줄 번호 (lines 기준. 이어지는 줄 포함)
+ * @property {boolean} [keepsRest] "소유권일부이전": 넘긴 사람이 나머지 지분을 그대로 갖는 일부 이전
  */
 
 /**
@@ -789,6 +795,7 @@ function readGapRows(lines) {
     const startRow = (kind) => {
       /** @type {GapRow} */
       const row = { rank, kind, date: parseDate(rest), cancelled: false, lineIndexes: [i] };
+      if (kind === 'PARTIAL' && WHOLE_OWNERSHIP_PARTIAL.test(rest)) row.keepsRest = true;
       rows.push(row);
       current = row;
       waiting = (kind === 'TRANSFER' || kind === 'PARTIAL') && row.date === null ? { row, seen: 0 } : null;
@@ -908,6 +915,10 @@ export function findCurrentOwnerCompanies(lines) {
 
 /**
  * 갑구의 소유권 기록을 지금 소유자 기록과 예전 소유자 기록으로 나눈다.
+ * - 지금 소유자: 말소되지 않은 마지막 소유권보존·소유권이전(전부) 기록
+ * - 그 뒤에 "소유권일부이전"만 이어지면, 넘긴 사람도 나머지 지분으로 계속 소유자라서 그 기록들을 합쳐 지금 소유자로 본다.
+ *   예: "1 소유권보존 전우치" → "2 소유권일부이전 공유자 지분 2분의 1 황진이" → 지금 소유자 전우치·황진이 (상욱님 가짜세트4)
+ * - 그 뒤에 다른 일부 이전("김철수지분전부이전" 등)이 있으면 누가 빠졌는지 이름을 맞춰야 해서 정하지 않는다(null).
  * @param {string[]} lines
  * @returns {{ current: GapRow, previous: GapRow[] } | 'ALL' | null}
  */
@@ -917,9 +928,18 @@ function readOwnershipRecords(lines) {
   if (!seenGap || ownership.length === 0) return 'ALL';
   if (ambiguous) return null;
   const live = ownership.filter((r) => !r.cancelled);
-  const current = live[live.length - 1];
-  if (!current || current.kind === 'PARTIAL') return null;
-  return { current, previous: ownership.filter((r) => r !== current) };
+  let lastWhole = -1;
+  live.forEach((r, i) => {
+    if (r.kind !== 'PARTIAL') lastWhole = i;
+  });
+  if (lastWhole === -1) return null;
+  const after = live.slice(lastWhole + 1);
+  if (!after.every((r) => r.keepsRest)) return null;
+  const group = [live[lastWhole], ...after];
+  /** @type {GapRow} */
+  const current =
+    after.length === 0 ? live[lastWhole] : { ...live[lastWhole], lineIndexes: group.flatMap((r) => r.lineIndexes) };
+  return { current, previous: ownership.filter((r) => !group.includes(r)) };
 }
 
 /** "계약일", "계약일자", "계약체결일" 라벨. 바로 뒤에 날짜가 와야 한다. ("계약일로부터 30일"은 아니다) */

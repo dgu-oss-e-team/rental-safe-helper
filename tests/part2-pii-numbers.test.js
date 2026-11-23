@@ -282,3 +282,18 @@ describe('PART 2 사업자등록번호 (상욱님 평가 세트 #302)', () => {
     expect(findRegistryIds('2026-11-20')).toEqual([]);
   });
 });
+
+describe('PART 2 중개사무소 등록번호 (상욱님 가짜세트4)', () => {
+  it('"2. 공인중개사" 칸의 5자리-연도-5자리 번호를 REGISTRY_ID로 찾는다', () => {
+    expect(findPatternPII('등록번호 11230-2020-00187 전화번호 02-0000-7319').map((r) => [r.type, r.value])).toEqual([
+      [PII_TYPE.REGISTRY_ID, '11230-2020-00187'],
+      [PII_TYPE.PHONE_NUMBER, '02-0000-7319'],
+    ]);
+  });
+
+  it('가운데가 연도가 아니거나 더 긴 번호의 일부면 아니다', () => {
+    expect(findRegistryIds('11230-3020-00187')).toEqual([]);
+    expect(findRegistryIds('11230-2020-001879')).toEqual([]);
+    expect(findRegistryIds('111230-2020-00187')).toEqual([]);
+  });
+});

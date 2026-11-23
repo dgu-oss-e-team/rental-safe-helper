@@ -956,6 +956,41 @@ describe('PART 2 지금 소유자가 적힌 줄 (findCurrentOwnerLines)', () => 
     expect(findCurrentOwnerLines([GAP, '2 소유권일부이전 2024년1월1일 제100호 공유자 이영희'])).toBeNull();
   });
 
+  // 상욱님 가짜세트4: 소유권보존(전우치) → 주소 변경 부기 → 소유권일부이전(증여, 지분 2분의 1 황진이)
+  it('보존·전부 이전 뒤에 "소유권일부이전"만 이어지면 넘긴 사람도 나머지 지분 소유자라 두 기록을 합친다', () => {
+    const lines = [
+      GAP,
+      '1 소유권보존 2019년4월2일 소유자 김가상 790318-*******',
+      '1-1 1번등기명의인표시 변경 김가상의 주소 서울특별시 성북구 가상로 63',
+      '2 소유권일부이전 2022년6월20일 2022년6월13일 증여 공유자 지분 2분의 1',
+      '이가상 820605-*******',
+    ];
+    expect(findCurrentOwnerLines(lines)).toEqual([1, 3, 4]); // 부기 줄(2)은 넣지 않는다
+    expect(findPreviousOwnerLines(lines)).toEqual([]);
+  });
+
+  it('일부 이전이 여러 번이어도 모두 "소유권일부이전"이면 합치고, 그 앞의 예전 소유자는 예전 소유자다', () => {
+    const lines = [
+      GAP,
+      '1 소유권보존 2015년1월1일 소유자 박가상',
+      '2 소유권이전 2019년4월2일 소유자 김가상',
+      '3 소유권일부이전 2022년6월20일 공유자 지분 4분의 1 이가상',
+      '4 소유권일부이전 2023년1월5일 공유자 지분 4분의 1 최가상',
+    ];
+    expect(findCurrentOwnerLines(lines)).toEqual([2, 3, 4]);
+    expect(findPreviousOwnerLines(lines)).toEqual([1]);
+  });
+
+  it('"소유권일부이전" 뒤에 다른 사람 지분 이전("김가상지분전부이전")이 있으면 누가 빠졌는지 몰라 null', () => {
+    const lines = [
+      GAP,
+      '1 소유권보존 2019년4월2일 소유자 김가상',
+      '2 소유권일부이전 2022년6월20일 공유자 지분 2분의 1 이가상',
+      '3 김가상지분전부이전 2024년1월1일 공유자 최가상',
+    ];
+    expect(findCurrentOwnerLines(lines)).toBeNull();
+  });
+
   it('어느 기록을 말소했는지 모르면 null', () => {
     const lines = [GAP, '2 소유권이전 2018년6월1일 제2000호 소유자 박영수', '3 소유권이전 2024년5월10일 소유자 김철수', '4 소유권이전등기말소'];
     expect(findCurrentOwnerLines(lines)).toBeNull();
