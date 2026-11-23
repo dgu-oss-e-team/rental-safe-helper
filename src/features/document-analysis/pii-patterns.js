@@ -61,6 +61,15 @@ const REGISTRY_ID_REGEX = /(?<!\d)\d{4}-\d{4}-\d{6}(?!\d)/g;
  * 앞에 "제"가 붙은 "제2017-서울중구-00999호"도 찾는다. ("제"와 "호"는 값에 넣지 않는다, #220 리뷰)
  * 그 밖에 앞에 한글·숫자가 붙어 있으면 다른 낱말의 일부라서 찾지 않는다.
  */
+/**
+ * 사업자등록번호: 3자리-2자리-5자리 (예: 214-86-35071, 상욱님 평가 세트 #302)
+ * 민간임대 계약서 "주민등록번호(사업자등록번호)" 칸에 법인·개인 임대사업자 번호를 적는다.
+ * 개인 임대사업자는 이 번호로 사람을 찾아낼 수 있어서 가린다. 법인 관련 번호와 같이 REGISTRY_ID로 돌려준다. (INTERFACES.md)
+ * - 앞뒤에 숫자·하이픈이 더 붙어 있으면 다른 번호의 일부라서 찾지 않는다.
+ * - 번호 근처에 은행 관련 단어가 있으면 계좌번호일 수 있어서 여기서 찾지 않는다. (계좌번호 찾기가 맡는다, 상욱님 리뷰)
+ */
+const BUSINESS_ID_REGEX = /(?<![\d-])\d{3}\s?-\s?\d{2}\s?-\s?\d{5}(?![\d-])/g;
+
 const RENTAL_BUSINESS_ID_REGEX =
   /(?:(?<=(?<![가-힣])제\s?)|(?<![\d가-힣]))(?:19|20)\d{2}\s*-\s*[가-힣]{2,8}\s*-\s*\d{3,6}(?!\d)/g;
 
@@ -248,11 +257,23 @@ export function findPhoneNumbers(text) {
  * 등기 고유번호와 임대사업자 등록번호 (둘 다 REGISTRY_ID)
  * @param {string} text
  */
-export function findRegistryIds(text) {
+export function findRegistryIds(text, keywordText = text) {
   return [
     ...findByRegex(text, REGISTRY_ID_REGEX, PII_TYPE.REGISTRY_ID),
     ...findByRegex(text, RENTAL_BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID),
+    ...findByRegex(text, BUSINESS_ID_REGEX, PII_TYPE.REGISTRY_ID).filter((r) => !nearBankWord(keywordText, r)),
   ].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+}
+
+/**
+ * 번호 앞뒤에 은행 관련 단어가 있는지 (계좌번호 찾기와 같은 범위)
+ * @param {string} keywordText
+ * @param {{ start: number, end: number }} r
+ */
+function nearBankWord(keywordText, r) {
+  const before = keywordText.slice(Math.max(0, r.start - BANK_KEYWORD_BEFORE), r.start);
+  const after = keywordText.slice(r.end, r.end + BANK_KEYWORD_AFTER);
+  return BANK_KEYWORD_REGEX.test(before) || BANK_KEYWORD_REGEX.test(after);
 }
 
 /**

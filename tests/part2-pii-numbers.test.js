@@ -259,3 +259,26 @@ describe('PART 2 OCR이 숫자를 비슷한 글자로 잘못 읽은 번호 (이�
     expect(findPatternPII('Hello World, Ollie lol IOI')).toEqual([]);
   });
 });
+
+describe('PART 2 사업자등록번호 (상욱님 평가 세트 #302)', () => {
+  const values = (/** @type {string} */ t) => findPatternPII(t).map((r) => [r.type, r.value]);
+
+  it('"주민등록번호(사업자등록번호)" 칸의 3-2-5자리 번호를 REGISTRY_ID로 찾는다', () => {
+    expect(values('주민등록번호 (사업자등록번호) 214-86-35071 전화번호 02-0000-4127')).toEqual([
+      [PII_TYPE.REGISTRY_ID, '214-86-35071'],
+      [PII_TYPE.PHONE_NUMBER, '02-0000-4127'],
+    ]);
+    expect(findRegistryIds('사업자등록번호: 000-00-00000').map((r) => r.value)).toEqual(['000-00-00000']);
+  });
+
+  it('은행 단어 근처의 3-2-5자리 번호는 계좌번호로 둔다 (계좌번호 오탐 주의, 상욱님 리뷰)', () => {
+    expect(values('계좌번호 123-45-67890 가상은행 예금주 김가상')).toEqual([[PII_TYPE.BANK_ACCOUNT, '123-45-67890']]);
+  });
+
+  it('더 긴 번호의 일부("110-482-307915", "214-86-350712"), 다른 모양은 사업자등록번호가 아니다', () => {
+    expect(findRegistryIds('110-482-307915')).toEqual([]);
+    expect(findRegistryIds('214-86-350712')).toEqual([]);
+    expect(findRegistryIds('1214-86-35071')).toEqual([]);
+    expect(findRegistryIds('2026-11-20')).toEqual([]);
+  });
+});
