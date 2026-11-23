@@ -41,13 +41,16 @@ describe('PART 4 사진 서류 안전망 (findPhotoLeftover)', () => {
       '임대인 변경 시',
       '임차인 부담',
       '임대인 동의 없이',
+      '임차인 서명란',
+      '임대인 주소지',
+      '임대인 소유의',
     ]) {
       expect(findPhotoLeftover(line), line).toBeNull();
     }
   });
 
-  it('조사 글자로 끝나는 이름도 이름 칸 모양이면 찾는다 ("임차인 | 김지은 |", "예금주 이정의 (서명")', () => {
-    for (const line of ['임차인 | 김지은 |', '예금주 이정의 (서명 또는 인)']) {
+  it('조사 글자로 끝나는 이름도 이름 칸 모양이거나 줄 끝의 "이·가"면 찾는다 ("임차인 | 김지은 |", "임차인 왕리웨이")', () => {
+    for (const line of ['임차인 | 김지은 |', '예금주 이정의 (서명 또는 인)', '임차인 왕리웨이', '임대인 김가']) {
       expect(findPhotoLeftover(line), line).toBe('NAME');
     }
   });
