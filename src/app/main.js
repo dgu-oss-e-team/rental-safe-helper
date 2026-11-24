@@ -13,7 +13,8 @@ import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
 import { stopLinesPanel } from './stop-lines.js';
-import { slotToSource } from './photo-pages.js';
+import { slotToSource, isPhoto } from './photo-pages.js';
+import { readingText, preparingText } from './progress-text.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange, addLineEdits } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
@@ -69,6 +70,7 @@ const STEP_TEXT = {
  * @property {() => Promise<void>} doubleCheckPdfs  ⑤ 마스킹 PDF를 OCR로 다시 검사
  * @property {(lines: import('./pipeline.js').StopLine[]) => Promise<void>} hideStopLines
  *   보내기 전 검사가 멈춘 줄을 줄 전체로 가리고 다시 진행한다 (#316)
+ * @property {(checked: boolean) => void} setPdfChecked  ⑤ 경고가 난 쪽을 직접 봤다고 체크 (사진·스캔 서류, #314)
  * @property {() => void} restart
  */
 
@@ -204,7 +206,9 @@ async function runAnalysis(files, slots = null, parts = null, partItems = null) 
   const p = await pipeline();
   if (!p) return;
   // 흐린 줄이 있어도 멈추지 않고 받아서 사용자가 확인하게 한다 (확인 전에는 다음으로 못 감)
-  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true });
+  // 사진 OCR은 쪽마다 몇 초씩 걸리므로 어디까지 읽었는지 보여 준다
+  const onProgress = (/** @type {import('./pipeline.js').ReadProgress} */ at) => appState.setState({ busy: readingText(at, slots) });
+  const read = await p.readDocuments({ files, parts: parts ?? undefined }, { allowLowConfidence: true, onProgress });
   if (!read.ok) {
     appState.setState({ busy: null, error: toError(read) });
     return;
@@ -268,12 +272,16 @@ const act = {
     // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
     const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
     if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
+    // 사진 보정은 장마다 걸리므로 몇 번째 사진인지 보여 준다
+    const photoTotal = [chosen.registry, chosen.lease].flatMap((v) => (Array.isArray(v) ? v : [])).filter(isPhoto).length;
+    let photoDone = 0;
+    const onPhoto = () => appState.setState({ busy: preparingText(photoDone++, photoTotal) });
     /** @type {{ registry: Awaited<ReturnType<typeof slotToSource>>, lease: Awaited<ReturnType<typeof slotToSource>> }} */
     let sources;
     try {
       sources = {
-        registry: await slotToSource(chosen.registry, 'registry.pdf'),
-        lease: await slotToSource(chosen.lease, 'lease.pdf'),
+        registry: await slotToSource(chosen.registry, 'registry.pdf', { onPhoto }),
+        lease: await slotToSource(chosen.lease, 'lease.pdf', { onPhoto }),
       };
     } catch {
       appState.setState({ busy: null, error: { step: 'input', code: 'PHOTO_READ_FAILED', message: 'A photo could not be prepared.' } });
@@ -432,20 +440,29 @@ const act = {
     const p = await pipeline();
     if (!p) return;
     const pdfs = await p.exportMaskedPdfs(analysis, prepared.maskingPlan);
-    appState.setState({ busy: null, pdfs, doubleCheck: null, step: 'done' });
+    appState.setState({ busy: null, pdfs, doubleCheck: null, pdfChecked: false, step: 'done' });
+    // 사진·스캔 서류는 OCR이 깨지게 읽은 줄을 탐지가 놓칠 수 있어서, 받기 전에 다시 확인을 자동으로 한다 (#314)
+    if (hasPhotoDocuments(analysis)) await act.doubleCheckPdfs();
   },
   async doubleCheckPdfs() {
     const state = appState.getState();
     const analysis = currentAnalysis(state);
     const { prepared, pdfs } = state;
     if (!analysis || !prepared || !pdfs) return;
-    appState.setState({ doubleCheck: 'running', error: null });
+    appState.setState({ doubleCheck: 'running', pdfChecked: false, error: null });
     const p = await pipeline();
     if (!p) {
       appState.setState({ doubleCheck: null });
       return;
     }
-    const results = await p.doubleCheckPdfs(analysis, prepared.maskingPlan, pdfs);
+    /** @type {any[]} */
+    let results;
+    try {
+      results = await p.doubleCheckPdfs(analysis, prepared.maskingPlan, pdfs);
+    } catch {
+      // 검사 자체가 실패해도 다운로드를 영영 막지 않는다: "확인하지 못함"으로 두고 사용자가 직접 보게 한다 (#314)
+      results = pdfs.map((x) => ({ documentId: x.documentId, documentType: x.documentType, status: 'UNVERIFIABLE' }));
+    }
     // 검사하는 동안 PDF가 바뀌었으면(처음부터 다시 등) 이 결과는 버린다
     if (appState.getState().pdfs !== pdfs) return;
     appState.setState({ doubleCheck: results });
@@ -461,6 +478,9 @@ const act = {
     }
     appState.setState({ maskingEdits: next, error: null });
     await act.prepare();
+  },
+  setPdfChecked(checked) {
+    appState.setState({ pdfChecked: checked });
   },
   restart() {
     clearTimeout(previewTimer);

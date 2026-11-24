@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import { stopLinesOf, analyzeDocuments, prepareForAi } from '../src/app/pipeline.js';
 import { addLineEdits, emptyEdits } from '../src/app/masking-edits.js';
 import { stopLinesPanel } from '../src/app/stop-lines.js';
-import { createMaskingPlan, applyMaskingPlan } from '../src/features/masking/index.js';
 import { MASKING_PURPOSE, PII_TYPE } from '../src/shared/document-model.js';
 
 const bbox = { x: 0.1, y: 0.2, width: 0.5, height: 0.02 };
@@ -141,15 +140,13 @@ describe('PART 5 탐지가 놓친 이름 줄을 가리면 보내기 전 검사�
     expect(stopped.ok).toBe(false);
     expect(stopped.step).toBe('validateMaskedText');
 
-    // PART 4가 줄 위치(where)를 줄 때와 같은 방법으로 줄을 만든다: 계약서에서 그 이름이 있는 줄
-    const where = lease.pages.flatMap((page) =>
-      page.blocks.filter((b) => b.text.replace(/\s+/g, '').includes(name.replace(/\s+/g, ''))).map((b) => ({ documentId: lease.documentId, blockId: b.blockId })),
-    );
-    expect(where.length).toBeGreaterThan(0);
-    const plan = createMaskingPlan(broken.findings, broken.personGroups, purpose, emptyEdits()).data;
-    const masked = applyMaskingPlan(broken.documents, plan, broken.findings, broken.personGroups, emptyEdits()).data;
-    const lines = stopLinesOf(broken.documents, where, masked.maskedText);
+    // PART 4가 준 실제 위치(where + lineBlocks, #328)로 찾은 줄: 계약서에서 그 이름이 남은 줄
+    const lines = stopped.lines;
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l) => l.documentId === lease.documentId)).toBe(true);
     expect(lines.every((l) => l.values.some((v) => v.includes(name)))).toBe(true);
+    // 오류 메시지에는 값이 없다
+    expect(stopped.error.message).not.toContain(name);
 
     const passed = prepareForAi(broken, purpose, addLineEdits(emptyEdits(), lines));
     expect(passed.ok).toBe(true);
@@ -159,4 +156,34 @@ describe('PART 5 탐지가 놓친 이름 줄을 가리면 보내기 전 검사�
       expect(passed.data.maskingPlan.items.some((i) => i.findingId.startsWith(`line:${l.documentId}:${l.blockId}:`) && i.action === 'REDACT')).toBe(true);
     }
   }, 60_000);
+
+  it('사진 서류: 탐지가 놓친 역할 옆 이름에서 PART 4 사진 안전망이 멈추면, 그 줄을 보여 주고 가리면 통과한다', () => {
+    const photo = {
+      documentId: 'DOC_PHOTO',
+      documentType: 'LEASE_CONTRACT',
+      sourceType: 'image_pdf',
+      pages: [
+        {
+          pageIndex: 0,
+          width: 1000,
+          height: 1400,
+          blocks: [
+            { blockId: 'p0_b0', text: '주택임대차표준계약서', bbox, confidence: 0.9 },
+            { blockId: 'p0_b1', text: '임차인 왕리웨이', bbox, confidence: 0.6 },
+          ],
+        },
+      ],
+    };
+    const analysis = { documents: [photo], findings: [], personGroups: [], riskResults: [] };
+    const purpose = MASKING_PURPOSE.CLAUSE_EXPLANATION;
+    const stopped = prepareForAi(analysis, purpose);
+    expect(stopped.ok).toBe(false);
+    expect(stopped.step).toBe('validateMaskedText');
+    expect(stopped.lines.map((l) => [l.documentId, l.blockId, l.pageIndex])).toEqual([['DOC_PHOTO', 'p0_b1', 0]]);
+    expect(stopped.error.message).not.toContain('왕리웨이');
+
+    const passed = prepareForAi(analysis, purpose, addLineEdits(emptyEdits(), stopped.lines));
+    expect(passed.ok).toBe(true);
+    expect(passed.data.prompt).not.toContain('왕리웨이');
+  });
 });

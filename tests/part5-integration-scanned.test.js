@@ -14,6 +14,7 @@ import {
   countLinesToCheck,
 } from '../src/app/pipeline.js';
 import { MASKING_PURPOSE, SOURCE_TYPE, RISK_STATUS, isValidBBox } from '../src/shared/document-model.js';
+import { getFlaggedBlocks } from '../src/features/document-input/index.js';
 
 const samplePdf = (name) =>
   new File([readFileSync(new URL(`../public/samples/${name}.pdf`, import.meta.url))], `${name}.pdf`, {
@@ -116,11 +117,19 @@ describe('PART 5 통합(스캔): ① 읽기 → 글자 확인 단계', () => {
   });
 
   it('잘못 읽힌 숫자 줄이 모두 확인 대상으로 세어진다 → 다음 단계 버튼이 잠긴다', () => {
-    expect(countLinesToCheck(asScanned(read.documents))).toBe(MISREADS.length);
+    const scanned = asScanned(read.documents);
+    const flaggedText = getFlaggedBlocks(scanned).map((b) => b.text);
+    for (const t of MISREAD_TEXT) expect(flaggedText.some((x) => x.includes(t))).toBe(true);
+    // 편집 화면(getFlaggedBlocks)과 계속 버튼이 같은 수를 본다. 또렷해도 당사자·주소 핵심 줄은 더해진다 (#311)
+    expect(countLinesToCheck(scanned)).toBe(flaggedText.length);
+    expect(countLinesToCheck(scanned)).toBeGreaterThan(MISREADS.length);
   });
 
-  it('사용자가 고치면 확인 대상이 0이 된다 → 다음 단계로 넘어갈 수 있다', () => {
-    expect(countLinesToCheck(fixedByUser(asScanned(read.documents)))).toBe(0);
+  it('잘못 읽힌 줄만 고치면 핵심 줄이 남아 잠긴 채이고, 모두 확인하면 0이 된다', () => {
+    const fixed = fixedByUser(asScanned(read.documents));
+    expect(countLinesToCheck(fixed)).toBeGreaterThan(0);
+    for (const b of getFlaggedBlocks(fixed)) b.confidence = 1; // 남은 핵심 줄도 Confirm
+    expect(countLinesToCheck(fixed)).toBe(0);
   });
 
   it('고쳐도 줄 번호(blockId)와 위치(bbox)는 그대로다 → 마스킹 PDF가 같은 곳을 가린다', () => {

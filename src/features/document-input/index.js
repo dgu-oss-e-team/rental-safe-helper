@@ -172,6 +172,11 @@ async function extractScannedPdfPages(buffer, options = {}) {
   const ocrPages = [];
 
   for (const pageImg of pageImages) {
+    try {
+      options.onPage?.({ pageIndex: pageImg.pageIndex, pageCount: pageImages.length });
+    } catch {
+      // Progress callback failure should not abort OCR
+    }
     let ocrRes;
     try {
       ocrRes = await recognizeImageText(pageImg.buffer);
@@ -290,4 +295,4 @@ export async function readDocument(file, options = {}) {
 }
 
 // OCR 결과 수정 화면 (PART 5 #54에서 slots.ocrEditor에 연결)
-export { renderOcrEditor, isLowConfidenceBlock } from './ocr-editor.js';
+export { renderOcrEditor, isLowConfidenceBlock, getFlaggedBlocks } from './ocr-editor.js';

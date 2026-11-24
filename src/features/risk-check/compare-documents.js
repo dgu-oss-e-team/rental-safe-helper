@@ -14,10 +14,12 @@
  *  - 문구에는 실제 이름 대신 역할 가명(alias)만 쓴다
  *  - 등기부가 지번, 계약서가 도로명이면 등기부 표제부의 [도로명주소](registry.roadAddress)로 비교 (#177)
  *    (계약서에서 같은 동·호수 조각을 찾아 비교한다. 위치와 건물 이름은 상관없다)
- *  - 다르다고 나와도 이름이 한글 이름 모양(2~4자)이 아니거나 OCR 신뢰도가 낮으면 STOP이 아니라 UNVERIFIABLE (#275) 
+ *  - 다르다고 나와도 OCR 이름(confidence가 숫자)이 한글 이름 모양(2~4자)이 아니거나 신뢰도가 낮으면 STOP이 아니라 UNVERIFIABLE (#275, #312)
+ *    글자 PDF 이름(confidence가 null)은 모양을 보지 않는다. 영문 이름 임대인이 진짜 다른 사람이면 STOP
+ *  - 사진·스캔 서류의 주소가 숫자 몇 자만 다르면 STOP이 아니라 CHECK (#312). 글자 PDF끼리는 STOP
 */
 
-import { ok, RISK_STATUS } from '../../shared/document-model.js';
+import { ok, RISK_STATUS, SOURCE_TYPE } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
 import { hasActiveTrust } from './assess-risks.js';
 import rules from '../../config/templates/person-labels.json';
@@ -62,19 +64,20 @@ const KOREAN_NAME = /^[가-힣]{2,4}$/;
 const MIN_NAME_CONFIDENCE = 0.8;
 
 /**
- * OCR이 이름을 잘못 읽었을 수 있는 사람이 있는지. (#275)
+ * OCR이 이름을 잘못 읽었을 수 있는 사람이 있는지. (#275, #312)
  * 실제 사진에서 "홍길동"을 "BUS"로 읽은 이름을 그대로 비교해 "소유자 ≠ 임대인" STOP이 나온 일이 있었다.
+ * OCR로 읽은 이름만 본다. person.confidence가 숫자이면 OCR 이름이고, null이거나 없으면 글자 PDF라서 그대로 믿는다.
+ * (글자 PDF의 영문 이름 임대인이 진짜 다른 사람일 때 STOP이 약해지지 않게 하려는 것이다)
+ *  - 신뢰도가 기준보다 낮으면 읽기 오류일 수 있다.
  *  - 한글 이름 모양(2~4자)이 아니면 읽기 오류일 수 있다. (회사 이름은 따로 처리하므로 모양 검사에서 뺀다)
- *  - person.confidence가 숫자이고 기준보다 낮으면 읽기 오류일 수 있다.
- *    null이거나 없으면(글자 PDF는 신뢰도를 재지 않는다) 낮은 것으로 보지 않는다.
  * @param {any[]} people
  */
 function hasUnreliableName(people) {
   return people.some((p) => {
+    if (typeof p?.confidence !== 'number') return false;
+    if (p.confidence < MIN_NAME_CONFIDENCE) return true;
     const name = typeof p?.name === 'string' ? p.name.replace(/\s+/g, '') : '';
-    const lowConfidence = typeof p?.confidence === 'number' && p.confidence < MIN_NAME_CONFIDENCE;
-    if (COMPANY_NAME.test(name)) return lowConfidence;
-    return !KOREAN_NAME.test(name) || lowConfidence;
+    return !COMPANY_NAME.test(name) && !KOREAN_NAME.test(name);
   });
 }
 
@@ -380,7 +383,7 @@ function findUnitTokens(loose) {
  * @param {string} roadAddress  registry.roadAddress
  * @param {string} registryAddress  registry.address (호수를 가져온다)
  * @param {string} contractAddress  계약서 주소 원문
- * @returns {'MATCH' | 'DIFFERENT' | 'UNKNOWN'}
+ *  * @returns {'MATCH' | 'DIFFERENT' | 'DIFFERENT_DIGITS' | 'UNKNOWN'}  DIFFERENT_DIGITS: 숫자(도로 번호, 호수)만 다르다 (#312)
  */
 function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
   if (!FORMAL_REGION_START.test(roadAddress.trim())) return 'UNKNOWN';
@@ -398,7 +401,7 @@ function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
 
   // 호수를 모르면 건물 전체가 같을 때만 같다고 보고, 다르면 확인 불가로 둔다. (건물 이름 차이를 STOP으로 오해하지 않게)
   if (!unit) return contractRoad === road && rest === '' ? 'MATCH' : 'UNKNOWN';
-  if (contractRoad !== road) return 'DIFFERENT';
+    if (contractRoad !== road) return stripDigits(contractRoad) === stripDigits(road) ? 'DIFFERENT_DIGITS' : 'DIFFERENT';
 
   const registryUnit = findUnitTokens(unit)[0];
   if (!registryUnit) return 'UNKNOWN';
@@ -406,13 +409,39 @@ function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
   if (tokens.length === 0) return 'UNKNOWN'; // 계약서에 호수가 없다
 
   let ambiguous = false;
+  let onlyUnitDiffers = false; // 같은 동인데 호수 숫자만 다르다
   for (const t of tokens) {
-    if (t.unit !== registryUnit.unit) continue; // 다른 호수
+    if (t.unit !== registryUnit.unit) {
+      if (t.dong === registryUnit.dong) onlyUnitDiffers = true;
+      continue; // 다른 호수
+    }
     if (t.dong === registryUnit.dong) return 'MATCH'; // 호수도 동도 같다 (둘 다 동이 없는 경우 포함)
     if (t.dong !== null && registryUnit.dong !== null) continue; // 호수는 같지만 동이 다르다
     ambiguous = true; // 한쪽에만 동이 있어서 같은 집인지 알 수 없다
   }
-  return ambiguous ? 'UNKNOWN' : 'DIFFERENT';
+  if (ambiguous) return 'UNKNOWN';
+  return onlyUnitDiffers ? 'DIFFERENT_DIGITS' : 'DIFFERENT';
+}
+
+/** 숫자를 뺀 글자. 두 주소가 이 글자까지 같으면 숫자만 다른 것이다. (#312) */
+const stripDigits = (/** @type {string} */ text) => text.replace(/[0-9]/g, '');
+
+/** 사람 목록이 들어 있는 칸. 이름이 있는 줄의 OCR 신뢰도(confidence)가 여기 들어 있다. */
+const PERSON_LISTS = ['owners', 'previousOwners', 'landlords', 'tenants', 'accountHolders'];
+
+/**
+ * 이 서류가 사진·스캔(OCR)으로 읽은 서류인지. (#312)
+ *  - 서류에 sourceType이 있으면 그것을 따른다. (image, image_pdf만 사진·스캔)
+ *  - 없으면 사람 정보의 confidence가 숫자인지로 본다. (글자 PDF는 항상 null이다)
+ * 판단할 근거가 없으면 false라서, 기존처럼 STOP이 나온다.
+ * @param {any} doc  fields.registry 또는 fields.contract
+ */
+function isPhotoDocument(doc) {
+  if (!doc) return false;
+  if (typeof doc.sourceType === 'string') {
+    return doc.sourceType === SOURCE_TYPE.IMAGE || doc.sourceType === SOURCE_TYPE.IMAGE_PDF;
+  }
+  return PERSON_LISTS.some((key) => Array.isArray(doc[key]) && doc[key].some((p) => typeof p?.confidence === 'number'));
 }
 
 /**
@@ -423,6 +452,7 @@ function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
  *  - 글자가 같으면 NO_FLAG
  *  - 글자가 다른데 도로명과 지번이 섞였거나 형식을 알 수 없으면 UNVERIFIABLE (format_differs)
  *  - 같은 형식인데 다르면 STOP
+ *  *    단, 한쪽이라도 사진·스캔 서류이고 숫자(번지, 호수)만 다르면 CHECK (ocr_digits, #312)
  */
 export function compareAddresses(fields) {
   const ruleId = 'ADDRESS_MISMATCH';
@@ -444,15 +474,21 @@ export function compareAddresses(fields) {
   const registryStyle = addressStyle(registry);
   const contractStyle = addressStyle(contract);
   const roadAddress = fields?.registry?.roadAddress;
+  const photo = isPhotoDocument(fields?.registry) || isPhotoDocument(fields?.contract);
+  /** 숫자만 다르고 사진·스캔 서류이면 CHECK(OCR이 숫자를 잘못 읽었을 수 있다), 아니면 STOP */
+  const differentAddress = (/** @type {boolean} */ digitsOnly) =>
+    digitsOnly && photo
+      ? buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_digits', values })
+      : buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
   if (registryStyle === 'LOT' && contractStyle === 'ROAD' && roadAddress) {
     const same = compareRoadAddress(roadAddress, registryAddress, contractAddress);
     if (same === 'MATCH') return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
-    if (same === 'DIFFERENT') return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+        if (same === 'DIFFERENT' || same === 'DIFFERENT_DIGITS') return differentAddress(same === 'DIFFERENT_DIGITS');
   }
   if (registryStyle === null || registryStyle !== contractStyle) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });
   }
-  return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  return differentAddress(stripDigits(registry) === stripDigits(contract));
 }
 
 /**

@@ -129,6 +129,15 @@ rules:
       NO_FLAG:
         explanation: The address on the registry and the address on the contract match.
         action: No action needed for this check. Always check the unit number yourself.
+      CHECK.ocr_digits:
+        explanation: >-
+          The address on the registry and the address on the contract differ only in some
+          numbers (for example the lot number or the unit number). At least one of the documents
+          was read from a photo or scan, so a number may have been read incorrectly. We did not
+          treat this as a different home.
+        action: >-
+          Compare the numbers on the original registry and contract yourself, including the lot
+          number and the unit number. If they really differ, get a new registry for the exact address.
       UNVERIFIABLE:
         explanation: We could not read the address on the registry or on the contract.
         action: Compare the address on the registry and the contract yourself, including the unit number.
