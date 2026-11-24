@@ -11,7 +11,7 @@
  * ④ 보내기 전 확인 화면에서 사용자가 바꾼 내용
  * @typedef {Object} MaskingEdits
  * @property {string[]} remove  사용자가 해제한 findingId
- * @property {{ id: string, documentId: string, blockId: string, value: string }[]} add  사용자가 더 가린 글자 (항상 REDACT)
+ * @property {{ id: string, documentId: string, blockId: string, value: string, pageIndex?: number, bbox?: { x: number, y: number, width: number, height: number } }[]} add  사용자가 더 가린 글자 (항상 REDACT)
  */
 
 /** @returns {MaskingEdits} */
@@ -38,4 +38,25 @@ export function normalizeEdits(edits) {
  */
 export function editsAfterPurposeChange(edits) {
   return { remove: [], add: normalizeEdits(edits).add };
+}
+
+/**
+ * 보내기 전 검사가 멈춘 줄을 더 가린다 (#316). 항상 REDACT이고, PDF에서는 그 줄 위치(bbox) 전체를 가린다.
+ * AI 글에서는 그 줄에 남은 글자 조각(values)을 가린다. (조각이 없으면 원래 줄 글자를 쓴다)
+ * 이미 넣은 조각은 다시 넣지 않는다. 해제(remove)는 그대로 둔다.
+ * @param {MaskingEdits} edits
+ * @param {{ documentId: string, blockId: string, pageIndex: number, bbox: { x: number, y: number, width: number, height: number }, text: string, values?: string[] }[]} lines
+ * @returns {MaskingEdits}
+ */
+export function addLineEdits(edits, lines) {
+  const next = normalizeEdits(edits);
+  for (const line of lines) {
+    const values = (line.values ?? [line.text]).filter((v) => typeof v === 'string' && v.trim() !== '');
+    values.forEach((value, k) => {
+      const id = `line:${line.documentId}:${line.blockId}:${k}`;
+      if (next.add.some((a) => a.id === id || (a.documentId === line.documentId && a.blockId === line.blockId && a.value === value))) return;
+      next.add.push({ id, documentId: line.documentId, blockId: line.blockId, value, pageIndex: line.pageIndex, bbox: { ...line.bbox } });
+    });
+  }
+  return next;
 }

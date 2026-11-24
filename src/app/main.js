@@ -12,9 +12,10 @@ import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
+import { stopLinesPanel } from './stop-lines.js';
 import { slotToSource, isPhoto } from './photo-pages.js';
 import { readingText, preparingText } from './progress-text.js';
-import { emptyEdits, normalizeEdits, editsAfterPurposeChange } from './masking-edits.js';
+import { emptyEdits, normalizeEdits, editsAfterPurposeChange, addLineEdits } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
@@ -67,6 +68,8 @@ const STEP_TEXT = {
  * @property {(checked: boolean) => void} setReviewed
  * @property {() => Promise<void>} finish
  * @property {() => Promise<void>} doubleCheckPdfs  ⑤ 마스킹 PDF를 OCR로 다시 검사
+ * @property {(lines: import('./pipeline.js').StopLine[]) => Promise<void>} hideStopLines
+ *   보내기 전 검사가 멈춘 줄을 줄 전체로 가리고 다시 진행한다 (#316)
  * @property {(checked: boolean) => void} setPdfChecked  ⑤ 경고가 난 쪽을 직접 봤다고 체크 (사진·스캔 서류, #314)
  * @property {() => void} restart
  */
@@ -76,9 +79,10 @@ const SAMPLE_FILES = ['sample-registry.pdf', 'sample-lease.pdf'];
 
 /**
  * 실패 결과를 화면 상태로 바꾼다. (메시지에는 개인정보가 들어가지 않도록 각 파트가 영어 안내만 넣는다)
- * @param {{ step?: string, error: { code: string, message: string } }} r
+ * 보내기 전 검사가 멈춘 줄(lines)이 있으면 같이 둔다. 줄 글자는 화면에만 보여 주고 로그에 남기지 않는다 (#316)
+ * @param {{ step?: string, error: { code: string, message: string }, lines?: import('./pipeline.js').StopLine[] }} r
  */
-const toError = (r) => ({ step: r.step, ...r.error });
+const toError = (r) => ({ step: r.step, ...r.error, ...(r.lines?.length ? { lines: r.lines } : {}) });
 
 /**
  * 처리 코드(파이프라인)는 처음 쓸 때 불러온다.
@@ -463,6 +467,18 @@ const act = {
     if (appState.getState().pdfs !== pdfs) return;
     appState.setState({ doubleCheck: results });
   },
+  async hideStopLines(lines) {
+    if (lines.length === 0) return;
+    const state = appState.getState();
+    const next = addLineEdits(state.maskingEdits, lines);
+    // ④에서 고치다 멈췄으면 ④의 수정으로, ③에서 처음 가리다 멈췄으면 그 수정을 넣고 다시 가린다. 검사는 다시 거친다.
+    if (state.step === 'review') {
+      await act.setMaskingEdits(next);
+      return;
+    }
+    appState.setState({ maskingEdits: next, error: null });
+    await act.prepare();
+  },
   setPdfChecked(checked) {
     appState.setState({ pdfChecked: checked });
   },
@@ -510,6 +526,7 @@ function errorCard(error, screenStep) {
     title,
     [
       el('p', {}, [help]),
+      stopLinesPanel(error.lines, (chosen) => act.hideStopLines(chosen)),
       el('p', { class: 'hint' }, [
         `We stopped while ${STEP_TEXT[error.step ?? ''] ?? 'processing'}. Error code: ${error.code}`,
       ]),

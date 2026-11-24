@@ -64,6 +64,71 @@ function stoppedAt(step, result) {
 }
 
 /**
+ * 보내기 전 검사가 멈춘 곳의 줄 (#316). 사용자가 화면에서 보고 "이 줄 전체 가리기"를 고를 수 있게 한다.
+ * 줄 글자는 사용자 화면에만 쓰고, 오류 메시지·로그에는 넣지 않는다.
+ * - text: 원래 줄 글자 (사용자가 서류와 비교한다)
+ * - values: 가린 뒤에도 그 줄에 남아 있는 글자 조각. "더 가리기(add)"는 글자 값으로 가리고, 탐지한 값을 먼저 가린 뒤에
+ *   적용되므로 원래 줄 전체 글자로는 맞지 않을 수 있다. 그래서 남은 조각을 가린다. (PDF는 줄 위치 bbox로 가린다)
+ * @typedef {{ documentId: string, blockId: string, pageIndex: number, bbox: import('../shared/document-model.js').BBox, text: string, values: string[] }} StopLine
+ */
+
+/** 가린 글의 자리 표시: "[REDACTED]", 역할 가명 "[Landlord_A]" */
+const MASK_PLACEHOLDER = /\[(?:REDACTED|[A-Za-z]+_[A-Z])\]/;
+
+/**
+ * PART 4가 돌려준 위치({ documentId, blockId })를 서류의 줄로 바꾼다. 못 찾는 위치·빈 줄·같은 줄은 뺀다.
+ * maskedText(가린 글, 블록마다 한 줄)를 주면 그 줄에 남은 조각(values)을 계산한다.
+ * 다른 줄에도 그대로 있는 조각("(서명 또는 인)" 같은 서식 글)은 개인정보가 아니고, 가리면 검사가 다른 줄에서 걸리므로 뺀다.
+ * @param {import('../shared/document-model.js').DocumentModel[]} documents
+ * @param {unknown} where
+ * @param {Record<string, string>} [maskedText]
+ * @returns {StopLine[]}
+ */
+export function stopLinesOf(documents, where, maskedText) {
+  if (!Array.isArray(where)) return [];
+  /** @type {(Omit<StopLine, 'values'> & { masked: string, index: number })[]} */
+  const found = [];
+  const seen = new Set();
+  for (const w of where) {
+    const key = `${w?.documentId}\u0000${w?.blockId}`;
+    if (seen.has(key)) continue;
+    const doc = documents.find((d) => d.documentId === w?.documentId);
+    if (!doc) continue;
+    const maskedLines = maskedText?.[doc.documentId]?.split('\n');
+    let index = 0;
+    for (const page of doc.pages ?? []) {
+      for (const block of page.blocks ?? []) {
+        if (block.blockId === w?.blockId && String(block.text ?? '').trim()) {
+          seen.add(key);
+          found.push({
+            documentId: doc.documentId,
+            blockId: block.blockId,
+            pageIndex: page.pageIndex,
+            bbox: block.bbox,
+            text: block.text,
+            masked: maskedLines?.[index] ?? block.text,
+            index,
+          });
+        }
+        index += 1;
+      }
+    }
+  }
+  // 멈춘 줄을 뺀 나머지 가린 글 (조각이 다른 줄에도 있는지 볼 때 쓴다)
+  const stopKeys = new Set(found.map((l) => `${l.documentId}\u0000${l.index}`));
+  const others = Object.entries(maskedText ?? {})
+    .flatMap(([id, text]) => text.split('\n').filter((_, i) => !stopKeys.has(`${id}\u0000${i}`)))
+    .join('\n');
+  return found.map(({ masked, index, ...line }) => {
+    const pieces = masked
+      .split(MASK_PLACEHOLDER)
+      .map((p) => p.trim())
+      .filter((p) => p.replace(/\s+/g, '').length >= 2 && !others.includes(p));
+    return { ...line, values: [...new Set(pieces)] };
+  });
+}
+
+/**
  * 1) 서류 분석: 목적을 고르기 전에 할 수 있는 일 전부
  * @param {{ files: File[] }} input
  */
@@ -246,8 +311,16 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
 
   // 사진(OCR) 서류는 PART 4 사진용 안전망(역할 옆 이름, 동이 붙은 호수)도 본다
   const photoDocumentIds = documents.filter(needsTextReview).map((d) => d.documentId);
-  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits, { photoDocumentIds });
-  if (!check.ok) return stoppedAt('validateMaskedText', check);
+  // lineBlocks를 넘기면 멈춘 곳 위치(where)에 blockId가 들어간다 (#328)
+  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits, {
+    photoDocumentIds,
+    lineBlocks: masked.data.lineBlocks,
+  });
+  if (!check.ok) {
+    // 검사가 남은 곳의 위치(where)를 주면, 사용자가 그 줄을 직접 가리고 다시 진행할 수 있게 줄 정보를 붙인다 (#316)
+    const lines = stopLinesOf(documents, /** @type {any} */ (check).where, masked.data.maskedText);
+    return lines.length > 0 ? { ...stoppedAt('validateMaskedText', check), lines } : stoppedAt('validateMaskedText', check);
+  }
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
   // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
