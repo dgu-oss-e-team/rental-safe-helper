@@ -73,6 +73,29 @@ describe('PART 4 사진 서류 안전망 (findPhotoLeftover)', () => {
     }
   });
 
+  it('한 글자씩 띄어 읽은 집 주소를 찾는다 (사진 평가 세트 #321 OCR 줄, 괄호 안이 띄어져도)', () => {
+    expect(findPhotoLeftover('주택 소재지 _ ㅣ 서 물 특 별시 중구 가 상 동 2 가 47-12 기 싱 하우스')).toBe('ADDRESS');
+    expect(findPhotoLeftover('서 울 특별시 동대문구 가 상 로 21, 1 층 ( 가 상 동)')).toBe('ADDRESS');
+    expect(findPhotoLeftover('서 울 특별시 동대문구 가 상 로17길 9')).toBe('ADDRESS');
+    expect(findPhotoLeftover('주택 소재지 _ | 서 울 특별시 동대문구 가 상 동 2125 가 상 스테이')).toBe('ADDRESS');
+    expect(findPhotoLeftover('경 기 도 고양시 일산동구 가 상 로 1234')).toBe('ADDRESS');
+    // 괄호 안이 띄어진 호수 "502 호 ( 가 상 동"
+    expect(findPhotoLeftover('(대표 사무소 소재 서 울 특별시 성북구 가 상 로 63, 502 호 ( 가 상 동 , 가 상 맨션)')).toBe('UNIT');
+  });
+
+  it('시·구까지만 남긴 주소, 법령 문구는 주소로 보지 않는다', () => {
+    for (const line of [
+      '[집합건물] 서울특별시 중구',
+      '1 1. 서울특별시 중구 2018년3월14일 등기',
+      '서울특별시 동대문구 철근콘크리트구조',
+      '이전 제40517호 매매 서울특별시 서초구',
+      '택 이 소재한 특별시, 광역시, 특 별 자 치 시 도 또는 특 별 자 치 도 의 주 택 임차료',
+      '1 특 별 자 치 도 지 사 ㆍ 특 별 자 치 시 장 ㆍ 시장 ㆍ 군 수 ㆍ 구 청 장 이 민 간 임 대 주 택 에 거 주 하기',
+    ]) {
+      expect(findPhotoLeftover(line), line).toBeNull();
+    }
+  });
+
   it('서식 번호·법령 번호·호수만 있는 줄은 찾지 않는다', () => {
     for (const line of ['■ 민간임대주택에 관한 특별법 시행규칙 [별지 제24호서식]', '제49조제7항제1호에 따라', '제1호(가목)', '1동의 건물의 표시 제7층 제702호']) {
       expect(findPhotoLeftover(line), line).toBeNull();
