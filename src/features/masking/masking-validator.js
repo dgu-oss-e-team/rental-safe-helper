@@ -2,7 +2,7 @@
 /**
  * PART 4. 외부로 보내기 전 검사 (masking-validator)
  *
- *   validateMaskedText(maskedText, findings, plan, edits?, options?) → Result<{ checked: number }>
+ *   validateMaskedText(maskedText, findings, plan, edits?, options?) → Result<{ checked: number }> (+ 실패하면 where: 걸린 줄들)
  *   가려야 하는 원본 값이 가린 글에 남아 있으면 실패한다. 실패 메시지에는 실제 값을 넣지 않는다.
  *   OCR이 숫자를 비슷한 글자로 잘못 읽은 번호("75O315-1")가 남아 있어도 실패한다. (안전망, 아래 findLookalikeNumber)
  */
@@ -190,6 +190,7 @@ const NOT_NAME_AFTER_ROLE = new Set([
   // 계약서에서 역할 낱말 뒤에 자주 오는 낱말
   '전입', '전입신고', '전세', '확정일자', '주민센터', '명도', '원상복구', '정보', '사항', '신청', '상호', '사업자',
   '부담', '명의', '소유', '사정', '전원', '우선', '동의', '본인', '지정', '변경', '전부', '일부', '모두', '각각', '공동',
+  '서명란', '주소지', '가족', '주소',
 ]);
 /** 흔한 성씨 (이름 모양인지 볼 때 첫 글자). "임차인 간에"의 "간에" 같은 문장 낱말이 이름으로 보이지 않게 한다. */
 const SURNAMES = new Set(
@@ -224,7 +225,10 @@ export function findPhotoLeftover(line) {
     // ("수리비는 임차인 부담으로 한다", "임차인 우선 변제", #310 리뷰)
     if (/^\s*[가-힣]/.test(rest)) continue;
     // 조사로 끝나는 낱말은 문장 낱말이다. 단, 이름 칸 모양(뒤에 칸 선·"(")이면 "김지은"처럼 조사 글자로 끝나는 이름일 수 있어 본다.
-    if (ENDS_WITH_PARTICLE.test(m[1]) && !/^\s*[|⎸│(（]/.test(rest)) continue;
+    // 줄 끝이면 "이·가"로 끝나도 이름으로 본다 ("임차인 왕리웨이", 외국인 이름은 "이"로 끝나는 경우가 많다, #310 리뷰)
+    // 단, 끝 글자를 뗀 낱말이 제외 목록에 있으면("동의가", "부담이") 문장 낱말이다 (#328 리뷰)
+    const lineEndName = rest.trim() === '' && /[이가]$/.test(m[1]) && !NOT_NAME_AFTER_ROLE.has(m[1].slice(0, -1));
+    if (ENDS_WITH_PARTICLE.test(m[1]) && !lineEndName && !/^\s*[|⎸│(（]/.test(rest)) continue;
     return 'NAME';
   }
   return UNIT_WITH_DONG.test(line) ? 'UNIT' : null;
@@ -236,7 +240,11 @@ export function findPhotoLeftover(line) {
  * @param {PiiFinding[]} findings
  * @param {MaskingPlan} plan
  * @param {import('./user-edits.js').MaskingEdits} [edits]  사용자가 더 가린 글자(add)도 검사한다
- * @param {{ photoDocumentIds?: Iterable<string> }} [options]  사진(OCR) 서류 id. 이 서류에서는 findPhotoLeftover도 본다.
+ * @param {{ photoDocumentIds?: Iterable<string>, lineBlocks?: Record<string, string[]> }} [options]
+ *   photoDocumentIds: 사진(OCR) 서류 id. 이 서류에서는 findPhotoLeftover도 본다.
+ *   lineBlocks: 서류마다 가린 글 줄 순서대로의 blockId (applyMaskingPlan 결과). 멈춘 곳 위치(where)에 blockId를 넣는다.
+ * @returns {import('../../shared/document-model.js').Result<{ checked: number }> & { where?: { documentId: string, blockId?: string, lineIndex: number }[] }}
+ *   실패하면 where에 걸린 줄을 전부 준다 (값은 넣지 않음, PART 5 #316).
  */
 export function validateMaskedText(maskedText, findings, plan, edits, options) {
   const all = Object.values(maskedText).join('\n');
@@ -270,8 +278,45 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
   for (const [a, b] of allowedSpans) outside.fill('\n', a, b);
   const outsideLines = outside.join('').split('\n');
   const digitLines = outsideLines.map((line) => line.replace(/[^0-9]/g, ''));
+
+  // 멈춘 곳의 위치 (PART 5 #316이 그 줄을 보여 주고 더 가리게 한다). 값은 넣지 않는다.
+  // all 안의 글자 위치 → (서류, 그 서류의 몇 번째 줄, 그 줄의 blockId)
+  /** @type {{ start: number, documentId: string, line: number }[]} */
+  const lineStarts = [];
+  for (const [documentId, text] of Object.entries(maskedText)) {
+    let start = docRange.get(documentId)?.[0] ?? 0;
+    text.split('\n').forEach((lineText, line) => {
+      lineStarts.push({ start, documentId, line });
+      start += lineText.length + 1;
+    });
+  }
+  /** @param {number} pos */
+  const locate = (pos) => {
+    let hit = lineStarts[0];
+    for (const l of lineStarts) {
+      if (l.start > pos) break;
+      hit = l;
+    }
+    const blockId = options?.lineBlocks?.[hit.documentId]?.[hit.line];
+    return { documentId: hit.documentId, blockId, lineIndex: hit.line };
+  };
+  // outsideLines의 k번째 줄이 all에서 시작하는 위치 (뺀 자리를 줄바꿈으로 바꿨어도 글자 수는 같다)
+  /** @type {number[]} */
+  const outsideStarts = [];
+  outsideLines.reduce((pos, line) => (outsideStarts.push(pos), pos + line.length + 1), 0);
+
+  /** @type {{ message: string, at: number[] }[]} 걸린 검사마다 메시지와 위치 (all 안의 글자 위치) */
+  const problems = [];
+  /** @param {string} message @param {number[]} at */
+  const report = (message, at) => {
+    if (at.length > 0) problems.push({ message, at });
+  };
+
   const actionById = new Map(plan.items.map((i) => [i.findingId, i.action]));
   let checked = 0;
+  /** @type {number[]} */
+  const leakedAt = [];
+  let leakedType = '';
   for (const f of findings) {
     const action = actionById.get(f.id);
     if (action === MASKING_ACTION.KEEP) continue;
@@ -281,46 +326,60 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
     // 등기부 건물번호 "15"가 계약서 "제15조"와 부딪히지 않게. 같은 서류에 혼자 남으면 그대로 멈춘다.
     const range = isShortNumberPiece(f) ? docRange.get(f.documentId) : undefined;
     const spans = findSpans(all, [f.value]).filter(([a, b]) => !range || (range[0] <= a && b <= range[1]));
-    const leaked =
-      spans.some(([a, b]) => !allowedSpans.some(([x, y]) => x <= a && b <= y)) ||
-      (digitsOnly.length >= 6 && digitLines.some((line) => line.includes(digitsOnly)));
-    if (leaked) {
-      // 메시지에 실제 값을 넣지 않는다
-      return fail(ERROR_CODE.INVALID_INPUT, `Masking check failed: a ${f.type} value is still visible.`);
-    }
+    const at = [
+      ...spans.filter(([a, b]) => !allowedSpans.some(([x, y]) => x <= a && b <= y)).map(([a]) => a),
+      ...(digitsOnly.length >= 6 ? digitLines.flatMap((line, k) => (line.includes(digitsOnly) ? [outsideStarts[k]] : [])) : []),
+    ];
+    if (at.length > 0 && !leakedType) leakedType = f.type;
+    leakedAt.push(...at);
   }
+  // 메시지에 실제 값을 넣지 않는다
+  report(`Masking check failed: a ${leakedType} value is still visible.`, leakedAt);
   // OCR이 잘못 읽은 번호가 남아 있으면 안 된다 (탐지 결과에 없어도)
-  if (all.split('\n').some((line) => findLookalikeNumber(line) !== null)) {
-    return fail(
-      ERROR_CODE.INVALID_INPUT,
-      'Masking check failed: a number that may be misread (for example O instead of 0) is still visible.',
-    );
-  }
+  report(
+    'Masking check failed: a number that may be misread (for example O instead of 0) is still visible.',
+    all.split('\n').flatMap((line, i) => (findLookalikeNumber(line) !== null ? [lineStarts[i].start] : [])),
+  );
   // 탐지 목록과 상관없이 번호 모양이 남아 있으면 안 된다 (이중 안전장치, 일부러 남긴 자리는 뺌)
-  if (outsideLines.some((line) => findLeftoverNumber(line) !== null)) {
-    return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a number that looks like personal information is still visible.');
-  }
+  report(
+    'Masking check failed: a number that looks like personal information is still visible.',
+    outsideLines.flatMap((line, k) => (findLeftoverNumber(line) !== null ? [outsideStarts[k]] : [])),
+  );
   // 사진(OCR) 서류: 역할 낱말 옆 이름, 동 이름이 붙은 호수가 남아 있으면 안 된다 (탐지가 OCR 오독으로 놓친 것)
-  const outsideText = outside.join('');
-  for (const id of options?.photoDocumentIds ?? []) {
-    const range = docRange.get(id);
-    if (!range) continue;
-    const kind = outsideText.slice(range[0], range[1]).split('\n').map(findPhotoLeftover).find((k) => k !== null);
-    if (kind) {
-      return fail(
-        ERROR_CODE.INVALID_INPUT,
-        kind === 'NAME'
-          ? 'Masking check failed: a name next to a role word may still be visible in a photo document.'
-          : 'Masking check failed: a unit number of an address may still be visible in a photo document.',
-      );
-    }
-  }
+  const photoIds = new Set(options?.photoDocumentIds ?? []);
+  /** @type {Record<'NAME' | 'UNIT', number[]>} */
+  const photoAt = { NAME: [], UNIT: [] };
+  outsideLines.forEach((line, k) => {
+    if (!photoIds.has(locate(outsideStarts[k]).documentId)) return;
+    const kind = findPhotoLeftover(line);
+    if (kind) photoAt[kind].push(outsideStarts[k]);
+  });
+  report('Masking check failed: a name next to a role word may still be visible in a photo document.', photoAt.NAME);
+  report('Masking check failed: a unit number of an address may still be visible in a photo document.', photoAt.UNIT);
   // 사용자가 더 가린 글자도 남아 있으면 안 된다
+  /** @type {number[]} */
+  const addAt = [];
   for (const a of validAdds(edits)) {
     checked += 1;
-    if (findSpans(all, [a.value]).some(([x0, x1]) => !allowedSpans.some(([x, y]) => x <= x0 && x1 <= y))) {
-      return fail(ERROR_CODE.INVALID_INPUT, 'Masking check failed: a user-selected value is still visible.');
+    for (const [x0, x1] of findSpans(all, [a.value])) {
+      if (!allowedSpans.some(([x, y]) => x <= x0 && x1 <= y)) addAt.push(x0);
     }
+  }
+  report('Masking check failed: a user-selected value is still visible.', addAt);
+
+  if (problems.length > 0) {
+    // 메시지는 처음 걸린 검사, 위치는 걸린 곳 전부 (한 줄은 한 번만). 한꺼번에 가릴 수 있게.
+    const seen = new Set();
+    const where = problems
+      .flatMap((p) => p.at)
+      .map(locate)
+      .filter((w) => {
+        const key = `${w.documentId}\u0000${w.lineIndex}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    return { ...fail(ERROR_CODE.INVALID_INPUT, problems[0].message), where };
   }
   return ok({ checked });
 }

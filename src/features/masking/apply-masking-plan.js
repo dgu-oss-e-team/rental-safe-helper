@@ -81,8 +81,11 @@ export function applyMaskingPlan(documents, plan, findings, personGroups, edits)
 
   /** @type {Record<string, string>} */
   const maskedText = {};
+  /** @type {Record<string, string[]>} 서류마다 가린 글 줄 순서대로의 blockId (보내기 전 검사가 멈춘 곳을 알려 줄 때 씀) */
+  const lineBlocks = {};
   for (const doc of documents) {
     const lines = [];
+    const blockIds = [];
     for (const page of doc.pages) {
       for (const block of page.blocks) {
         let text = block.text;
@@ -97,9 +100,11 @@ export function applyMaskingPlan(documents, plan, findings, personGroups, edits)
         }
         text = maskAddsInBlock(text, doc.documentId, block.blockId, edits);
         lines.push(text);
+        for (let i = 0; i < text.split('\n').length; i += 1) blockIds.push(block.blockId);
       }
     }
     maskedText[doc.documentId] = lines.join('\n');
+    lineBlocks[doc.documentId] = blockIds;
   }
 
   /** @type {Record<string, string>} */
@@ -116,5 +121,5 @@ export function applyMaskingPlan(documents, plan, findings, personGroups, edits)
     }
   }
 
-  return ok({ maskedText, legend });
+  return ok({ maskedText, legend, lineBlocks });
 }
