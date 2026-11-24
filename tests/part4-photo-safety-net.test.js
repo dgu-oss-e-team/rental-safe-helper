@@ -83,6 +83,42 @@ describe('PART 4 사진 서류 안전망 (findPhotoLeftover)', () => {
     expect(findPhotoLeftover('(대표 사무소 소재 서 울 특별시 성북구 가 상 로 63, 502 호 ( 가 상 동 , 가 상 맨션)')).toBe('UNIT');
   });
 
+  it('시·도 이름이 깨지거나 빠진 주소 조각을 찾는다 (#337, #335 리뷰 후속, 사진 평가 세트)', () => {
+    // OCR이 "서울특별시"를 "특변시"로 읽어 시·도가 사라진 줄
+    expect(findPhotoLeftover('ee = EL 0 가상동2가 47-1')).toBe('ADDRESS');
+    expect(findPhotoLeftover('중구 가상동2가 47-12')).toBe('ADDRESS');
+    expect(findPhotoLeftover('동대문구 가상로17길 9')).toBe('ADDRESS');
+    expect(findPhotoLeftover('근저당권자 주식회사가상은행 중구 가 상 대로 100')).toBe('ADDRESS');
+    expect(findPhotoLeftover('가 상 로 63-5')).toBe('ADDRESS');
+    // 군 + 리, 리 + 하이픈 지번 (#337)
+    expect(findPhotoLeftover('양평군 가 상 리 12')).toBe('ADDRESS');
+    expect(findPhotoLeftover('소재지 가상리 123-4')).toBe('ADDRESS');
+  });
+
+  it('구·동 이름이 있어도 번지 숫자가 없거나 숫자 동이면 주소 조각으로 보지 않는다', () => {
+    for (const line of [
+      '서울특별시 동대문구 2층 168.54㎡',
+      '[집합건물] 서울특별시 동대문구',
+      '[Owner_A]의 주소 서울특별시 성북구',
+      '가상아파트 101동 1203호',
+      '구분 임대보증금 월임대료',
+      '공동담보 지분 전부',
+      '시ㆍ군ㆍ자치구의 조례로 해당 시ㆍ군ㆍ자치구에서 적용하는 비율',
+      '특별자치도지사ㆍ시장ㆍ군수ㆍ구청장이 인정하는 경우',
+      '관리비는 월 6만 원으로 하며, 매월 말일까지 낸다.',
+      // 특약 문장: 날짜 하이픈, 숫자 뒤 기간 단위 (#339 리뷰)
+      '임대차기간은 인도일로 2026-12-01 부터',
+      '임대인은 임차인에게 계좌로 2-3일 내 반환',
+      '임차인의 요구사항대로 1개월 전 통지',
+      '요구사항대로 2-3일 내 처리',
+      '연락처 가상로 010-1234-5678',
+      '열람일시 : 2026년11월21일 16시18분44초 1/3',
+      '등록번호 [REDACTED] 전화번호 [REDACTED]',
+    ]) {
+      expect(findPhotoLeftover(line), line).toBeNull();
+    }
+  });
+
   it('시·구까지만 남긴 주소, 법령 문구는 주소로 보지 않는다', () => {
     for (const line of [
       '[집합건물] 서울특별시 중구',
