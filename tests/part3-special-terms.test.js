@@ -10,7 +10,7 @@ import { assessRisks, buildPrompt } from '../src/features/risk-check/index.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
 import { MASKING_PURPOSE, RISK_STATUS } from '../src/shared/document-model.js';
 
-const { CHECK, NO_FLAG, UNVERIFIABLE } = RISK_STATUS;
+const { STOP, CHECK, NO_FLAG, UNVERIFIABLE } = RISK_STATUS;
 
 /** 계약서 특약만 바꾼 데이터 (원본 Mock은 건드리지 않는다) */
 const withTerms = (specialTerms) => {
@@ -27,7 +27,7 @@ describe('PART 3 위험 특약 문구 (RISKY_SPECIAL_TERM) 상태', () => {
     expect(r.data.ruleId).toBe('RISKY_SPECIAL_TERM');
     expect(r.data.status).toBe(CHECK);
     expect(r.data.explanation).toContain('Cash payment');
-    expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다.');
+    expect(r.data.evidence.right.value).toBe('Special term 1: 월세는 현금으로 지급한다.');
   });
 
   it('specialTerms가 null(못 읽음)이면 UNVERIFIABLE', () => {
@@ -67,8 +67,8 @@ describe('PART 3 위험 특약 키워드', () => {
   const cases = [
     ['현금 지급', '월세는 현금으로 지급한다.', 'Cash payment'],
     ['현금 지급 (띄어쓰기가 달라도)', '월세는 현 금 으로 지 급 한다.', 'Cash payment'],
-    ['전입신고 금지', '임차인은 전입신고를 하지 않는다.', 'address registration'],
-    ['확정일자 금지', '확정일자는 받을 수 없다. 확정일자 금지.', 'address registration'],
+    ['전입신고 금지 (STOP)', '임차인은 전입신고를 하지 않는다.', 'address registration', STOP],
+    ['확정일자 금지 (STOP)', '확정일자는 받을 수 없다. 확정일자 금지.', 'address registration', STOP],
     ['원상복구 비용 임차인 부담', '원상복구 비용은 임차인이 부담한다.', 'Repair or restoration'],
     ['수리비 임차인 부담', '모든 수리비는 임차인 부담이다.', 'Repair or restoration'],
     ['중개수수료 임차인 부담', '중개수수료는 임차인이 전액 부담한다.', 'Brokerage fee'],
@@ -76,9 +76,10 @@ describe('PART 3 위험 특약 키워드', () => {
     ['보증금 반환 포기', '임차인은 보증금 반환을 포기한다.', 'getting the deposit back'],
   ];
 
-  it.each(cases)('걸린다: %s', (_name, sentence, labelPart) => {
+  // 네 번째 값이 없으면 CHECK. 전입신고·확정일자 금지만 STOP이다. (#278)
+  it.each(cases)('걸린다: %s', (_name, sentence, labelPart, status = CHECK) => {
     const r = assess([sentence]);
-    expect(r.data.status).toBe(CHECK);
+    expect(r.data.status).toBe(status);
     expect(r.data.explanation).toContain(labelPart);
   });
 
@@ -97,13 +98,16 @@ describe('PART 3 위험 특약 키워드', () => {
     const r = assess(['월세는 현금으로 지급한다.', '임차인은 전입신고를 하지 않는다.']);
     expect(r.data.explanation).toContain('Cash payment');
     expect(r.data.explanation).toContain('address registration');
-    expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다. / 임차인은 전입신고를 하지 않는다.');
+    expect(r.data.status).toBe(STOP); // 전입신고 금지가 같이 있으면 STOP
+    expect(r.data.evidence.right.value).toBe(
+      'Special term 1: 월세는 현금으로 지급한다. / Special term 2: 임차인은 전입신고를 하지 않는다.',
+    );
   });
 
-  it('OCR로 한 문장이 두 줄로 갈라져도 걸린다 (근거 칸에는 두 줄이 모두 나온다)', () => {
+  it('OCR로 한 문장이 두 줄로 갈라져도 걸린다 (근거 칸에는 한 특약으로 합쳐서 나온다)', () => {
     const r = assess(['월세는 현금으로', '지급한다.']);
     expect(r.data.status).toBe(CHECK);
-    expect(r.data.evidence.right.value).toBe('월세는 현금으로 / 지급한다.');
+    expect(r.data.evidence.right.value).toBe('Special term 1: 월세는 현금으로 지급한다.');
   });
 
   it('서로 떨어진 줄의 단어를 이어 붙여서 걸리지는 않는다', () => {
@@ -178,7 +182,7 @@ describe('PART 3 위험 특약 개인정보', () => {
   });
 
   it('특약 원문은 화면 근거 칸에만 나온다', () => {
-    expect(assess([named]).data.evidence.right.value).toBe(named);
+    expect(assess([named]).data.evidence.right.value).toBe(`Special term 1: ${named}`);
   });
 
   it('근거 칸의 특약 한 줄이 너무 길면 줄여서 보여 준다', () => {
@@ -269,7 +273,7 @@ describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
   it('문장이 끝난 줄은 다음 줄의 예외 문구를 빌리지 않는다 (서로 다른 특약이 섞이지 않게)', () => {
     const r = assess(['월세는 현금으로 지급한다.', '쓰레기는 받지 않는다.']);
     expect(r.data.status).toBe(CHECK);
-    expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다.');
+    expect(r.data.evidence.right.value).toBe('Special term 1: 월세는 현금으로 지급한다.');
   });
 
     it('예외 문구가 옆 줄 안에 통째로 있으면, 마침표 없이 이어져도 이 줄의 위험 특약을 가리지 않는다', () => {
@@ -277,13 +281,13 @@ describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
     const before = assess(['임차인과 관계없이 임대인은 관리비를 정한다', '보증금은 새로운 임차인이 구해지면 반환한다.']);
     expect(before.data.status).toBe(CHECK);
     expect(before.data.explanation).toContain('Limits on getting the deposit back');
-    expect(before.data.evidence.right.value).toBe('보증금은 새로운 임차인이 구해지면 반환한다.');
+    expect(before.data.evidence.right.value).toBe('Special term 1: 보증금은 새로운 임차인이 구해지면 반환한다.');
 
     // 뒷줄에 예외 문구가 통째로 있는 경우
     const after = assess(['보증금은 새로운 임차인이 구해지면 반환한다', '임차인과 관계없이 관리비는 임대인이 정한다.']);
     expect(after.data.status).toBe(CHECK);
     expect(after.data.explanation).toContain('Limits on getting the deposit back');
-    expect(after.data.evidence.right.value).toBe('보증금은 새로운 임차인이 구해지면 반환한다');
+    expect(after.data.evidence.right.value).toBe('Special term 1: 보증금은 새로운 임차인이 구해지면 반환한다');
 
     // 현금: 뒷줄의 "현금 지급은 받지 않는다"는 앞 특약의 예외가 아니다
     const cash = assess(['월세는 현금으로 지급한다', '현금 지급은 받지 않는다.']);
@@ -293,15 +297,15 @@ describe('PART 3 위험 특약 오탐 줄이기 (except)', () => {
 
   it('예외 문구는 그 분류만 뺀다 (다른 분류는 그대로 걸린다)', () => {
     const r = assess(['월세는 계좌이체로 지급하며 현금 지급은 받지 않는다.', '임차인은 전입신고를 하지 않는다.']);
-    expect(r.data.status).toBe(CHECK);
+    expect(r.data.status).toBe(STOP);
     expect(r.data.explanation).toContain('address registration');
     expect(r.data.explanation).not.toContain('Cash payment');
   });
 
-  it('부정문 한계는 그대로다: 걸리더라도 STOP이 아니라 CHECK이다', () => {
+  it('부정문은 STOP이 아니라 CHECK로 남는다 (전입신고·확정일자 금지 분류, #278)', () => {
     const r = assess(['임차인은 전입신고를 금지하지 않는다.']);
     expect(r.data.status).toBe(CHECK);
-    expect(r.data.status).not.toBe('STOP');
+    expect(r.data.status).not.toBe(STOP);
   });
 
   it('except가 걸린 오탐 문장은 assessRisks()에서도 CHECK로 뜨지 않는다', () => {
@@ -347,5 +351,173 @@ describe('PART 3 위험 특약 키워드 파일: except 검사', () => {
     for (const phrase of ['관계없이', '상관없이', '무관하게']) expect(byId.DEPOSIT_RETURN_LIMIT.except).not.toContain(phrase);
     expect(byId.CASH_PAYMENT.except.every((phrase) => phrase.includes('현금'))).toBe(true);
     expect(byId.DEPOSIT_RETURN_LIMIT.except.every((phrase) => phrase.includes('임차인'))).toBe(true);
+  });
+});
+
+describe('PART 3 전입신고·확정일자 금지 특약은 STOP (#278)', () => {
+  const banned = [
+    '임차인은 전입신고를 하지 않는다.',
+    '전입신고는 금지한다.',
+    '확정일자 신청은 금지한다.',
+    '임차인은 확정일자를 받지 못한다.',
+    '전입신고 및 확정일자 신청은 불가하다.',
+  ];
+
+  it.each(banned)('STOP: %s', (sentence) => {
+    const r = assess([sentence]);
+    expect(r.data.status).toBe(STOP);
+    expect(r.data.explanation).toContain('address registration');
+  });
+
+  const negated = [
+    '임대인은 전입신고를 금지하지 않는다.',
+    '임대인은 임차인의 전입신고를 제한하지 않는다.',
+    '전입신고와 확정일자는 제한 없이 가능하다.',
+    '임대인은 전입신고를 방해하지 않는다.',
+    '임차인은 확정일자를 받는 것이 금지되지 않는다.',
+  ];
+
+  it.each(negated)('부정문은 STOP이 아니라 CHECK: %s', (sentence) => {
+    expect(assess([sentence]).data.status).toBe(CHECK);
+  });
+
+  it('부정문이 두 줄로 갈라져도 STOP이 아니라 CHECK', () => {
+    expect(assess(['임대인은 전입신고를 금지하지', '않는다.']).data.status).toBe(CHECK);
+  });
+
+  it('부정문 특약과 전입신고 금지 특약이 같이 있으면 STOP', () => {
+    expect(assess(['임대인은 전입신고를 금지하지 않는다.', '확정일자는 받지 못한다.']).data.status).toBe(STOP);
+  });
+
+  it('현금 지급 등 다른 분류만 걸리면 기존대로 CHECK', () => {
+    expect(assess(['월세는 현금으로 지급한다.']).data.status).toBe(CHECK);
+    expect(assess(['중개수수료는 임차인이 전액 부담한다.']).data.status).toBe(CHECK);
+  });
+
+  it('STOP이어도 설명·행동 안내에 특약 원문이 없고, "서명하지 말라"고 단정하지 않는다', () => {
+    const r = assess(['임차인 김철수는 전입신고를 하지 않는다.']);
+    expect(r.data.status).toBe(STOP);
+    for (const text of [r.data.title, r.data.explanation, r.data.action]) {
+      expect(text).not.toContain('김철수');
+      expect(text).not.toMatch(/do not sign/i);
+    }
+    expect(r.data.action.length).toBeGreaterThan(0);
+  });
+
+  it('assessRisks()에서도 RISKY_SPECIAL_TERM이 STOP으로 나온다', () => {
+    const risks = assessRisks(withTerms(['임차인은 전입신고를 하지 않는다.']), mockPersonGroups);
+    expect(risks.data.find((x) => x.ruleId === 'RISKY_SPECIAL_TERM')?.status).toBe(STOP);
+  });
+
+  it('키워드 파일: 전입신고·확정일자 금지만 severity가 STOP이고, negation 문구가 있다', () => {
+    const categories = getSpecialTermKeywords().data;
+    const stop = categories.filter((c) => c.severity === 'STOP');
+    expect(stop.map((c) => c.id)).toEqual(['REGISTRATION_BAN']);
+    expect(stop[0].negation.length).toBeGreaterThan(0);
+    for (const phrase of stop[0].negation) expect(phrase).not.toMatch(/[&|\s]/);
+  });
+
+  it('severity·negation 검사: 없으면 기본값, 잘못되면 실패한다', () => {
+    const file = (extra) =>
+      `categories:\n  A:\n    label: x\n    reason: y\n    keywords: ["현금"]\n${extra}`;
+    const plain = parseSpecialTermKeywords(file(''));
+    expect(plain.ok).toBe(true);
+    expect(plain.data[0].severity).toBe('CHECK');
+    expect(plain.data[0].negation).toEqual([]);
+    const stop = parseSpecialTermKeywords(file('    severity: STOP\n    negation: ["하지 않"]\n'));
+    expect(stop.data[0].severity).toBe('STOP');
+    expect(stop.data[0].negation).toEqual(['하지않']);
+    for (const bad of ['    severity: WARN\n', '    negation: "하지않"\n', '    negation: [""]\n', '    negation: [123]\n']) {
+      expect(parseSpecialTermKeywords(file(bad)).ok).toBe(false);
+    }
+  });
+});
+
+describe('PART 3 특약은 번호로 시작하는 줄마다 끊어서 검사 (#278)', () => {
+  // 상욱님 가짜세트4: 임차인에게 유리한 특약이 다른 줄의 "임차인"과 합쳐져 걸리던 오탐
+  const favorable = '2. 임대사업자는 입주 전에 도배를 새로 하며, 그 비용은 임대사업자가 부담한다.';
+  const brokerage = '1. 중개보수는 임차인이 전액 부담한다.';
+  const brokerageText = '중개보수는 임차인이 전액 부담한다.'; // 번호를 뺀 문구
+
+  it('특약 하나만 넣었을 때처럼, 목록 전체를 넣어도 "도배 비용은 임대사업자 부담"이 수리비 임차인 부담으로 걸리지 않는다', () => {
+    const alone = assess([favorable]);
+    expect(alone.data.status).toBe(NO_FLAG);
+    const all = assess([brokerage, favorable]);
+    expect(all.data.explanation).not.toContain('Repair or restoration');
+    expect(all.data.explanation).toContain('Brokerage fee'); // 1번 중개보수는 그대로 걸린다
+    expect(all.data.evidence.right.value).toBe(`Special term 1: ${brokerageText}`);
+  });
+
+  it('번호로 시작하는 줄과는 이어 붙이지 않는다 (번호가 달라도, ①처럼 써도)', () => {
+    for (const second of ['2. 도배는 임대사업자가 하며 그 비용을 부담한다.', '② 도배는 임대사업자가 하며 그 비용을 부담한다.', '(2) 도배는 임대사업자가 하며 그 비용을 부담한다.']) {
+      expect(assess(['1. 장판 교체는 임차인이 한다', second]).data.explanation ?? '').not.toContain('Repair or restoration');
+    }
+  });
+
+  it('앞 줄이 문장을 끝냈으면, 번호 없는 다음 줄과도 이어 붙이지 않는다', () => {
+    const r = assess(['중개보수는 임차인이 전액 부담한다.', '도배는 새로 하며 그 비용은 임대사업자가 부담한다.']);
+    expect(r.data.explanation).not.toContain('Repair or restoration');
+  });
+
+  it('번호 없이 줄만 넘어간 한 문장은 기존처럼 이어서 본다 (번호가 붙은 줄 안에서도)', () => {
+    expect(assess(['월세는 현금으로', '지급한다.']).data.status).toBe(CHECK);
+    const r = assess(['1. 월세는 현금으로', '지급한다.']);
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.evidence.right.value).toBe('Special term 1: 월세는 현금으로 지급한다.');
+  });
+
+  it('날짜·소수처럼 번호가 아닌 숫자로 시작하는 줄은 새 특약으로 보지 않는다', () => {
+    const r = assess(['월세는 현금으로', '2025. 3. 5.까지 지급한다.']);
+    expect(r.data.status).toBe(CHECK);
+    const pct = assess(['월세는 현금으로', '3.5%를 가산하여 지급한다.']);
+    expect(pct.data.status).toBe(CHECK);
+  });
+
+  it('findRiskyTerms: 번호 줄 경계는 넘지 않는다', () => {
+    const categories = getSpecialTermKeywords().data;
+    const { matched } = findRiskyTerms([brokerage, favorable], categories);
+    expect(matched.map((c) => c.id)).toEqual(['BROKER_FEE_TENANT']);
+  });
+});
+
+describe('PART 3 근거 칸에 몇 번째 특약인지 표시 (#278)', () => {
+  it('걸린 특약마다 "Special term N: 문구"로 나온다 (계약서에 적힌 번호를 따르고, 문구 앞의 번호는 뺀다)', () => {
+    const r = assess(['1. 관리비는 매월 납부한다.', '2. 월세는 현금으로 지급한다.', '3. 임차인은 전입신고를 하지 않는다.']);
+    expect(r.data.evidence.right.value).toBe(
+      'Special term 2: 월세는 현금으로 지급한다. / Special term 3: 임차인은 전입신고를 하지 않는다.',
+    );
+  });
+
+  it('번호가 없으면 몇 번째 특약인지 센 값을 쓴다 (문장이 끝날 때마다 새 특약)', () => {
+    const r = assess(['관리비는 매월 납부한다.', '월세는 현금으로 지급한다.']);
+    expect(r.data.evidence.right.value).toBe('Special term 2: 월세는 현금으로 지급한다.');
+  });
+
+  it('번호가 있는 목록 안의 번호 없는 앞머리 문장은 번호 없이 보여 준다 (계약서 번호와 겹치지 않게)', () => {
+    const r = assess(['월세는 현금으로 지급한다.', '1. 관리비는 매월 납부한다.']);
+    expect(r.data.evidence.right.value).toBe('월세는 현금으로 지급한다.');
+  });
+
+  it('한 특약의 두 줄이 모두 걸리면 한 번호 아래 합쳐서 보여 준다', () => {
+    const r = assess(['3. 월세는 현금으로', '지급한다.']);
+    expect(r.data.evidence.right.value).toBe('Special term 3: 월세는 현금으로 지급한다.');
+  });
+
+  it('번호와 문구는 근거 칸에만 있고 설명·행동 안내·프롬프트에는 없다', () => {
+    const risks = assessRisks(withTerms(['1. 임대인 김철수는 월세를 현금으로 지급받는다.']), mockPersonGroups);
+    const special = risks.data.find((x) => x.ruleId === 'RISKY_SPECIAL_TERM');
+    expect(special.evidence.right.value).toContain('Special term 1');
+    for (const text of [special.explanation, special.action]) {
+      expect(text).not.toContain('Special term 1');
+      expect(text).not.toContain('김철수');
+    }
+    const prompt = buildPrompt({
+      purpose: MASKING_PURPOSE.FRAUD_CHECK,
+      riskResults: risks.data,
+      maskedText: { DOC_LEASE: '[Landlord_B] pays rent.' },
+      legend: { '[Landlord_B]': 'landlord' },
+    });
+    expect(prompt.data).not.toContain('Special term 1');
+    expect(prompt.data).not.toContain('김철수');
   });
 });
