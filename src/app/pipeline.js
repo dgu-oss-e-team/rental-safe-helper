@@ -32,6 +32,7 @@ import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/inde
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 import { findVisiblePii, unverifiable } from './double-check.js';
 import { titledMaskedText } from './document-names.js';
+import { withPageMarks } from './page-marks.js';
 import { settlePersonAnswers } from './person-questions.js';
 
 /**
@@ -250,10 +251,15 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
   // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
+  // 쪽 표시("--- page 2 ---")를 넣어 AI가 몇 쪽인지 밝힐 수 있게 한다. 검사한 글과 다르게 나오면 쪽 표시 없이 보낸다
+  const paged = withPageMarks(documents, masked.data.maskedText, (docs) => {
+    const r = applyMaskingPlan(docs, plan.data, findings, personGroups, userEdits);
+    return r.ok ? r.data.maskedText : null;
+  });
   const prompt = buildPrompt({
     purpose,
     riskResults,
-    maskedText: titledMaskedText(masked.data.maskedText, documents),
+    maskedText: titledMaskedText(paged, documents),
     legend: masked.data.legend,
   });
   if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
