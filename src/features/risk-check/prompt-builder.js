@@ -71,10 +71,10 @@ export function replaceUnlistedAliases(text, legend) {
 /**
  * AI 상담용 프롬프트를 만든다.
  * @param {{ purpose: string, riskResults: RiskResult[], maskedText: Record<string, string>,
- *           legend: Record<string, string> }} input
+ *           legend: Record<string, string>, monthlyRent?: number | null }} input
  */
-export function buildPrompt({ purpose, riskResults, maskedText, legend }) {
-  const questions = getRecommendedQuestions(purpose, riskResults);
+export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent }) {
+  const questions = getRecommendedQuestions(purpose, riskResults, { monthlyRent });
   if (!questions) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Unknown purpose.');
   }

@@ -91,3 +91,72 @@ describe('PART 3 추천 질문: 위험 점검 결과 반영 (#212)', () => {
     expect(questionPart(build(mortgage(RISK_STATUS.CHECK)))).toContain('mortgage (근저당)');
   });
 });
+
+const hasJeonse = (qs) => qs.some((q) => q.includes('전세보증금반환보증'));
+const hasRentalGuarantee = (qs) => qs.some((q) => q.includes('rental deposit guarantee'));
+const hasMoveInReport = (qs) => qs.some((q) => q.includes('report my move-in'));
+
+describe('PART 3 추천 질문: 월세 계약 (#279)', () => {
+  it('월세 > 0이면 전세 보증 질문이 빠지고 임대보증금·전입신고 질문이 들어간다', () => {
+    const qs = getRecommendedQuestions(FRAUD_CHECK, undefined, { monthlyRent: 300000 });
+    expect(hasJeonse(qs)).toBe(false);
+    expect(hasRentalGuarantee(qs)).toBe(true);
+    expect(hasMoveInReport(qs)).toBe(true);
+  });
+
+  it.each([[0], [null], [undefined], [NaN], [-1], ['300000']])(
+    '월세 값이 %s면 기존 질문 그대로',
+    (monthlyRent) => {
+      const qs = getRecommendedQuestions(FRAUD_CHECK, undefined, { monthlyRent });
+      expect(qs).toEqual(getRecommendedQuestions(FRAUD_CHECK));
+      expect(hasJeonse(qs)).toBe(true);
+      expect(hasRentalGuarantee(qs)).toBe(false);
+    },
+  );
+
+  it('옵션을 안 주거나 빈 객체여도 기존 질문 그대로', () => {
+    const all = getRecommendedQuestions(FRAUD_CHECK);
+    expect(getRecommendedQuestions(FRAUD_CHECK, undefined, {})).toEqual(all);
+    expect(getRecommendedQuestions(FRAUD_CHECK, [], undefined)).toEqual(all);
+  });
+
+  it('다른 두 목적은 월세 여부와 상관없이 그대로', () => {
+    for (const purpose of [CLAUSE_EXPLANATION, CONTRACT_EXPLANATION]) {
+      expect(getRecommendedQuestions(purpose, undefined, { monthlyRent: 300000 })).toEqual(
+        getRecommendedQuestions(purpose),
+      );
+    }
+  });
+
+  it('세 목적 모두 월세 여부와 상관없이 최소 3개 이상', () => {
+    const everything = [
+      { ruleId: 'MORTGAGE_EXISTS', status: RISK_STATUS.NO_FLAG },
+      { ruleId: 'OWNER_MISMATCH', status: RISK_STATUS.NO_FLAG },
+    ];
+    for (const monthlyRent of [undefined, 0, 300000]) {
+      for (const purpose of [CLAUSE_EXPLANATION, FRAUD_CHECK, CONTRACT_EXPLANATION]) {
+        expect(getRecommendedQuestions(purpose, everything, { monthlyRent }).length).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('월세 질문에 가명·이름·숫자가 없다', () => {
+    const qs = getRecommendedQuestions(FRAUD_CHECK, undefined, { monthlyRent: 300000 });
+    const added = qs.filter((q) => q.includes('rental deposit guarantee') || q.includes('report my move-in'));
+    expect(added).toHaveLength(2);
+    for (const q of added) {
+      expect(q).not.toMatch(/\[[A-Za-z]+_[A-Z]\]/);
+      expect(q).not.toMatch(/\d/);
+    }
+  });
+
+  it('프롬프트: monthlyRent가 있으면 월세 질문, 없으면 기존 질문', () => {
+    const base = { purpose: FRAUD_CHECK, riskResults: [], maskedText: { DOC_1: 'text' }, legend: {} };
+    const monthly = buildPrompt({ ...base, monthlyRent: 300000 });
+    const plain = buildPrompt(base);
+    expect(monthly.ok && plain.ok).toBe(true);
+    expect(monthly.data).toContain('rental deposit guarantee');
+    expect(monthly.data).not.toContain('전세보증금반환보증');
+    expect(plain.data).toContain('전세보증금반환보증');
+  });
+});
