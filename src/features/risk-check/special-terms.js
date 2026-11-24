@@ -25,13 +25,18 @@
  * 키워드는 src/config/rules/special-term-keywords.yaml 에 있다. 문구는 risk-rules.yaml 의 RISKY_SPECIAL_TERM.
  */
 
-import { load } from 'js-yaml';
+import { load } from "js-yaml";
 // @ts-ignore  Vite의 "?raw" 가져오기: 파일 내용을 문자열로 읽는다 (브라우저와 Vitest 모두 지원)
-import keywordsText from '../../config/rules/special-term-keywords.yaml?raw';
-import { ok, fail, ERROR_CODE, RISK_STATUS } from '../../shared/document-model.js';
-import { buildRiskResult } from './risk-explanations.js';
+import keywordsText from "../../config/rules/special-term-keywords.yaml?raw";
+import {
+  ok,
+  fail,
+  ERROR_CODE,
+  RISK_STATUS,
+} from "../../shared/document-model.js";
+import { buildRiskResult } from "./risk-explanations.js";
 
-const RULE_ID = 'RISKY_SPECIAL_TERM';
+const RULE_ID = "RISKY_SPECIAL_TERM";
 
 /** 근거 칸에 보여 줄 특약 한 줄의 최대 글자 수 (너무 길면 화면이 길어진다) */
 const MAX_EVIDENCE_CHARS = 200;
@@ -53,7 +58,7 @@ const IGNORED = /[\s·ㆍ.,]/g;
 
 /** @param {string} text */
 export function normalizeTerm(text) {
-  return text.normalize('NFC').replace(IGNORED, '');
+  return text.normalize("NFC").replace(IGNORED, "");
 }
 
 /**
@@ -62,12 +67,12 @@ export function normalizeTerm(text) {
  * @returns {string[][] | null}
  */
 function parseExpression(expression) {
-  if (typeof expression !== 'string') return null;
-  const parts = expression.split('&').map((part) =>
+  if (typeof expression !== "string") return null;
+  const parts = expression.split("&").map((part) =>
     part
-      .split('|')
+      .split("|")
       .map((alt) => normalizeTerm(alt))
-      .filter((alt) => alt !== ''),
+      .filter((alt) => alt !== ""),
   );
   return parts.every((alts) => alts.length > 0) ? parts : null;
 }
@@ -82,71 +87,130 @@ export function parseSpecialTermKeywords(text) {
   try {
     doc = load(text);
   } catch {
-    return fail(ERROR_CODE.INVALID_INPUT, 'Special term keywords file is not valid YAML.');
+    return fail(
+      ERROR_CODE.INVALID_INPUT,
+      "Special term keywords file is not valid YAML.",
+    );
   }
 
   const categories = /** @type {any} */ (doc)?.categories;
-  if (!categories || typeof categories !== 'object' || Object.keys(categories).length === 0) {
-    return fail(ERROR_CODE.INVALID_INPUT, 'Special term keywords file has no "categories" section.');
+  if (
+    !categories ||
+    typeof categories !== "object" ||
+    Object.keys(categories).length === 0
+  ) {
+    return fail(
+      ERROR_CODE.INVALID_INPUT,
+      'Special term keywords file has no "categories" section.',
+    );
   }
 
   /** @type {KeywordCategory[]} */
   const result = [];
   for (const [id, category] of Object.entries(categories)) {
     const { label, reason, keywords } = /** @type {any} */ (category) ?? {};
-    if (typeof label !== 'string' || typeof reason !== 'string' || !Array.isArray(keywords) || keywords.length === 0) {
-      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} needs a label, a reason and keywords.`);
+    if (
+      typeof label !== "string" ||
+      typeof reason !== "string" ||
+      !Array.isArray(keywords) ||
+      keywords.length === 0
+    ) {
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        `Special term category ${id} needs a label, a reason and keywords.`,
+      );
     }
     const expressions = [];
     for (const keyword of keywords) {
       const parsed = parseExpression(keyword);
-      if (!parsed) return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty keyword.`);
+      if (!parsed)
+        return fail(
+          ERROR_CODE.INVALID_INPUT,
+          `Special term category ${id} has an empty keyword.`,
+        );
       expressions.push(parsed);
     }
     // except는 선택 항목이다. 있으면 글자 목록이어야 하고, 비교용으로 다듬은 뒤 비어 있으면 안 된다.
     const rawExcept = /** @type {any} */ (category).except ?? [];
     if (!Array.isArray(rawExcept)) {
-      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an except that is not a list.`);
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        `Special term category ${id} has an except that is not a list.`,
+      );
     }
     const except = [];
     for (const phrase of rawExcept) {
-      const normalized = typeof phrase === 'string' ? normalizeTerm(phrase) : '';
-      if (normalized === '') return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty except phrase.`);
+      const normalized =
+        typeof phrase === "string" ? normalizeTerm(phrase) : "";
+      if (normalized === "")
+        return fail(
+          ERROR_CODE.INVALID_INPUT,
+          `Special term category ${id} has an empty except phrase.`,
+        );
       except.push(normalized);
     }
     // severity는 선택이다. STOP 또는 CHECK만 쓸 수 있고, 없으면 CHECK다. (#278)
-    const rawSeverity = /** @type {any} */ (category).severity ?? 'CHECK';
-    if (rawSeverity !== 'STOP' && rawSeverity !== 'CHECK') {
-      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a severity that is not STOP or CHECK.`);
+    const rawSeverity = /** @type {any} */ (category).severity ?? "CHECK";
+    if (rawSeverity !== "STOP" && rawSeverity !== "CHECK") {
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        `Special term category ${id} has a severity that is not STOP or CHECK.`,
+      );
     }
     // negation도 선택이다. except와 같은 규칙(글자 목록, 다듬은 뒤 비어 있으면 안 됨)이다.
     const rawNegation = /** @type {any} */ (category).negation ?? [];
     if (!Array.isArray(rawNegation)) {
-      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a negation that is not a list.`);
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        `Special term category ${id} has a negation that is not a list.`,
+      );
     }
-        const negation = [];
+    const negation = [];
     for (const phrase of rawNegation) {
-      const normalized = typeof phrase === 'string' ? normalizeTerm(phrase) : '';
-      if (normalized === '') return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty negation phrase.`);
+      const normalized =
+        typeof phrase === "string" ? normalizeTerm(phrase) : "";
+      if (normalized === "")
+        return fail(
+          ERROR_CODE.INVALID_INPUT,
+          `Special term category ${id} has an empty negation phrase.`,
+        );
       negation.push(normalized);
     }
     // stop_patterns도 선택이다. 글자 목록이어야 하고, 올바른 정규식이어야 한다. (#336 리뷰)
     const rawStopPatterns = /** @type {any} */ (category).stop_patterns ?? [];
     if (!Array.isArray(rawStopPatterns)) {
-      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a stop_patterns that is not a list.`);
+      return fail(
+        ERROR_CODE.INVALID_INPUT,
+        `Special term category ${id} has a stop_patterns that is not a list.`,
+      );
     }
     const stopPatterns = [];
     for (const source of rawStopPatterns) {
-      if (typeof source !== 'string' || source === '') {
-        return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty stop pattern.`);
+      if (typeof source !== "string" || source === "") {
+        return fail(
+          ERROR_CODE.INVALID_INPUT,
+          `Special term category ${id} has an empty stop pattern.`,
+        );
       }
       try {
         stopPatterns.push(new RegExp(source));
       } catch {
-        return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a stop pattern that is not a valid regular expression.`);
+        return fail(
+          ERROR_CODE.INVALID_INPUT,
+          `Special term category ${id} has a stop pattern that is not a valid regular expression.`,
+        );
       }
     }
-    result.push({ id, label: label.trim(), reason: reason.trim(), expressions, except, severity: rawSeverity, negation, stopPatterns });
+    result.push({
+      id,
+      label: label.trim(),
+      reason: reason.trim(),
+      expressions,
+      except,
+      severity: rawSeverity,
+      negation,
+      stopPatterns,
+    });
   }
   return ok(result);
 }
@@ -165,7 +229,9 @@ export function getSpecialTermKeywords() {
  * @param {KeywordCategory} category
  */
 function matchesKeywords(normalized, category) {
-  return category.expressions.some((parts) => parts.every((alts) => alts.some((alt) => normalized.includes(alt))));
+  return category.expressions.some((parts) =>
+    parts.every((alts) => alts.some((alt) => normalized.includes(alt))),
+  );
 }
 
 /**
@@ -188,7 +254,11 @@ function hasException(normalized, category) {
 function hasExceptionAcross(left, right, category) {
   const joined = left + right;
   return category.except.some((phrase) => {
-    for (let at = joined.indexOf(phrase); at !== -1; at = joined.indexOf(phrase, at + 1)) {
+    for (
+      let at = joined.indexOf(phrase);
+      at !== -1;
+      at = joined.indexOf(phrase, at + 1)
+    ) {
       if (at < left.length && at + phrase.length > left.length) return true;
     }
     return false;
@@ -201,7 +271,9 @@ function hasExceptionAcross(left, right, category) {
  * @param {KeywordCategory} category
  */
 function matchesCategory(normalized, category) {
-  return matchesKeywords(normalized, category) && !hasException(normalized, category);
+  return (
+    matchesKeywords(normalized, category) && !hasException(normalized, category)
+  );
 }
 
 /** 문장이 끝난 줄인가. 끝나지 않았으면 다음 줄이 이어지는 문장일 수 있다. */
@@ -211,7 +283,8 @@ const SENTENCE_END = /[.!?。…]\s*$/;
  * 줄 맨 앞의 특약 번호: "1.", "2)", "(3)", "①". (#278)
  * "2025. 3. 5."나 "3.5%"처럼 번호가 아닌 숫자는 걸리지 않게, 숫자는 1~2자리이고 "." 바로 뒤에 숫자가 오지 않아야 한다.
  */
-const NUMBER_MARKER = /^\s*(?:(\d{1,2})\s*[.)](?!\d)(?!\s*\d{1,4}\s*\.)|\((\d{1,2})\)|([①-⑳]))/;
+const NUMBER_MARKER =
+  /^\s*(?:(\d{1,2})\s*[.)](?!\d)(?!\s*\d{1,2}\s*\.)|\((\d{1,2})\)|([①-⑳]))/;
 
 /**
  * 줄 맨 앞의 특약 번호를 숫자로 돌려준다. 번호로 시작하지 않으면 null.
@@ -240,13 +313,15 @@ function canJoin(left, right) {
  * @param {string} text  normalizeTerm()을 거친 글 (두 줄을 이어 붙인 글도 된다)
  * @param {string[]} phrases
  */
-const hasPhrase = (text, phrases) => phrases.some((phrase) => text.includes(phrase));
+const hasPhrase = (text, phrases) =>
+  phrases.some((phrase) => text.includes(phrase));
 
 /**
  * 구절을 나누는 곳: 쉼표, 문장 끝, "~하며/~하고/~지만" 같은 이음말.
  * ("전입신고"의 "고"처럼 단어 속 글자로는 나누지 않도록, 이음말은 뒤에 띄어쓰기가 올 때만 본다) (#336 리뷰)
  */
-const CLAUSE_SPLIT = /[,;，、]|[.!?。](?=\s|$)|(?:하며|이며|으며|하고|이고|지만|으나|면서)(?=\s)/;
+const CLAUSE_SPLIT =
+  /[,;，、]|[.!?。](?=\s|$)|(?:하며|이며|으며|하고|이고|지만|으나|면서)(?=\s)/;
 
 /**
  * 특약 한 덩어리(원문)가 STOP인가. 구절마다 따로 본다:
@@ -258,7 +333,7 @@ const CLAUSE_SPLIT = /[,;，、]|[.!?。](?=\s|$)|(?:하며|이며|으며|하고
 function isStopTerm(rawText, category) {
   return rawText.split(CLAUSE_SPLIT).some((clause) => {
     const n = normalizeTerm(clause);
-    if (n === '') return false;
+    if (n === "") return false;
     const risky =
       category.stopPatterns.length > 0
         ? category.stopPatterns.some((re) => re.test(n))
@@ -294,7 +369,8 @@ export function findRiskyTerms(terms, categories) {
         // 문장이 끝난 줄은 이어 보지 않고, 예외 문구가 옆 줄 안에 통째로 있는 것은 인정하지 않는다. (경계에 걸친 것만)
         const continues = next !== undefined && canJoin(terms[i], terms[i + 1]);
         const prev = normalized[i - 1];
-        const followsPrev = prev !== undefined && canJoin(terms[i - 1], terms[i]);
+        const followsPrev =
+          prev !== undefined && canJoin(terms[i - 1], terms[i]);
         const excepted =
           hasException(current, category) ||
           (continues && hasExceptionAcross(current, next, category)) ||
@@ -319,9 +395,11 @@ export function findRiskyTerms(terms, categories) {
 
     // STOP: 걸린 줄이 들어 있는 특약(번호·문장 단위로 묶은 것) 중 하나라도 STOP 구절을 가지면 STOP (#336)
     if (
-      category.severity === 'STOP' &&
+      category.severity === "STOP" &&
       groups.some(
-        (g) => g.indexes.some((i) => hits.has(i)) && isStopTerm(g.indexes.map((i) => terms[i]).join(' '), category),
+        (g) =>
+          g.indexes.some((i) => hits.has(i)) &&
+          isStopTerm(g.indexes.map((i) => terms[i]).join(" "), category),
       )
     ) {
       stopIds.push(category.id);
@@ -345,18 +423,28 @@ export function groupTerms(texts) {
   const groups = [];
   texts.forEach((text, i) => {
     const n = markerNumber(text);
-    const startsNew = i === 0 || (numbered ? n !== null : SENTENCE_END.test(texts[i - 1].trim()));
-    if (startsNew) groups.push({ label: n ?? (numbered ? null : groups.length + 1), indexes: [i] });
+    const startsNew =
+      i === 0 ||
+      (numbered ? n !== null : SENTENCE_END.test(texts[i - 1].trim()));
+    if (startsNew)
+      groups.push({
+        label: n ?? (numbered ? null : groups.length + 1),
+        indexes: [i],
+      });
     else groups[groups.length - 1].indexes.push(i);
   });
   return groups;
 }
 
 /** @param {string} text */
-const clip = (text) => (text.length > MAX_EVIDENCE_CHARS ? `${text.slice(0, MAX_EVIDENCE_CHARS)}…` : text);
+const clip = (text) =>
+  text.length > MAX_EVIDENCE_CHARS
+    ? `${text.slice(0, MAX_EVIDENCE_CHARS)}…`
+    : text;
 
 /** @param {number} count */
-const termCountText = (count) => `${count} special term${count === 1 ? '' : 's'} read`;
+const termCountText = (count) =>
+  `${count} special term${count === 1 ? "" : "s"} read`;
 
 /**
  * 위험 특약 점검.
@@ -370,21 +458,30 @@ export function assessSpecialTerms(fields) {
   const terms = fields?.contract?.specialTerms;
   // 특약 칸을 못 찾았거나 형식이 이상하면 "특약이 없다"가 아니라 확인 불가
   if (!Array.isArray(terms)) {
-    return buildRiskResult(RULE_ID, RISK_STATUS.UNVERIFIABLE, { values: { left: null, right: null } });
+    return buildRiskResult(RULE_ID, RISK_STATUS.UNVERIFIABLE, {
+      values: { left: null, right: null },
+    });
   }
   if (terms.length === 0) {
-    return buildRiskResult(RULE_ID, RISK_STATUS.NO_FLAG, { variant: 'no_terms', values: { left: termCountText(0), right: null } });
+    return buildRiskResult(RULE_ID, RISK_STATUS.NO_FLAG, {
+      variant: "no_terms",
+      values: { left: termCountText(0), right: null },
+    });
   }
 
-  const texts = terms.filter((t) => typeof t === 'string' && t.trim() !== '');
+  const texts = terms.filter((t) => typeof t === "string" && t.trim() !== "");
   // 읽은 특약이 하나도 글자가 아니면(깨진 값) 읽은 것으로 보지 않는다
   if (texts.length === 0) {
-    return buildRiskResult(RULE_ID, RISK_STATUS.UNVERIFIABLE, { values: { left: null, right: null } });
+    return buildRiskResult(RULE_ID, RISK_STATUS.UNVERIFIABLE, {
+      values: { left: null, right: null },
+    });
   }
 
   const { matched, indexes, stopIds } = findRiskyTerms(texts, keywords.data);
   if (matched.length === 0) {
-    return buildRiskResult(RULE_ID, RISK_STATUS.NO_FLAG, { values: { left: termCountText(texts.length), right: null } });
+    return buildRiskResult(RULE_ID, RISK_STATUS.NO_FLAG, {
+      values: { left: termCountText(texts.length), right: null },
+    });
   }
 
   // 걸린 줄을 특약 단위로 묶어서 "Special term 3: 문구"로 보여 준다. (#278)
@@ -392,20 +489,31 @@ export function assessSpecialTerms(fields) {
   const evidence = groupTerms(texts)
     .map((group) => {
       // 줄 맨 앞의 번호("3.")는 "Special term 3"에 이미 있어서 문구에서는 뺀다
-      const lines = group.indexes.filter((i) => hit.has(i)).map((i) => texts[i].replace(NUMBER_MARKER, '').trim());
+      const lines = group.indexes
+        .filter((i) => hit.has(i))
+        .map((i) => texts[i].replace(NUMBER_MARKER, "").trim());
       if (lines.length === 0) return null;
-      const text = clip(lines.join(' '));
-      return group.label === null ? text : `Special term ${group.label}: ${text}`;
+      const text = clip(lines.join(" "));
+      return group.label === null
+        ? text
+        : `Special term ${group.label}: ${text}`;
     })
     .filter((line) => line !== null);
 
-  return buildRiskResult(RULE_ID, stopIds.length > 0 ? RISK_STATUS.STOP : RISK_STATUS.CHECK, {
-    // label·reason은 키워드 파일에 있는 문구다. 특약 원문이 아니므로 설명에 넣어도 된다.
-    params: {
-      matched: matched.map((c) => c.label).join('; '),
-      reasons: matched.map((c) => c.reason).join(' '),
+  return buildRiskResult(
+    RULE_ID,
+    stopIds.length > 0 ? RISK_STATUS.STOP : RISK_STATUS.CHECK,
+    {
+      // label·reason은 키워드 파일에 있는 문구다. 특약 원문이 아니므로 설명에 넣어도 된다.
+      params: {
+        matched: matched.map((c) => c.label).join("; "),
+        reasons: matched.map((c) => c.reason).join(" "),
+      },
+      // 특약 원문(실제 이름이 있을 수 있음)은 화면 근거 칸에만 넣는다.
+      values: {
+        left: termCountText(texts.length),
+        right: evidence.join(" / "),
+      },
     },
-    // 특약 원문(실제 이름이 있을 수 있음)은 화면 근거 칸에만 넣는다.
-    values: { left: termCountText(texts.length), right: evidence.join(' / ') },
-  });
+  );
 }

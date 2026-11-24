@@ -583,3 +583,32 @@ describe('PART 3 날짜로 시작하는 줄은 특약 번호가 아니다 (#336 
     expect(assess(['3) 월세는 현금으로 지급한다.']).data.evidence.right.value).toBe('Special term 3: 월세는 현금으로 지급한다.');
   });
 });
+
+describe('PART 3 전입신고 금지 STOP 추가 보완 (#336 2차 리뷰)', () => {
+  // jygh429: 조건문·전입세대 열람은 STOP이 아니다
+  const notStop = [
+    '임차인이 전입신고를 할 수 없는 경우 계약을 해제할 수 있다.',
+    '임대인은 임차인의 전입세대 열람을 거부할 수 없다.',
+  ];
+
+  it.each(notStop)('조건문·전입세대 열람은 STOP이 아니다: %s', (sentence) => {
+    expect(assess([sentence]).data.status).not.toBe(STOP);
+  });
+
+  // jygh429: 대출 때문에 전입을 막는 특약은 STOP
+  it('근저당권자 요청으로 전입신고를 막는 특약은 STOP', () => {
+    expect(assess(['근저당권자의 요청에 따라 임차인은 전입신고를 하지 않는다.']).data.status).toBe(STOP);
+  });
+
+  it('키워드 파일: negation에 담보권·저당권·근저당이 없다', () => {
+    const stop = getSpecialTermKeywords().data.find((c) => c.id === 'REGISTRATION_BAN');
+    for (const word of ['담보권', '저당권', '근저당']) expect(stop.negation).not.toContain(word);
+  });
+
+  // jygh429: 날짜로 시작하는 줄 안의 진짜 번호
+  it('"3. 2027. 1. 5.까지 …"로 시작하는 줄은 3번 특약이다', () => {
+    expect(assess(['3. 2027. 1. 5.까지 월세는 현금으로 지급한다.']).data.evidence.right.value).toBe(
+      'Special term 3: 2027. 1. 5.까지 월세는 현금으로 지급한다.',
+    );
+  });
+});
