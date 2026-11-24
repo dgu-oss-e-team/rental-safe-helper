@@ -728,4 +728,51 @@ describe('PART 1 OCR interword spacing and whitespace normalization', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('sets preserve_interword_spaces to 1 on initial worker creation even without recovery pass (e.g., registry docs)', async () => {
+    vi.resetModules();
+    mockSetParameters.mockClear();
+    mockRecognize.mockReset();
+
+    mockRecognize.mockResolvedValueOnce({
+      data: {
+        confidence: 92,
+        text: '',
+        blocks: [
+          {
+            paragraphs: [
+              {
+                lines: [
+                  {
+                    text: '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uac00\uc0c1\ub85c 1',
+                    confidence: 94,
+                    bbox: { x0: 100, y0: 100, x1: 400, y1: 120 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({
+        width: 1000,
+        height: 1000,
+        close: () => {},
+      })
+    );
+
+    try {
+      const freshOcr = await import('../src/features/document-input/ocr.js');
+      const res = await freshOcr.recognizeImageText(new Uint8Array([1, 2, 3, 4]).buffer);
+      expect(res.blocks.map((b) => b.text)).toEqual(['\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uc911\uad6c \uac00\uc0c1\ub85c 1']);
+      expect(mockSetParameters).toHaveBeenCalledTimes(1);
+      expect(mockSetParameters).toHaveBeenCalledWith({ preserve_interword_spaces: '1' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
