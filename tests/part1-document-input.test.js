@@ -6,6 +6,7 @@ import * as ocrModule from '../src/features/document-input/ocr.js';
 import { readDocument, isSupportedFile } from '../src/features/document-input/index.js';
 
 const mockRecognize = vi.fn();
+const mockSetParameters = vi.fn().mockResolvedValue(undefined);
 const mockGetDocument = vi.fn();
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', async (importOriginal) => {
   const actual = await importOriginal();
@@ -16,7 +17,7 @@ vi.mock('pdfjs-dist/legacy/build/pdf.mjs', async (importOriginal) => {
 });
 vi.mock('tesseract.js', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, createWorker: vi.fn(async () => ({ recognize: mockRecognize })) };
+  return { ...actual, createWorker: vi.fn(async () => ({ recognize: mockRecognize, setParameters: mockSetParameters })) };
 });
 
 describe('PART 1 readDocument()', () => {
@@ -635,5 +636,96 @@ describe('PART 1 scanned PDF page progress callback', () => {
       },
     });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe('PART 1 OCR interword spacing and whitespace normalization', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockRecognize.mockReset();
+    mockSetParameters.mockClear();
+  });
+
+  it('restores preserve_interword_spaces to 1 (never 0) after lease table recovery and collapses runs of spaces', async () => {
+    mockRecognize
+      .mockResolvedValueOnce({
+        data: {
+          confidence: 88,
+          text: '',
+          blocks: [
+            {
+              paragraphs: [
+                {
+                  lines: [
+                    {
+                      text: '1.   \uacc4\uc57d   \ub2f9\uc0ac\uc790',
+                      confidence: 92,
+                      bbox: { x0: 100, y0: 100, x1: 400, y1: 120 },
+                    },
+                    {
+                      text: '\uc784\ucc28\uc778   \uae40\ucca0\uc218',
+                      confidence: 90,
+                      bbox: { x0: 100, y0: 250, x1: 400, y1: 270 },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          confidence: 88,
+          text: '',
+          blocks: [
+            {
+              paragraphs: [
+                {
+                  lines: [
+                    {
+                      text: '\uc784\ub300\uc0ac\uc5c5\uc790   \ud64d\uae38\ub3d9',
+                      confidence: 91,
+                      bbox: { x0: 100, y0: 175, x1: 400, y1: 195 },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({
+        width: 1000,
+        height: 1000,
+        close: () => {},
+      })
+    );
+
+    try {
+      const res = await ocrModule.recognizeImageText(new Uint8Array([1, 2, 3, 4]).buffer);
+      expect(res.blocks.map((b) => b.text)).toEqual([
+        '1. \uacc4\uc57d \ub2f9\uc0ac\uc790',
+        '\uc784\ub300\uc0ac\uc5c5\uc790 \ud64d\uae38\ub3d9',
+        '\uc784\ucc28\uc778 \uae40\ucca0\uc218',
+      ]);
+      expect(mockSetParameters).toHaveBeenCalledTimes(2);
+      expect(mockSetParameters).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ preserve_interword_spaces: '1' })
+      );
+      expect(mockSetParameters).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ preserve_interword_spaces: '1' })
+      );
+      for (const [params] of mockSetParameters.mock.calls) {
+        expect(params.preserve_interword_spaces).not.toBe('0');
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
