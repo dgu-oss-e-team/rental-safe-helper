@@ -24,8 +24,9 @@
 import { MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
 
 /**
- * @typedef {{ text: string, ruleId?: string }} QuestionEntry
+ * @typedef {{ text: string, ruleId?: string, jeonseOnly?: boolean }} QuestionEntry
  *   ruleId: 이 질문이 연결된 위험 점검 규칙. 그 점검이 NO_FLAG면 질문을 뺀다. 없으면 항상 넣는다.
+ *   jeonseOnly: 전세 계약용 질문. 월세 계약이면 MONTHLY_RENT_QUESTIONS로 바꾼다 (#279)
  */
 
 /** 목적별 최소 질문 수. 점검 결과로 질문을 빼더라도 이 수보다 적게 남기지 않는다. */
@@ -46,7 +47,10 @@ const RECOMMENDED_QUESTIONS = {
     ask('Is the mortgage (근저당) excessive compared to my deposit? What would it mean for getting my deposit back if the home is sold at auction?', 'MORTGAGE_EXISTS'),
     ask('What documents should I ask for to confirm that the landlord has the right to rent out this home (for example ID, trust register, written consent)?'),
     ask('If there is a mortgage (근저당) ahead of my deposit, should the contract include a special term that it will be cancelled (말소), and that the contract is void if this is not done?', 'MORTGAGE_EXISTS'),
-    ask('Should the contract include a special term that cancels the contract and returns my deposit if I cannot get a deposit return guarantee (전세보증금반환보증) through no fault of mine?'),
+    {
+      text: 'Should the contract include a special term that cancels the contract and returns my deposit if I cannot get a deposit return guarantee (전세보증금반환보증) through no fault of mine?',
+      jeonseOnly: true,
+    },
     ask('What should I do after signing to protect my deposit (for example 전입신고 and 확정일자), should I check the property register (등기부등본) again around move-in day, and is deposit return insurance an option for me?'),
     ask('Are there any verbal promises from the landlord (for example repairs or new wallpaper) that I should write into the special terms?'),
   ],
@@ -57,6 +61,25 @@ const RECOMMENDED_QUESTIONS = {
     ask('What are my rights and duties when the contract ends (deposit return, restoring the home, renewal), including by when I must tell the landlord if I do not want to renew?'),
   ],
 };
+
+/**
+ * 월세 계약(월세 > 0)일 때 전세보증금반환보증 질문 자리에 들어가는 질문 (#279)
+ *  - 보증금·월세 금액 기준 같은 법 숫자는 쓰지 않는다 (공식 자료 확인 전에는 잘못된 법 정보가 될 수 있다)
+ *  - 사실을 단정하지 않고 AI에게 묻는 형태로 쓴다
+ */
+const MONTHLY_RENT_QUESTIONS = [
+  ask('Does this contract need a rental deposit guarantee (임대보증금 보증), and has the landlord joined one?'),
+  ask('When and how should I report my move-in (전입신고) to protect my deposit?'),
+];
+
+/**
+ * 월세 계약인가. 월세가 0보다 큰 숫자일 때만 true.
+ * 값이 없거나(null/undefined), 0(전세)이거나, 숫자가 아니면 false → 기존 질문을 쓴다.
+ * @param {unknown} monthlyRent
+ */
+export function isMonthlyRent(monthlyRent) {
+  return typeof monthlyRent === 'number' && Number.isFinite(monthlyRent) && monthlyRent > 0;
+}
 
 /**
  * 이 질문과 연결된 점검이 "문제 없음(NO_FLAG)"으로 확인됐는가.
@@ -79,11 +102,15 @@ function isCleared(entry, riskResults) {
  *  - 질문이 MIN_QUESTIONS보다 적게 남으면, 뺀 질문을 원래 순서대로 다시 채운다
  * @param {string} purpose  MASKING_PURPOSE 값
  * @param {{ ruleId?: string, status?: string }[]} [riskResults]  assessRisks() 결과
+ * @param {{ monthlyRent?: number | null }} [options]  월세(원). 0보다 크면 전세 보증 질문을 월세용 질문으로 바꾼다
  * @returns {string[] | null}
  */
-export function getRecommendedQuestions(purpose, riskResults) {
-  const entries = RECOMMENDED_QUESTIONS[purpose];
-  if (!entries) return null;
+export function getRecommendedQuestions(purpose, riskResults, options = {}) {
+  const base = RECOMMENDED_QUESTIONS[purpose];
+  if (!base) return null;
+  const entries = isMonthlyRent(options?.monthlyRent)
+    ? base.flatMap((e) => (e.jeonseOnly ? MONTHLY_RENT_QUESTIONS : [e]))
+    : base;
   if (!Array.isArray(riskResults)) return entries.map((e) => e.text);
 
   const cleared = entries.map((e) => isCleared(e, riskResults));
