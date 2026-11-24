@@ -54,6 +54,8 @@ describe('PART 4 사진 서류 안전망 (findPhotoLeftover)', () => {
       '임대인 공동이',
       '임차인 가족이',
       '임차인 주소가',
+      '임대인 지위가',
+      '임대인 신탁이',
     ]) {
       expect(findPhotoLeftover(line), line).toBeNull();
     }
