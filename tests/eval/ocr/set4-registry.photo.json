@@ -1,115 +1,573 @@
 {
- "documentId": "doc-1795442418333-roxrm",
+ "documentId": "doc-1795493418207-3lnb8",
  "documentType": "UNKNOWN",
  "sourceType": "image_pdf",
  "pages": [
   {
    "pageIndex": 0,
-   "width": 1440,
-   "height": 1920,
+   "width": 1920,
+   "height": 1882,
    "blocks": [
     {
      "blockId": "p0_b0",
-     "text": "집 합 건물] 서 울 특 별시 동대문구 가 상 동 212-5 가 상 스테이 제 3 층 제 203 호",
+     "text": ":                                                                                          :",
      "bbox": {
-      "x": 0.0431,
-      "y": 0.0286,
-      "width": 0.5347,
-      "height": 0.0182
+      "x": 0,
+      "y": 0.043,
+      "width": 1,
+      "height": 0.0181
+     },
+     "confidence": 0.68
+    },
+    {
+     "blockId": "p0_b1",
+     "text": "기                        =      =    H =              5   TS                           |.",
+     "bbox": {
+      "x": 0.0047,
+      "y": 0.0616,
+      "width": 0.9953,
+      "height": 0.0101
+     },
+     "confidence": 0.73
+    },
+    {
+     "blockId": "p0_b2",
+     "text": "등기사항전부증명서(말소사항 포함)                      |",
+     "bbox": {
+      "x": 0.2849,
+      "y": 0.06,
+      "width": 0.4255,
+      "height": 0.026
      },
      "confidence": 0.91
     },
     {
-     "blockId": "p0_b1",
-     "text": "( 대 지 권 의 표시 )",
+     "blockId": "p0_b3",
+     "text": ":                                    - 집합건물 -                                    |",
+     "bbox": {
+      "x": 0,
+      "y": 0.0935,
+      "width": 1,
+      "height": 0.0266
+     },
+     "confidence": 0.83
+    },
+    {
+     "blockId": "p0_b4",
+     "text": "|:",
+     "bbox": {
+      "x": 0.9958,
+      "y": 0.1211,
+      "width": 0.0042,
+      "height": 0.008
+     },
+     "confidence": 0.45
+    },
+    {
+     "blockId": "p0_b5",
+     "text": "3          ]                                                                고유번호 1104-2019-006271        {",
+     "bbox": {
+      "x": 0,
+      "y": 0.1275,
+      "width": 0.999,
+      "height": 0.0266
+     },
+     "confidence": 0.67
+    },
+    {
+     "blockId": "p0_b6",
+     "text": "[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제303호                                              {",
+     "bbox": {
+      "x": 0.0792,
+      "y": 0.1472,
+      "width": 0.9208,
+      "height": 0.0303
+     },
+     "confidence": 0.86
+    },
+    {
+     "blockId": "p0_b7",
+     "text": "더                                                                                          、",
+     "bbox": {
+      "x": 0,
+      "y": 0.1769,
+      "width": 1,
+      "height": 0.0101
+     },
+     "confidence": 0.54
+    },
+    {
+     "blockId": "p0_b8",
+     "text": ":              CE 제 부 】 (159 건물의 표시 )              |",
+     "bbox": {
+      "x": 0,
+      "y": 0.1881,
+      "width": 1,
+      "height": 0.0303
+     },
+     "confidence": 0.82
+    },
+    {
+     "blockId": "p0_b9",
+     "text": "소재지번,건물명칭 및 번호  등기원인 및 기타사항         |",
+     "bbox": {
+      "x": 0.3115,
+      "y": 0.2242,
+      "width": 0.6885,
+      "height": 0.0223
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b10",
+     "text": ":        1       2019년4월2일 _ |서울특별시 동대문구 가상동       철근콘크리트구조                                      1",
+     "bbox": {
+      "x": 0.0047,
+      "y": 0.2471,
+      "width": 0.9953,
+      "height": 0.0223
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p0_b11",
+     "text": "a                         212-5                   (철근)콘크리트지붕                               |",
+     "bbox": {
+      "x": 0.0021,
+      "y": 0.2705,
+      "width": 0.9979,
+      "height": 0.0239
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b12",
+     "text": "p                             가상스테이                   5충 다세대주택",
+     "bbox": {
+      "x": 0,
+      "y": 0.2906,
+      "width": 0.6255,
+      "height": 0.0191
+     },
+     "confidence": 0.83
+    },
+    {
+     "blockId": "p0_b13",
+     "text": "이                                   [도로명주소]                     1충 46.20m                                                  |",
+     "bbox": {
+      "x": 0,
+      "y": 0.2949,
+      "width": 0.9984,
+      "height": 0.0351
+     },
+     "confidence": 0.81
+    },
+    {
+     "blockId": "p0_b14",
+     "text": "=|                           서울특별시 동대문구 가상로17길 _ |2충 168.54m                                      ]",
+     "bbox": {
+      "x": 0,
+      "y": 0.3284,
+      "width": 1,
+      "height": 0.0207
+     },
+     "confidence": 0.78
+    },
+    {
+     "blockId": "p0_b15",
+     "text": "5                           9                        3% 168.54m                                       i",
+     "bbox": {
+      "x": 0,
+      "y": 0.3491,
+      "width": 1,
+      "height": 0.0175
+     },
+     "confidence": 0.55
+    },
+    {
+     "blockId": "p0_b16",
+     "text": "3                                                       4% 168.54m                                         |",
+     "bbox": {
+      "x": 0,
+      "y": 0.365,
+      "width": 1,
+      "height": 0.026
+     },
+     "confidence": 0.56
+    },
+    {
+     "blockId": "p0_b17",
+     "text": "x                                                    5% 132.80m'                                       i",
+     "bbox": {
+      "x": 0.001,
+      "y": 0.3895,
+      "width": 0.999,
+      "height": 0.0154
+     },
+     "confidence": 0.73
+    },
+    {
+     "blockId": "p0_b18",
+     "text": "=                                               옥탑1충",
+     "bbox": {
+      "x": 0,
+      "y": 0.4081,
+      "width": 0.5755,
+      "height": 0.0197
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b19",
+     "text": "=                                               14.60m (ARH A]9))",
+     "bbox": {
+      "x": 0.0016,
+      "y": 0.4187,
+      "width": 0.9984,
+      "height": 0.0287
+     },
+     "confidence": 0.56
+    },
+    {
+     "blockId": "p0_b20",
+     "text": "i",
+     "bbox": {
+      "x": 0,
+      "y": 0.4447,
+      "width": 1,
+      "height": 0.0154
+     },
+     "confidence": 0.59
+    },
+    {
+     "blockId": "p0_b21",
+     "text": "3                                  ( 대지권의 목적인 토지의 표시 )                                   ;",
+     "bbox": {
+      "x": 0,
+      "y": 0.4607,
+      "width": 0.6036,
+      "height": 0.017
+     },
+     "confidence": 0.77
+    },
+    {
+     "blockId": "p0_b22",
+     "text": "[EE saw Tas [ed | omuaew          |",
+     "bbox": {
+      "x": 0.0792,
+      "y": 0.4782,
+      "width": 0.9208,
+      "height": 0.0324
+     },
+     "confidence": 0.31
+    },
+    {
+     "blockId": "p0_b23",
+     "text": "1       1. 서울특별시 동대문구 가상동                대      318m’      20194929 등기               :",
+     "bbox": {
+      "x": 0.0854,
+      "y": 0.5085,
+      "width": 0.913,
+      "height": 0.0244
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p0_b24",
+     "text": "4              212-5                                                                         i",
+     "bbox": {
+      "x": 0.001,
+      "y": 0.5329,
+      "width": 0.999,
+      "height": 0.0186
+     },
+     "confidence": 0.75
+    },
+    {
+     "blockId": "p0_b25",
+     "text": "-      |                     [EA 부 】 ( 전유부문의 건물의 표시 )                           [",
+     "bbox": {
+      "x": 0,
+      "y": 0.5659,
+      "width": 1,
+      "height": 0.0324
+     },
+     "confidence": 0.8
+    },
+    {
+     "blockId": "p0_b26",
+     "text": ">            -",
+     "bbox": {
+      "x": 0,
+      "y": 0.5994,
+      "width": 1,
+      "height": 0.0117
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p0_b27",
+     "text": ":  EICEREIT ㅣ",
+     "bbox": {
+      "x": 0,
+      "y": 0.6095,
+      "width": 1,
+      "height": 0.0213
+     },
+     "confidence": 0.06
+    },
+    {
+     "blockId": "p0_b28",
+     "text": ":        1        2019년4월2일     제3충 제203호           철근콘크리트구조                                 |         들",
+     "bbox": {
+      "x": 0,
+      "y": 0.6302,
+      "width": 1,
+      "height": 0.0239
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b29",
+     "text": "33.06마                                  |       -",
+     "bbox": {
+      "x": 0.487,
+      "y": 0.653,
+      "width": 0.513,
+      "height": 0.0154
+     },
+     "confidence": 0.48
+    },
+    {
+     "blockId": "p0_b30",
+     "text": "]        :",
+     "bbox": {
+      "x": 0,
+      "y": 0.669,
+      "width": 1,
+      "height": 0.0143
+     },
+     "confidence": 0.42
+    },
+    {
+     "blockId": "p0_b31",
+     "text": "|                                                                                          :",
+     "bbox": {
+      "x": 0,
+      "y": 0.6833,
+      "width": 0.0063,
+      "height": 0.0159
+     },
+     "confidence": 0.09
+    },
+    {
+     "blockId": "p0_b32",
+     "text": "이                                                                                          드",
+     "bbox": {
+      "x": 0,
+      "y": 0.7109,
+      "width": 1,
+      "height": 0.0117
+     },
+     "confidence": 0.27
+    },
+    {
+     "blockId": "p0_b33",
+     "text": "E",
+     "bbox": {
+      "x": 0.9932,
+      "y": 0.7237,
+      "width": 0.0068,
+      "height": 0.0159
+     },
+     "confidence": 0.81
+    },
+    {
+     "blockId": "p0_b34",
+     "text": "|               :",
+     "bbox": {
+      "x": 0.8229,
+      "y": 0.755,
+      "width": 0.1771,
+      "height": 0.0149
+     },
+     "confidence": 0.69
+    },
+    {
+     "blockId": "p0_b35",
+     "text": ":                                                                                          E",
+     "bbox": {
+      "x": 0,
+      "y": 0.8082,
+      "width": 1,
+      "height": 0.0165
+     },
+     "confidence": 0.42
+    },
+    {
+     "blockId": "p0_b36",
+     "text": ":                                                                                          2",
+     "bbox": {
+      "x": 0.0021,
+      "y": 0.8241,
+      "width": 0.9979,
+      "height": 0.0154
+     },
+     "confidence": 0.21
+    },
+    {
+     "blockId": "p0_b37",
+     "text": "도",
+     "bbox": {
+      "x": 0.9922,
+      "y": 0.8502,
+      "width": 0.0078,
+      "height": 0.0191
+     },
+     "confidence": 0.19
+    },
+    {
+     "blockId": "p0_b38",
+     "text": "기                                                                                          다",
+     "bbox": {
+      "x": 0,
+      "y": 0.8698,
+      "width": 1,
+      "height": 0.0133
+     },
+     "confidence": 0.51
+    },
+    {
+     "blockId": "p0_b39",
+     "text": ":                                                                                          2",
+     "bbox": {
+      "x": 0,
+      "y": 0.8863,
+      "width": 1,
+      "height": 0.0175
+     },
+     "confidence": 0.31
+    },
+    {
+     "blockId": "p0_b40",
+     "text": "、                                                                                          #",
+     "bbox": {
+      "x": 0,
+      "y": 0.9623,
+      "width": 1,
+      "height": 0.0159
+     },
+     "confidence": 0.39
+    },
+    {
+     "blockId": "p0_b41",
+     "text": ":                                                                                          =",
+     "bbox": {
+      "x": 0,
+      "y": 0.9793,
+      "width": 1,
+      "height": 0.0112
+     },
+     "confidence": 0.55
+    },
+    {
+     "blockId": "p0_b42",
+     "text": "%                                                                                          f=",
+     "bbox": {
+      "x": 0,
+      "y": 0.9899,
+      "width": 1,
+      "height": 0.0101
+     },
+     "confidence": 0.07
+    }
+   ]
+  },
+  {
+   "pageIndex": 1,
+   "width": 1440,
+   "height": 1920,
+   "blocks": [
+    {
+     "blockId": "p1_b0",
+     "text": "[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제3층 제203호",
+     "bbox": {
+      "x": 0.0361,
+      "y": 0.0286,
+      "width": 0.5417,
+      "height": 0.0182
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b1",
+     "text": "( 대지권의 표시 )",
      "bbox": {
       "x": 0.4382,
       "y": 0.0589,
       "width": 0.1319,
       "height": 0.012
      },
-     "confidence": 0.88
+     "confidence": 0.92
     },
     {
-     "blockId": "p0_b2",
-     "text": "표 시 번호 대 지 권 비율 등 기 원인 및 기 타 사항 |",
+     "blockId": "p1_b2",
+     "text": "owe | 대지퀸위. [awe                S09 및 기타사항          |",
      "bbox": {
-      "x": 0.0486,
-      "y": 0.0776,
-      "width": 0.9167,
-      "height": 0.0208
+      "x": 0.0368,
+      "y": 0.0729,
+      "width": 0.9285,
+      "height": 0.0266
+     },
+     "confidence": 0.38
+    },
+    {
+     "blockId": "p1_b3",
+     "text": "1 소유권대지권             318분의 21.73         2019년3월20일 대지권                    |",
+     "bbox": {
+      "x": 0.1319,
+      "y": 0.1016,
+      "width": 0.8319,
+      "height": 0.0219
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b4",
+     "text": "2019년4월2일 등기                      |",
+     "bbox": {
+      "x": 0.5875,
+      "y": 0.1245,
+      "width": 0.3757,
+      "height": 0.0135
      },
      "confidence": 0.91
     },
     {
-     "blockId": "p0_b3",
-     "text": "—",
+     "blockId": "p1_b5",
+     "text": "[ 감 구 】 ( 소유권에 관한 사항 )            |",
      "bbox": {
-      "x": 0.8424,
-      "y": 0.1031,
-      "width": 0.1222,
-      "height": 0.0089
+      "x": 0.3569,
+      "y": 0.1573,
+      "width": 0.6042,
+      "height": 0.0172
      },
-     "confidence": 0.8
+     "confidence": 0.86
     },
     {
-     "blockId": "p0_b4",
-     "text": "1 소 유 권 대 지 권 318 분 의 21.73 2019 년 3 월 20 일 대 지 권",
+     "blockId": "p1_b6",
+     "text": "보타 된 각자",
      "bbox": {
-      "x": 0.1319,
-      "y": 0.1016,
-      "width": 0.6118,
-      "height": 0.0177
+      "x": 0.7076,
+      "y": 0.1885,
+      "width": 0.1389,
+      "height": 0.012
      },
-     "confidence": 0.9
+     "confidence": 0.04
     },
     {
-     "blockId": "p0_b5",
-     "text": "2019 년 4 월 2 일 등기",
-     "bbox": {
-      "x": 0.5875,
-      "y": 0.1245,
-      "width": 0.1313,
-      "height": 0.0115
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p0_b6",
-     "text": "ㅣ [ 갑 구 】 ( 소 유 권 에 관한 사항 ) ㅣ",
-     "bbox": {
-      "x": 0.0375,
-      "y": 0.149,
-      "width": 0.9236,
-      "height": 0.0302
-     },
-     "confidence": 0.85
-    },
-    {
-     "blockId": "p0_b7",
-     "text": "Tr pes",
-     "bbox": {
-      "x": 0.0354,
-      "y": 0.1745,
-      "width": 0.0715,
-      "height": 0.0104
-     },
-     "confidence": 0.41
-    },
-    {
-     "blockId": "p0_b8",
-     "text": "순 위 번호 등 기 목 적 권리자 및 기 타 사항",
-     "bbox": {
-      "x": 0.0521,
-      "y": 0.1818,
-      "width": 0.7944,
-      "height": 0.0187
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p0_b9",
-     "text": "1 소 유 권 보존 2019 년 4 월 2 일 소유자 전우치 790318-*#*****",
+     "blockId": "p1_b7",
+     "text": "1       소유권보존         2019년4월2일                 소유자 전우치 790318-*#*****",
      "bbox": {
       "x": 0.0486,
       "y": 0.2057,
@@ -119,52 +577,52 @@
      "confidence": 0.9
     },
     {
-     "blockId": "p0_b10",
-     "text": "제 23118 호 서 울 특별시 동대문구 가 상 로 17 길 9, |",
+     "blockId": "p1_b8",
+     "text": "제23118호                    서울특별시 동대문구 가상로17길 9,          |",
      "bbox": {
       "x": 0.316,
-      "y": 0.2245,
+      "y": 0.2224,
       "width": 0.6417,
-      "height": 0.0208
+      "height": 0.0229
      },
-     "confidence": 0.92
+     "confidence": 0.93
     },
     {
-     "blockId": "p0_b11",
-     "text": "3203 호 ( 가 상 동) |",
+     "blockId": "p1_b9",
+     "text": "203호(가상동)                       |",
      "bbox": {
-      "x": 0.5951,
-      "y": 0.2417,
-      "width": 0.3618,
-      "height": 0.0167
+      "x": 0.5979,
+      "y": 0.2401,
+      "width": 0.359,
+      "height": 0.0193
      },
-     "confidence": 0.85
+     "confidence": 0.91
     },
     {
-     "blockId": "p0_b12",
-     "text": "1-1 1 번 등 기 명 의 인 표시 2022 년 5 월 30 일 전 우 치 의 주소 서 울 특별시 성북구 가 상 로",
+     "blockId": "p1_b10",
+     "text": "1-1      1번등기명의인표시                  2022년5월30일    전우치의 주소 서울특별시 성북구 가상로      |",
      "bbox": {
       "x": 0.0507,
       "y": 0.262,
-      "width": 0.8396,
+      "width": 0.9049,
       "height": 0.0172
      },
      "confidence": 0.92
     },
     {
-     "blockId": "p0_b13",
-     "text": "변경 전거 63, 503 호 ( 가 상 동 , 가 상 맨션)",
+     "blockId": "p1_b11",
+     "text": "변경                          전거          63, 505호(가상동,가상맨션)              |",
      "bbox": {
       "x": 0.1375,
       "y": 0.2781,
-      "width": 0.6583,
+      "width": 0.8174,
       "height": 0.0167
      },
-     "confidence": 0.9
+     "confidence": 0.89
     },
     {
-     "blockId": "p0_b14",
-     "text": "2025 년 6 월 20 일 부기 |",
+     "blockId": "p1_b12",
+     "text": "2025년6월20일 부기                    |",
      "bbox": {
       "x": 0.5965,
       "y": 0.2911,
@@ -174,30 +632,30 @@
      "confidence": 0.85
     },
     {
-     "blockId": "p0_b15",
-     "text": "2 소 유 권 일 부 이전 2083 년 6 월 20 일 ㅣ 2022 년 6 월 13 일 | FHA AE 289 1 |",
+     "blockId": "p1_b13",
+     "text": "2        소유권일부이전       2022년6월20일    2022년6월13일    공유자 지분 2분의 1                     |",
      "bbox": {
       "x": 0.0521,
-      "y": 0.3151,
-      "width": 0.9007,
-      "height": 0.0167
+      "y": 0.3161,
+      "width": 0.9,
+      "height": 0.0156
      },
-     "confidence": 0.71
+     "confidence": 0.93
     },
     {
-     "blockId": "p0_b16",
-     "text": "제 48821 호 증여 황진이 890605- 예 에에 |",
+     "blockId": "p1_b14",
+     "text": "제48821호       증여          황진이 830605-*#***                  |",
      "bbox": {
       "x": 0.3181,
       "y": 0.3318,
       "width": 0.6333,
       "height": 0.0151
      },
-     "confidence": 0.67
+     "confidence": 0.76
     },
     {
-     "blockId": "p0_b17",
-     "text": "서 울 특별시 성북구 가 상 로 63,",
+     "blockId": "p1_b15",
+     "text": "서울특별시 성북구 가상로 63,",
      "bbox": {
       "x": 0.5958,
       "y": 0.3516,
@@ -207,374 +665,147 @@
      "confidence": 0.94
     },
     {
-     "blockId": "p0_b18",
-     "text": "1 조에 Jo",
-     "bbox": {
-      "x": 0.6236,
-      "y": 0.3661,
-      "width": 0.1083,
-      "height": 0.0104
-     },
-     "confidence": 0.23
-    },
-    {
-     "blockId": "p0_b19",
-     "text": "803 호 ( 가 상 동 , 가 상 맨션)",
+     "blockId": "p1_b16",
+     "text": "508호(가상동,가상맨션)",
      "bbox": {
       "x": 0.5951,
       "y": 0.3672,
       "width": 0.1653,
       "height": 0.0115
      },
-     "confidence": 0.87
+     "confidence": 0.92
     },
     {
-     "blockId": "p0_b20",
-     "text": "J",
+     "blockId": "p1_b17",
+     "text": "|",
      "bbox": {
-      "x": 0,
-      "y": 0.9276,
-      "width": 0.0042,
-      "height": 0.0089
+      "x": 0.9986,
+      "y": 0.7927,
+      "width": 0.0014,
+      "height": 0.0063
      },
-     "confidence": 0.33
+     "confidence": 0.51
     },
     {
-     "blockId": "p0_b21",
-     "text": "2/3",
+     "blockId": "p1_b18",
+     "text": "|",
      "bbox": {
-      "x": 0.8938,
-      "y": 0.9526,
-      "width": 0.0181,
-      "height": 0.0078
+      "x": 0.9979,
+      "y": 0.7995,
+      "width": 0.0021,
+      "height": 0.012
+     },
+     "confidence": 0.69
+    },
+    {
+     "blockId": "p1_b19",
+     "text": "|",
+     "bbox": {
+      "x": 0.9944,
+      "y": 0.8115,
+      "width": 0.0056,
+      "height": 0.0318
      },
      "confidence": 0.96
     },
     {
-     "blockId": "p0_b22",
-     "text": "열 람 일시 : 2026 년 11 월 21 일 1641 18¥ 44%",
-     "bbox": {
-      "x": 0.0722,
-      "y": 0.9531,
-      "width": 0.2451,
-      "height": 0.0146
-     },
-     "confidence": 0.74
-    }
-   ]
-  },
-  {
-   "pageIndex": 1,
-   "width": 1920,
-   "height": 1882,
-   "blocks": [
-    {
-     "blockId": "p1_b0",
-     "text": ": 등 기 사 항 전 부 증 명 서 ( 말 소 사 항 포함)",
-     "bbox": {
-      "x": 0,
-      "y": 0.06,
-      "width": 0.7104,
-      "height": 0.0287
-     },
-     "confidence": 0.87
-    },
-    {
-     "blockId": "p1_b1",
-     "text": ": - 집 합 건물 -",
-     "bbox": {
-      "x": 0,
-      "y": 0.0935,
-      "width": 0.5552,
-      "height": 0.0181
-     },
-     "confidence": 0.84
-    },
-    {
-     "blockId": "p1_b2",
-     "text": "[ 집 합 건물] 서 울 특별시 동대문구 가 상 동 212-5 가 상 스테이 제 2 층 제 303 호",
-     "bbox": {
-      "x": 0.0792,
-      "y": 0.1472,
-      "width": 0.4849,
-      "height": 0.0213
-     },
-     "confidence": 0.89
-    },
-    {
-     "blockId": "p1_b3",
-     "text": "[EA 부 】 (159 건 물 의 표시 )",
-     "bbox": {
-      "x": 0.3583,
-      "y": 0.1913,
-      "width": 0.287,
-      "height": 0.0165
-     },
-     "confidence": 0.84
-    },
-    {
-     "blockId": "p1_b4",
-     "text": "접 수 소 재 지 번 , 건 물 명칭 및 번호",
-     "bbox": {
-      "x": 0.1984,
-      "y": 0.2226,
-      "width": 0.2891,
-      "height": 0.0165
-     },
-     "confidence": 0.9
-    },
-    {
-     "blockId": "p1_b5",
-     "text": "1",
-     "bbox": {
-      "x": 0.0854,
-      "y": 0.2487,
-      "width": 0.0052,
-      "height": 0.0112
-     },
-     "confidence": 0.91
-    },
-    {
-     "blockId": "p1_b6",
-     "text": "2019 년 4 월 2 일 서 울 특별시 동대문구 가 상 동",
-     "bbox": {
-      "x": 0.1604,
-      "y": 0.2508,
-      "width": 0.3057,
-      "height": 0.0165
-     },
-     "confidence": 0.9
-    },
-    {
-     "blockId": "p1_b7",
-     "text": "212-5",
-     "bbox": {
-      "x": 0.2823,
-      "y": 0.2731,
-      "width": 0.0349,
-      "height": 0.0106
-     },
-     "confidence": 0.9
-    },
-    {
-     "blockId": "p1_b8",
-     "text": "가 상 스테이",
-     "bbox": {
-      "x": 0.2828,
-      "y": 0.2906,
-      "width": 0.0677,
-      "height": 0.0143
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p1_b9",
-     "text": "[ 도 로 명 주소]",
-     "bbox": {
-      "x": 0.2839,
-      "y": 0.3103,
-      "width": 0.0813,
-      "height": 0.0143
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p1_b10",
-     "text": "서 울 특별시 동대문구 가 상 로 17 길",
-     "bbox": {
-      "x": 0.2823,
-      "y": 0.3284,
-      "width": 0.2104,
-      "height": 0.0159
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p1_b11",
-     "text": "9",
-     "bbox": {
-      "x": 0.2818,
-      "y": 0.3491,
-      "width": 0.0063,
-      "height": 0.0106
-     },
-     "confidence": 0.95
-    },
-    {
-     "blockId": "p1_b12",
-     "text": "등 기 원인 및 기 타 사항",
-     "bbox": {
-      "x": 0.7396,
-      "y": 0.4888,
-      "width": 0.1427,
-      "height": 0.0138
-     },
-     "confidence": 0.94
-    },
-    {
-     "blockId": "p1_b13",
-     "text": "도 2019 년 4 월 2 일 등기",
-     "bbox": {
-      "x": 0.2672,
-      "y": 0.5143,
-      "width": 0.5656,
-      "height": 0.0159
-     },
-     "confidence": 0.9
-    },
-    {
-     "blockId": "p1_b14",
-     "text": "[ 표 제 부 】 ( 전 유 부 분 의 건 물 의 표시 )",
-     "bbox": {
-      "x": 0.337,
-      "y": 0.576,
-      "width": 0.3245,
-      "height": 0.0165
-     },
-     "confidence": 0.88
-    },
-    {
-     "blockId": "p1_b15",
-     "text": "1 물",
-     "bbox": {
-      "x": 0.3526,
-      "y": 0.6084,
-      "width": 0.0276,
-      "height": 0.0128
-     },
-     "confidence": 0.74
-    },
-    {
-     "blockId": "p1_b16",
-     "text": "2019 년 4 월 일 제 3 충 제 208 호",
-     "bbox": {
-      "x": 0.1641,
-      "y": 0.6344,
-      "width": 0.2203,
-      "height": 0.0143
-     },
-     "confidence": 0.82
-    },
-    {
-     "blockId": "p1_b17",
-     "text": "등 기 원인 및 기 타 사항 |",
-     "bbox": {
-      "x": 0.7469,
-      "y": 0.6105,
-      "width": 0.1651,
-      "height": 0.0138
-     },
-     "confidence": 0.83
-    },
-    {
-     "blockId": "p1_b18",
-     "text": "철 근 콘 크 리 트 구조",
-     "bbox": {
-      "x": 0.4896,
-      "y": 0.6371,
-      "width": 0.1083,
-      "height": 0.0133
-     },
-     "confidence": 0.93
-    },
-    {
-     "blockId": "p1_b19",
-     "text": "33.06m’",
-     "bbox": {
-      "x": 0.487,
-      "y": 0.6573,
-      "width": 0.0474,
-      "height": 0.0106
-     },
-     "confidence": 0.56
-    },
-    {
      "blockId": "p1_b20",
-     "text": ":",
+     "text": ".",
      "bbox": {
-      "x": 0,
-      "y": 0.6057,
-      "width": 0.0068,
-      "height": 0.0175
-     },
-     "confidence": 0.3
-    },
-    {
-     "blockId": "p1_b21",
-     "text": ":",
-     "bbox": {
-      "x": 0,
-      "y": 0.6366,
+      "x": 0.9938,
+      "y": 0.8448,
       "width": 0.0063,
-      "height": 0.0266
-     },
-     "confidence": 0.44
-    },
-    {
-     "blockId": "p1_b22",
-     "text": "기",
-     "bbox": {
-      "x": 0,
-      "y": 0.6631,
-      "width": 0.0063,
-      "height": 0.0096
-     },
-     "confidence": 0.43
-    },
-    {
-     "blockId": "p1_b23",
-     "text": "]",
-     "bbox": {
-      "x": 0,
-      "y": 0.6743,
-      "width": 0.0063,
-      "height": 0.0112
-     },
-     "confidence": 0.54
-    },
-    {
-     "blockId": "p1_b24",
-     "text": "A",
-     "bbox": {
-      "x": 0,
-      "y": 0.6854,
-      "width": 0.0063,
-      "height": 0.0138
-     },
-     "confidence": 0.54
-    },
-    {
-     "blockId": "p1_b25",
-     "text": ":",
-     "bbox": {
-      "x": 0,
-      "y": 0.7088,
-      "width": 0.0057,
-      "height": 0.0138
-     },
-     "confidence": 0.19
-    },
-    {
-     "blockId": "p1_b26",
-     "text": "Papm——",
-     "bbox": {
-      "x": 0.9943,
-      "y": 0.0005,
-      "width": 0.0057,
-      "height": 0.0452
+      "height": 0.0094
      },
      "confidence": 0
     },
     {
-     "blockId": "p1_b27",
-     "text": "UPRIMA RAT AES BE 000 S200 라오 4 50 우다) 고아 아그 | 이 ITT THN 104 5 J Te RI IS 0 FINE 1 혼자 한 하 항 해 해 222222222000090~000020000000000000000000000000000000000000000000000700",
+     "blockId": "p1_b21",
+     "text": "는",
      "bbox": {
-      "x": 0.9901,
-      "y": 0.0484,
-      "width": 0.0099,
-      "height": 0.9501
+      "x": 0.9924,
+      "y": 0.8536,
+      "width": 0.0076,
+      "height": 0.0146
      },
-     "confidence": 0.13
+     "confidence": 0.64
+    },
+    {
+     "blockId": "p1_b22",
+     "text": "[",
+     "bbox": {
+      "x": 0.9903,
+      "y": 0.8688,
+      "width": 0.0097,
+      "height": 0.0286
+     },
+     "confidence": 0.18
+    },
+    {
+     "blockId": "p1_b23",
+     "text": "s",
+     "bbox": {
+      "x": 0.9889,
+      "y": 0.8979,
+      "width": 0.0111,
+      "height": 0.013
+     },
+     "confidence": 0.04
+    },
+    {
+     "blockId": "p1_b24",
+     "text": "£",
+     "bbox": {
+      "x": 0.9882,
+      "y": 0.9099,
+      "width": 0.0118,
+      "height": 0.0109
+     },
+     "confidence": 0.67
+    },
+    {
+     "blockId": "p1_b25",
+     "text": "=",
+     "bbox": {
+      "x": 0.9868,
+      "y": 0.9203,
+      "width": 0.0132,
+      "height": 0.0182
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p1_b26",
+     "text": "열람일시 20268119219 16시18분서초                                   0    툰",
+     "bbox": {
+      "x": 0.0722,
+      "y": 0.9526,
+      "width": 0.9271,
+      "height": 0.0182
+     },
+     "confidence": 0.75
+    },
+    {
+     "blockId": "p1_b27",
+     "text": "E",
+     "bbox": {
+      "x": 0.9826,
+      "y": 0.9719,
+      "width": 0.0174,
+      "height": 0.0141
+     },
+     "confidence": 0.83
+    },
+    {
+     "blockId": "p1_b28",
+     "text": "| 고",
+     "bbox": {
+      "x": 0.9812,
+      "y": 0.9865,
+      "width": 0.0187,
+      "height": 0.0135
+     },
+     "confidence": 0.76
     }
    ]
   },
@@ -585,7 +816,7 @@
    "blocks": [
     {
      "blockId": "p2_b0",
-     "text": "[ 집 합 건물] 서 울 특별시 동대문구 가 상 동 210-5 가 상 스테이 제 2 층 제 203 호",
+     "text": "[집합건물] 서울특별시 동대문구 가상동 210-5 가상스테이 제2층 제203호",
      "bbox": {
       "x": 0.0302,
       "y": 0.0142,
@@ -596,62 +827,73 @@
     },
     {
      "blockId": "p2_b1",
-     "text": "[ 을 구 】 ( 소유권 이 외 의 권 리 에 관한 사항 ) ㅣ",
+     "text": "[ 을 구 】 ( 소유권 이외의 권리에 관한 사항 )                  |",
      "bbox": {
       "x": 0.2969,
       "y": 0.071,
       "width": 0.6781,
       "height": 0.042
      },
-     "confidence": 0.91
+     "confidence": 0.92
     },
     {
      "blockId": "p2_b2",
-     "text": "근 저 당 권 설정 2022 년 6 월 20 일 2022 년 6 월 20 일 채 권 최고액 금 96,000,000 원 ㅣ",
+     "text": "[enue] SA%d | ax | wswe |]           EEERCIT           |",
      "bbox": {
-      "x": 0.124,
-      "y": 0.1438,
-      "width": 0.8484,
-      "height": 0.0497
+      "x": 0.0266,
+      "y": 0.0935,
+      "width": 0.9469,
+      "height": 0.0627
+     },
+     "confidence": 0.3
+    },
+    {
+     "blockId": "p2_b3",
+     "text": "1        근저당권설정        2022년6월20일    2022년6월20일    채권최고액 금96,000,000원                ㅣ",
+     "bbox": {
+      "x": 0.0359,
+      "y": 0.1432,
+      "width": 0.9365,
+      "height": 0.0503
      },
      "confidence": 0.91
     },
     {
-     "blockId": "p2_b3",
-     "text": "제 48822 호 설 정 계약 채무자 전우치 |",
+     "blockId": "p2_b4",
+     "text": "제48822호       설정계약        채무자 전우치                          |",
      "bbox": {
       "x": 0.3094,
       "y": 0.1757,
       "width": 0.662,
       "height": 0.0438
      },
-     "confidence": 0.91
+     "confidence": 0.9
     },
     {
-     "blockId": "p2_b4",
-     "text": "서 울 특별시 성북구 가 상 로 63, 502 호 ( 가 상 동 , 가 |",
+     "blockId": "p2_b5",
+     "text": "서울특별시 성북구 가상로 63, 808호(가상동,가 ，",
      "bbox": {
       "x": 0.6,
       "y": 0.2083,
       "width": 0.3703,
       "height": 0.0355
      },
-     "confidence": 0.92
-    },
-    {
-     "blockId": "p2_b5",
-     "text": "상 맨션)",
-     "bbox": {
-      "x": 0.5995,
-      "y": 0.2337,
-      "width": 0.0536,
-      "height": 0.0178
-     },
-     "confidence": 0.92
+     "confidence": 0.89
     },
     {
      "blockId": "p2_b6",
-     "text": "근 저 당 권 자 주 식 회 사 가 상 은행 110111-0012345 |",
+     "text": "상맨션)                                |",
+     "bbox": {
+      "x": 0.5995,
+      "y": 0.2337,
+      "width": 0.3698,
+      "height": 0.026
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p2_b7",
+     "text": "근저당권자 주식회사가상은행 110111-0012345   |",
      "bbox": {
       "x": 0.599,
       "y": 0.2574,
@@ -661,30 +903,41 @@
      "confidence": 0.9
     },
     {
-     "blockId": "p2_b7",
-     "text": "서 울 특별시 중구 가 상 대로 100( 가 상동)",
+     "blockId": "p2_b8",
+     "text": "서울특별시 중구 가상대로 100(가상동)        |",
      "bbox": {
       "x": 0.5979,
       "y": 0.2822,
-      "width": 0.2854,
-      "height": 0.0243
+      "width": 0.3698,
+      "height": 0.0331
      },
      "confidence": 0.9
     },
     {
-     "blockId": "p2_b8",
-     "text": "공 동 담보 지분 전부",
+     "blockId": "p2_b9",
+     "text": "공동담보 지분 전부                       |",
      "bbox": {
       "x": 0.5979,
       "y": 0.3083,
-      "width": 0.1417,
-      "height": 0.0195
+      "width": 0.3693,
+      "height": 0.0201
      },
-     "confidence": 0.88
+     "confidence": 0.91
     },
     {
-     "blockId": "p2_b9",
-     "text": "관 할 등기소 서 울 북 부 지 방 법원 동 대 문 등기소",
+     "blockId": "p2_b10",
+     "text": "-- 이 하 여 백 --",
+     "bbox": {
+      "x": 0.3651,
+      "y": 0.3574,
+      "width": 0.2552,
+      "height": 0.0213
+     },
+     "confidence": 0.89
+    },
+    {
+     "blockId": "p2_b11",
+     "text": "관할둥기소 서울북부지방법원 동대문등기소",
      "bbox": {
       "x": 0.6464,
       "y": 0.4118,
@@ -694,59 +947,48 @@
      "confidence": 0.9
     },
     {
-     "blockId": "p2_b10",
-     "text": "RAS FOU 부 분 은 말 소 사 항 을 표 시 함 . * 기 록 사항 없는 갑구, 을 구는 ' 기 록 사항 없음 ' 으 로 TAY,",
+     "blockId": "p2_b12",
+     "text": "* 실선으로 그어진 부분은 말소사항을 표시함. * 기록사항 없는 갑구, 을구는 '기록사항 없음'으로 표시함.",
      "bbox": {
       "x": 0.0271,
-      "y": 0.442,
+      "y": 0.4408,
       "width": 0.662,
-      "height": 0.0325
+      "height": 0.0337
      },
-     "confidence": 0.83
+     "confidence": 0.92
     },
     {
-     "blockId": "p2_b11",
-     "text": "* 중 명 서는 컬러 또는 혹 백 으로 출력 가능함.",
+     "blockId": "p2_b13",
+     "text": "* 중명서는 컬러 또는 흑백으로 출력 가능함.",
      "bbox": {
       "x": 0.0276,
       "y": 0.4763,
       "width": 0.2781,
       "height": 0.0231
      },
-     "confidence": 0.92
+     "confidence": 0.93
     },
     {
-     "blockId": "p2_b12",
-     "text": "PE 동 기 사 항 중 명 서는 열 람 용 이 므로 출 력 하신 등 기 사 항 중 명 서는 법적인 호 력 이 없습니다.",
+     "blockId": "p2_b14",
+     "text": "* 본 동기사항중명서는 열람용이므로 출력하신 등기사항증명서는 법적인 효력이 없습니다.",
      "bbox": {
       "x": 0.0276,
       "y": 0.513,
       "width": 0.5542,
       "height": 0.0314
      },
-     "confidence": 0.88
+     "confidence": 0.9
     },
     {
-     "blockId": "p2_b13",
-     "text": "이 EAE 테 스 트 용 가상 문 서 입니다. 실제 등 기 사 항 중 명 서가 아니며, 이름 ㆍ 번 호 ㆍ 주 소 는 모두 지어낸 값 입니다.",
+     "blockId": "p2_b15",
+     "text": "이 문서는 테스트용 가상 문서입니다. 실제 등기사항중명서가 아니며, 이름ㆍ번호ㆍ주소는 모두 지어낸 값입니다.",
      "bbox": {
       "x": 0.1432,
       "y": 0.5509,
       "width": 0.6964,
       "height": 0.0331
      },
-     "confidence": 0.86
-    },
-    {
-     "blockId": "p2_b14",
-     "text": "a)",
-     "bbox": {
-      "x": 0.2969,
-      "y": 0.6592,
-      "width": 0.0052,
-      "height": 0.016
-     },
-     "confidence": 0.39
+     "confidence": 0.92
     }
    ]
   }

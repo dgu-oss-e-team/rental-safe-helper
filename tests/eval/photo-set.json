@@ -29,8 +29,8 @@
       "ocr": "tests/eval/ocr/set4-registry.photo.json",
       "folder": "가짜_등기부등본_공인중개사_사진",
       "files": [
-        "KakaoTalk_20261123_165334336_08.jpg",
         "KakaoTalk_20261123_165334336_09.jpg",
+        "KakaoTalk_20261123_165334336_08.jpg",
         "KakaoTalk_20261123_165334336_07.jpg"
       ]
     },
