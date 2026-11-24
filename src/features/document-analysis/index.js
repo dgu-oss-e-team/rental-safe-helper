@@ -34,6 +34,9 @@ import {
   findNameAfterFieldBlock,
   followsNameField,
   roleAnchorsIn,
+  findSignatureNames,
+  findFloorUnits,
+  addressPiecesOf,
 } from './name-detector.js';
 import {
   findDeposit,
@@ -143,6 +146,7 @@ function scanDocument(document) {
   const texts = [];
   /** @type {{ order: number, start: number, role: string | null, anchorBefore: boolean }[]} "성명(법인명)" 칸의 회사 이름 위치 */
   const corporateFields = [];
+  const ocr = document.sourceType === SOURCE_TYPE.IMAGE || document.sourceType === SOURCE_TYPE.IMAGE_PDF;
 
   for (const page of document.pages) {
     for (const block of page.blocks) {
@@ -154,6 +158,10 @@ function scanDocument(document) {
       const people = findPeople(text, role);
       const afterField = findNameAfterFieldBlock(prevText, text, role);
       const split = afterField.filter((p) => !people.some((q) => q.start === p.start));
+      // 사진 서류: 칸 이름 없이 "전우치 (서명 또는 인)"만 남은 서명란 이름 (역할 없이 가리기만 한다)
+      const signed = ocr
+        ? findSignatureNames(text).filter((p) => ![...people, ...split].some((q) => p.start < q.end && q.start < p.end))
+        : [];
       const blockAnchors = roleAnchorsIn(text);
       // 괄호 안 낱말은 칸 설명이라 역할 칸이 아니다: "(대표 사무소 소재지)"의 "대표"
       for (const a of blockAnchors) {
@@ -161,7 +169,9 @@ function scanDocument(document) {
         if (before.lastIndexOf('(') <= before.lastIndexOf(')')) anchors.push({ order, index: a.index, role: a.role });
       }
       // 이름에는 fieldName·anchorBefore를 더 붙이므로 any로 둔다
-      for (const r of /** @type {any[]} */ ([...people, ...split, ...findAddresses(text)])) {
+      // 사진 서류: 전유부분 표의 층·호수 ("제3충 제203호"처럼 OCR이 잘못 읽어 위쪽 주소와 글자가 달라도)
+      const floorUnits = ocr ? findFloorUnits(text) : [];
+      for (const r of /** @type {any[]} */ ([...people, ...split, ...signed, ...findAddresses(text), ...floorUnits])) {
         if (overlapsAny(found, r)) continue;
         const line = firstLine + (text.slice(0, r.start).match(/\n/g)?.length ?? 0);
         if (r.type === PII_TYPE.PERSON_NAME && termLines.has(line)) Object.assign(r, { role: null, birthDate: null });
@@ -199,7 +209,12 @@ function scanDocument(document) {
         if (open) {
           const c = open.mixed
             ? findMixedContinuation(line, open.hit.value, open.hit.tableCut === true)
-            : findAddressContinuation(line, open.regionOnly, hasOpenParen(open.hit.value));
+            : findAddressContinuation(
+                line,
+                open.regionOnly,
+                hasOpenParen(open.hit.value),
+                /[로길]$/.test(open.hit.value.trim()),
+              );
           /** @type {any} */
           const piece = c && { ...c, start: c.start + offset, end: c.end + offset };
           if (piece && !overlapsAny(found, piece)) {
@@ -262,7 +277,9 @@ function scanDocument(document) {
   const names = hits.filter((h) => h.type === PII_TYPE.PERSON_NAME).map((h) => h.value);
   // 주소 끝의 "제3층 제304호"도 따로 다시 찾는다: 전유부분 표에는 호수만 나온다 (#221 후속)
   const addressValues = hits.filter((h) => h.type === PII_TYPE.ADDRESS).map((h) => h.value);
-  const addresses = [...addressValues, ...addressValues.flatMap(unitTailsOf)];
+  // 사진 서류: 표제부 칸에 따로 읽힌 지번·건물 이름("212-5", "가상스테이")도 다시 찾는다 (상욱님 가짜세트4 사진)
+  const pieces = ocr ? addressValues.flatMap(addressPiecesOf) : [];
+  const addresses = [...addressValues, ...addressValues.flatMap(unitTailsOf), ...pieces];
   if (names.length > 0 || addresses.length > 0) {
     /** @type {Map<any, any[]>} 블록 → 그 블록에서 찾은 결과 */
     const byBlock = new Map();
