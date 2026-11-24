@@ -45,6 +45,7 @@ const MAX_EVIDENCE_CHARS = 200;
  * @property {string[]} except  예외 문구(띄어쓰기 등을 없앤 상태). 키워드에 걸린 글에 이 문구가 있으면 이 분류는 걸지 않는다.
  * @property {'STOP' | 'CHECK'} severity  걸렸을 때의 상태. 파일에 없으면 CHECK
  * @property {string[]} negation  부정문 문구(띄어쓰기 등을 없앤 상태). severity가 STOP인 분류에서, 걸린 글에 이 문구가 있으면 STOP이 아니라 CHECK로 남긴다.
+ * @property {RegExp[]} stopPatterns  severity가 STOP인 분류에서 STOP으로 볼 구절의 모양(정규식, 띄어쓰기 없앤 글에 적용). 비어 있으면 키워드에 걸린 구절이면 STOP
  */
 
 /** 비교할 때 무시하는 글자: 띄어쓰기, 가운뎃점, 마침표, 쉼표 */
@@ -123,13 +124,29 @@ export function parseSpecialTermKeywords(text) {
     if (!Array.isArray(rawNegation)) {
       return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a negation that is not a list.`);
     }
-    const negation = [];
+        const negation = [];
     for (const phrase of rawNegation) {
       const normalized = typeof phrase === 'string' ? normalizeTerm(phrase) : '';
       if (normalized === '') return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty negation phrase.`);
       negation.push(normalized);
     }
-    result.push({ id, label: label.trim(), reason: reason.trim(), expressions, except, severity: rawSeverity, negation });
+    // stop_patterns도 선택이다. 글자 목록이어야 하고, 올바른 정규식이어야 한다. (#336 리뷰)
+    const rawStopPatterns = /** @type {any} */ (category).stop_patterns ?? [];
+    if (!Array.isArray(rawStopPatterns)) {
+      return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a stop_patterns that is not a list.`);
+    }
+    const stopPatterns = [];
+    for (const source of rawStopPatterns) {
+      if (typeof source !== 'string' || source === '') {
+        return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has an empty stop pattern.`);
+      }
+      try {
+        stopPatterns.push(new RegExp(source));
+      } catch {
+        return fail(ERROR_CODE.INVALID_INPUT, `Special term category ${id} has a stop pattern that is not a valid regular expression.`);
+      }
+    }
+    result.push({ id, label: label.trim(), reason: reason.trim(), expressions, except, severity: rawSeverity, negation, stopPatterns });
   }
   return ok(result);
 }
@@ -194,7 +211,7 @@ const SENTENCE_END = /[.!?。…]\s*$/;
  * 줄 맨 앞의 특약 번호: "1.", "2)", "(3)", "①". (#278)
  * "2025. 3. 5."나 "3.5%"처럼 번호가 아닌 숫자는 걸리지 않게, 숫자는 1~2자리이고 "." 바로 뒤에 숫자가 오지 않아야 한다.
  */
-const NUMBER_MARKER = /^\s*(?:(\d{1,2})\s*[.)](?!\d)|\((\d{1,2})\)|([①-⑳]))/;
+const NUMBER_MARKER = /^\s*(?:(\d{1,2})\s*[.)](?!\d)(?!\s*\d{1,4}\s*\.)|\((\d{1,2})\)|([①-⑳]))/;
 
 /**
  * 줄 맨 앞의 특약 번호를 숫자로 돌려준다. 번호로 시작하지 않으면 null.
@@ -226,25 +243,50 @@ function canJoin(left, right) {
 const hasPhrase = (text, phrases) => phrases.some((phrase) => text.includes(phrase));
 
 /**
+ * 구절을 나누는 곳: 쉼표, 문장 끝, "~하며/~하고/~지만" 같은 이음말.
+ * ("전입신고"의 "고"처럼 단어 속 글자로는 나누지 않도록, 이음말은 뒤에 띄어쓰기가 올 때만 본다) (#336 리뷰)
+ */
+const CLAUSE_SPLIT = /[,;，、]|[.!?。](?=\s|$)|(?:하며|이며|으며|하고|이고|지만|으나|면서)(?=\s)/;
+
+/**
+ * 특약 한 덩어리(원문)가 STOP인가. 구절마다 따로 본다:
+ * 구절 안에 stop_patterns 모양이 있고, 같은 구절에 부정문(negation)이 없을 때만 STOP이다.
+ * 다른 구절의 "~하지 않"은 영향을 주지 않는다. (#336 리뷰)
+ * @param {string} rawText  normalizeTerm()을 거치지 않은 글 (구절을 나누려면 쉼표·마침표가 필요하다)
+ * @param {KeywordCategory} category
+ */
+function isStopTerm(rawText, category) {
+  return rawText.split(CLAUSE_SPLIT).some((clause) => {
+    const n = normalizeTerm(clause);
+    if (n === '') return false;
+    const risky =
+      category.stopPatterns.length > 0
+        ? category.stopPatterns.some((re) => re.test(n))
+        : matchesKeywords(n, category);
+    return risky && !hasPhrase(n, category.negation);
+  });
+}
+
+/**
  * 특약 목록에서 키워드에 걸린 분류와 특약 줄 번호를 찾는다.
  * PDF·OCR은 한 문장이 두 줄로 갈라질 수 있어서, 한 줄로 안 걸리면 바로 다음 줄과 이어 붙여서 한 번 더 본다.
  * 단, 뒷줄이 번호로 시작하거나(새 특약) 앞줄이 문장을 끝냈으면 이어 붙이지 않는다. (#278)
  * 예외 문구(except)도 같은 단위로 본다: 한 줄 안에 있거나, 문장이 끝나지 않은 줄과 다음 줄을 이어 붙인 글 안에 있으면
  * 그 분류는 걸지 않는다. (문장이 끝난 줄은 다음 줄과 이어 보지 않는다. 서로 다른 특약의 예외 문구가 섞이지 않게)
- * stopIds: severity가 STOP이고, 부정문(negation)이 아닌 특약에 걸린 분류의 id (#278)
+ * stopIds: severity가 STOP인 분류 중, 걸린 특약에 STOP 구절(구절 단위로 판단)이 있는 분류의 id (#278, #336)
  * @param {string[]} terms
  * @param {KeywordCategory[]} categories
  * @returns {{ matched: KeywordCategory[], indexes: number[], stopIds: string[] }}
  */
 export function findRiskyTerms(terms, categories) {
   const normalized = terms.map(normalizeTerm);
+  const groups = groupTerms(terms);
   const matched = [];
   const indexes = new Set();
   const stopIds = [];
 
   for (const category of categories) {
-    let found = false;
-    let strong = false; // 부정문이 아닌 특약에 걸렸다
+    const hits = new Set(); // 이 분류에 걸린 줄 번호
     normalized.forEach((current, i) => {
       const next = normalized[i + 1];
       if (matchesKeywords(current, category)) {
@@ -257,15 +299,7 @@ export function findRiskyTerms(terms, categories) {
           hasException(current, category) ||
           (continues && hasExceptionAcross(current, next, category)) ||
           (followsPrev && hasExceptionAcross(prev, current, category));
-        if (!excepted) {
-          found = true;
-          indexes.add(i);
-          const negated =
-            hasPhrase(current, category.negation) ||
-            (continues && hasPhrase(current + next, category.negation)) ||
-            (followsPrev && hasPhrase(prev + current, category.negation));
-          if (!negated) strong = true;
-        }
+        if (!excepted) hits.add(i);
         return;
       }
       if (
@@ -274,15 +308,23 @@ export function findRiskyTerms(terms, categories) {
         !matchesKeywords(next, category) &&
         matchesCategory(current + next, category)
       ) {
-        found = true;
-        indexes.add(i);
-        indexes.add(i + 1);
-        if (!hasPhrase(current + next, category.negation)) strong = true;
+        hits.add(i);
+        hits.add(i + 1);
       }
     });
-    if (found) {
-      matched.push(category);
-      if (category.severity === 'STOP' && strong) stopIds.push(category.id);
+
+    if (hits.size === 0) continue;
+    matched.push(category);
+    hits.forEach((i) => indexes.add(i));
+
+    // STOP: 걸린 줄이 들어 있는 특약(번호·문장 단위로 묶은 것) 중 하나라도 STOP 구절을 가지면 STOP (#336)
+    if (
+      category.severity === 'STOP' &&
+      groups.some(
+        (g) => g.indexes.some((i) => hits.has(i)) && isStopTerm(g.indexes.map((i) => terms[i]).join(' '), category),
+      )
+    ) {
+      stopIds.push(category.id);
     }
   }
   return { matched, indexes: [...indexes].sort((a, b) => a - b), stopIds };

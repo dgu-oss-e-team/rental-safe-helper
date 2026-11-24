@@ -521,3 +521,65 @@ describe('PART 3 근거 칸에 몇 번째 특약인지 표시 (#278)', () => {
     expect(prompt.data).not.toContain('김철수');
   });
 });
+
+describe('PART 3 전입신고 금지 STOP은 좁게, 구절 단위로 (#336 리뷰)', () => {
+  // sw8606: 임차인을 지켜 주는 보호 특약이 STOP이 되면 안 된다
+  const protective = [
+    '임대인은 임차인의 전입신고 다음날까지 저당권 등 담보권을 설정하지 않는다.',
+    '임대인은 잔금일 다음날까지 근저당권 설정을 하지 않으며, 임차인은 잔금일에 전입신고 및 확정일자를 받는다.',
+  ];
+
+  it.each(protective)('보호 특약은 STOP이 아니다: %s', (sentence) => {
+    expect(assess([sentence]).data.status).not.toBe(STOP);
+  });
+
+  it('보호 특약은 assessRisks()에서도 STOP으로 나오지 않는다', () => {
+    for (const sentence of protective) {
+      const risks = assessRisks(withTerms([sentence]), mockPersonGroups);
+      expect(risks.data.find((x) => x.ruleId === 'RISKY_SPECIAL_TERM')?.status).not.toBe(STOP);
+    }
+  });
+
+  // jygh429: 부정문은 전입신고·확정일자와 같은 구절에 있을 때만 본다
+  it('다른 구절에 "~하지 않"이 있어도 전입신고 금지 구절이 있으면 STOP', () => {
+    const r = assess(['임차인은 전입신고를 할 수 없으며, 임대인은 수리를 방해하지 않는다.']);
+    expect(r.data.status).toBe(STOP);
+  });
+
+  it('같은 구절의 부정문은 그대로 CHECK', () => {
+    expect(assess(['임차인은 수리를 하며, 임대인은 전입신고를 방해하지 않는다.']).data.status).toBe(CHECK);
+  });
+
+  it('전입신고 금지 구절이 부정문 구절과 이어져 있어도 STOP', () => {
+    expect(assess(['임대인은 전입신고를 방해하지 않고, 확정일자는 받을 수 없다.']).data.status).toBe(STOP);
+  });
+
+  it('키워드 파일: REGISTRATION_BAN에 stop_patterns가 있고, 잘못된 값은 실패한다', () => {
+    const stop = getSpecialTermKeywords().data.find((c) => c.id === 'REGISTRATION_BAN');
+    expect(stop.stopPatterns.length).toBeGreaterThan(0);
+
+    const file = (extra) =>
+      `categories:\n  A:\n    label: x\n    reason: y\n    keywords: ["현금"]\n${extra}`;
+    expect(parseSpecialTermKeywords(file('')).data[0].stopPatterns).toEqual([]);
+    expect(parseSpecialTermKeywords(file("    stop_patterns: ['전입.{0,8}금지']\n")).ok).toBe(true);
+    for (const bad of ['    stop_patterns: "전입"\n', '    stop_patterns: [""]\n', '    stop_patterns: [123]\n', "    stop_patterns: ['(']\n"]) {
+      expect(parseSpecialTermKeywords(file(bad)).ok).toBe(false);
+    }
+  });
+});
+
+describe('PART 3 날짜로 시작하는 줄은 특약 번호가 아니다 (#336 리뷰)', () => {
+  it('"12. 31.까지"·"3. 5.까지"로 시작하는 줄은 앞 특약에 이어 붙고, 번호로 표시되지 않는다', () => {
+    expect(assess(['월세는 현금으로', '12. 31.까지 지급한다.']).data.evidence.right.value).toBe(
+      'Special term 1: 월세는 현금으로 12. 31.까지 지급한다.',
+    );
+    expect(assess(['1. 월세는 현금으로', '3. 5.까지 지급한다.']).data.evidence.right.value).toBe(
+      'Special term 1: 월세는 현금으로 3. 5.까지 지급한다.',
+    );
+  });
+
+  it('진짜 번호("3. 월세는 …", "3) …")는 그대로 번호로 본다', () => {
+    expect(assess(['3. 월세는 현금으로 지급한다.']).data.evidence.right.value).toBe('Special term 3: 월세는 현금으로 지급한다.');
+    expect(assess(['3) 월세는 현금으로 지급한다.']).data.evidence.right.value).toBe('Special term 3: 월세는 현금으로 지급한다.');
+  });
+});
