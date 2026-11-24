@@ -176,20 +176,39 @@ const MAX_ARTICLE1_LOOKAHEAD = 5;
 /** 한글로 적은 금액: "삼천만 원", "오 십 오 만 원" (사진 OCR이 숫자 칸 "\30.000.000"을 망가뜨려도 한글은 남는다) */
 const KOREAN_AMOUNT_GLOBAL = /[일이삼사오육칠팔구십백천만억][일이삼사오육칠팔구십백천만억\s]*\s*원/g;
 
+/** 지급 일정 줄 ("계약금 금 삼백만 원정은 계약 시에 지급", "잔금 …"): 보증금·월세 금액 줄이 아니다 */
+const PAYMENT_LINE = /계\s*약\s*금|중\s*도\s*금|잔\s*금|지\s*급/;
+/** 금액 칸 하나의 끝 "원정" (한글 금액을 못 읽은 칸도 센다) */
+const WON_JEONG = /원\s*정/g;
+/** 금액 줄의 칸 이름 "금액" */
+const AMOUNT_LABEL = /금\s*액/;
+
 /**
- * 제1조 제목 아래 금액 줄의 한글 금액들 (사진 서류에서 금액 표 제목 줄 "구분 임대보증금 …"을 못 읽었을 때)
- * 한글 금액이 하나도 없으면 null.
+ * 제1조 제목 아래 금액 줄의 [보증금, 월임대료] (사진 서류에서 금액 표 제목 줄 "구분 임대보증금 …"을 못 읽었을 때)
+ * 칸이 깨지면 순서로 짝짓기가 틀릴 수 있어서 좁게 본다. (PR #331 정연님 리뷰)
+ * - 계약금·중도금·잔금·지급 줄에 닿으면 멈춘다. (지급 일정 금액이 보증금이 되지 않게)
+ * - 한글 금액이 2개 이상: 앞이 보증금, 뒤가 월세. 보증금이 월세보다 커야 한다. (아니면 칸이 깨진 것)
+ * - 한글 금액이 1개: "금액" 칸 이름이 있고, 금액 칸("원정")이 하나뿐일 때만 보증금으로 본다.
+ *   ("원정"이 2개인데 금액이 1개면 보증금 칸이 깨지고 월세만 남았을 수 있다)
+ * - 그 밖에는 null
  * @param {string[]} lines
  * @returns {number[] | null}
  */
 function amountsUnderArticle1(lines) {
   const start = lines.findIndex((line) => LEASE_ARTICLE1.test(line));
   if (start === -1) return null;
-  for (const line of lines.slice(start + 1, start + 1 + MAX_ARTICLE1_LOOKAHEAD)) {
-    const amounts = [...line.replace(/[_、]/g, ' ').matchAll(KOREAN_AMOUNT_GLOBAL)]
-      .map((m) => parseKoreanNumber(m[0].replace(/원$/, '')))
-      .filter((n) => n !== null && n > 0);
-    if (amounts.length > 0) return /** @type {number[]} */ (amounts);
+  for (const raw of lines.slice(start + 1, start + 1 + MAX_ARTICLE1_LOOKAHEAD)) {
+    if (PAYMENT_LINE.test(raw)) return null;
+    const line = raw.replace(/[_、]/g, ' ');
+    const amounts = /** @type {number[]} */ (
+      [...line.matchAll(KOREAN_AMOUNT_GLOBAL)]
+        .map((m) => parseKoreanNumber(m[0].replace(/원$/, '')))
+        .filter((n) => n !== null && n > 0)
+    );
+    if (amounts.length === 0) continue;
+    if (amounts.length >= 2) return amounts[0] > amounts[1] ? amounts.slice(0, 2) : null;
+    const cells = line.match(WON_JEONG)?.length ?? 0;
+    return AMOUNT_LABEL.test(line) && cells <= 1 ? amounts : null;
   }
   return null;
 }
@@ -334,23 +353,33 @@ const ANNEX_STOP = /^\s*■|^\s*[[【]?\s*별\s*지\s*제?\s*\d+\s*호|본\s*계
 const TERMS_CONFIRM_SENTENCE = /확\s*인\s*하\s*고\s*서\s*명\s*합\s*니\s*다/;
 /**
  * 특약 칸 사이에 인쇄된 서식 안내: "주택월세 소득공제 안내" / "근로소득이 있는 거주자는 … 문의하시기 바랍니다."
- * 사진 OCR은 읽는 순서가 바뀌어 이 안내가 특약 사이에 들어온다. 안내 제목부터 다음 번호 특약("1. …") 전까지 건너뛴다.
+ * 사진 OCR은 읽는 순서가 바뀌어 이 안내가 특약 사이에 들어온다. 안내 제목부터 끝 문장("문의하시기 바랍니다.")까지 건너뛴다.
+ * 끝 문장을 못 읽어도 번호 특약("1. …")이 나오거나 MAX_NOTICE_LINES줄을 넘으면 안내가 끝난 것으로 본다.
+ * (번호 없는 특약이 안내 뒤에 와도 빠지지 않게, PR #331 정연님 리뷰)
  */
 const FORM_NOTICE_START = /소\s*득\s*공\s*제\s*안\s*내/;
+const FORM_NOTICE_END = /문\s*의\s*하\s*시\s*기\s*바\s*랍\s*니\s*다/;
+/** 안내 제목 뒤 안내 문장 줄 수 상한 (서식은 3줄: "근로소득이 …" / "라 주택월세에 …" / "문의하시기 바랍니다.") */
+const MAX_NOTICE_LINES = 3;
 
 /**
  * 특약 본문을 읽으며 서식 안내 줄을 건너뛸지 정한다.
  * @returns {(line: string) => boolean} 이 줄을 건너뛰면 true
  */
 function noticeSkipper() {
-  let inNotice = false;
+  /** 안내 안에서 남은 줄 수 (0이면 안내 밖) */
+  let left = 0;
   return (line) => {
     if (FORM_NOTICE_START.test(line)) {
-      inNotice = true;
+      left = MAX_NOTICE_LINES;
       return true;
     }
-    if (inNotice && NUMBERED_LINE.test(line)) inNotice = false;
-    return inNotice;
+    if (left === 0 || NUMBERED_LINE.test(line)) {
+      left = 0;
+      return false;
+    }
+    left = FORM_NOTICE_END.test(line) ? 0 : left - 1;
+    return true;
   };
 }
 
@@ -565,7 +594,7 @@ function sectionHeading(line) {
   return null;
 }
 /** 기록이 없는 구를 이렇게 적는 경우도 읽은 것으로 본다: "을구 기록사항 없음" */
-const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
+const EMPTY_SECTION = /([갑감을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/; // "감"은 사진 OCR이 "갑"을 잘못 읽은 것
 /** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
 const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
 /**
@@ -668,7 +697,7 @@ export function findRegistryRights(lines) {
     if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
-    if (empty) seen.add(empty[1]);
+    if (empty) seen.add(empty[1] === '을' ? '을' : '갑');
     const heading = sectionHeading(line);
     if (heading) {
       section = heading;

@@ -56,6 +56,10 @@ describe('PART 2 사진 등기부: 갑구·을구 제목', () => {
     expect(findCurrentOwnerLines(lines)).toEqual([6, 7]);
   });
 
+  it('"감 구 기록사항 없음"도 갑구를 읽은 것으로 본다', () => {
+    expect(findRegistryRights(['감 구 - 기록사항 없음', '【 을 구 】', ...EUL_ROWS])).toEqual([MORTGAGE]);
+  });
+
   it('갑구가 없으면 지금처럼 null (근저당 줄만으로 "압류 없음"을 만들지 않는다)', () => {
     expect(findRegistryRights(EUL_ROWS)).toBeNull();
   });
@@ -79,6 +83,16 @@ describe('PART 2 사진 계약서: 보증금·월세', () => {
     const lines = [ARTICLE1, '금액 금 _ 삼 천만 _ 원 정 (\\30,000.000 ) 오 십 오 만 A™(W 50,00 )'];
     expect(findDeposit(lines)).toBe(30000000);
     expect(findMonthlyRent(lines)).toBeNull();
+  });
+
+  it('칸이 깨져 순서를 믿을 수 없으면 읽지 않는다 (PR #331 리뷰)', () => {
+    // 보증금 칸이 깨지고 월세만 남음: 월세가 보증금이 되면 안 된다
+    expect(findDeposit([ARTICLE1, '금액 금 Ae ARE 원정(\\30.000.000 ) 금 오십오만 원정(\\ 550,000 )'])).toBeNull();
+    // 앞 금액이 뒤 금액보다 작으면 짝이 맞지 않는다
+    expect(findDeposit([ARTICLE1, '금 오십오만 원정  금 삼천만 원정'])).toBeNull();
+    // 금액 줄이 다 깨지고 지급 일정 줄만 남음: 계약금·잔금이 보증금이 되면 안 된다
+    expect(findDeposit([ARTICLE1, '= ER Te', '계약금 ㅣ금 _ 삼백만 _ 원정(\\ 3000000 )은계약시에 지급'])).toBeNull();
+    expect(findDeposit([ARTICLE1, '= ER Te', 'A 금 ㅣ금 이천칠백만 원정(\\27,000.000 )2 Ad 1월 sd 지급'])).toBeNull();
   });
 
   it('밑줄이 낀 라벨 금액: "보증금 금 _ 일천만 _ 원정"', () => {
@@ -110,6 +124,16 @@ describe('PART 2 사진 계약서: 특약 별지', () => {
   it('서식 문장의 "필요한"을 OCR이 잘못 읽어도 서식으로 본다', () => {
     const head = HEAD.replace('필요한', '필 유한');
     expect(findSpecialTerms([head, ...FORM, ...TERMS])).toEqual(TERMS);
+  });
+
+  it('안내는 "문의하시기 바랍니다."에서 끝난다: 안내 뒤 번호 없는 특약도 남는다 (PR #331 리뷰)', () => {
+    expect(findSpecialTerms(['[특약사항]', ...NOTICE, '반려동물은 키우지 않는다.', '도배는 임대인이 한다.'])).toEqual([
+      '반려동물은 키우지 않는다.',
+      '도배는 임대인이 한다.',
+    ]);
+    // 끝 문장을 못 읽어도 안내 줄 수(제목 뒤 3줄)를 넘으면 다시 특약으로 본다
+    const broken = NOTICE.slice(0, 3).concat(['문의 Ah RE']);
+    expect(findSpecialTerms(['[특약사항]', ...broken, '반려동물은 키우지 않는다.'])).toEqual(['반려동물은 키우지 않는다.']);
   });
 
   it('번호 없는 특약 문장 뒤의 안내 제목도 건너뛴다 (안내 뒤 번호 특약은 다시 읽는다)', () => {
