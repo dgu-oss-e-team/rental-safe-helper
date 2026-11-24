@@ -88,7 +88,7 @@ export function resultsScreen(state, act) {
     card('Check before you sign', [
       questionNotice,
       // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
-      slots.riskResults(analysis.riskResults),
+      slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
     ]),
     // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
     questionCard,
