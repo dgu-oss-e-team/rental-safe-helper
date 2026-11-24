@@ -246,6 +246,7 @@ function photoReport(p, r) {
   p();
   p('가짜세트 1·4를 인쇄해 휴대폰으로 찍은 사진(등기부 3장씩, 계약서 6·7장)을 앱과 같은 코드(`slotToSource` → `readDocuments`)로 읽은 결과다.');
   p('OCR 결과는 `tests/eval/ocr/*.json`에 저장해 두고 다시 쓴다 (`scripts/ocr-capture`로 만듦). 사진 원본은 저장소에 없다.');
+  p('PART 1 OCR 코드(`src/features/document-input/`)가 바뀌면 OCR 결과를 다시 만들어야 한다. 지금 결과는 #333(OCR 띄어쓰기 수정) 이후 코드로 만들었다.');
   p('사용자가 "Confirm text" 단계에서 표시된 줄을 **고치지 않고 확인만 눌렀다**고 보고 OCR 글자 그대로 분석했다 (가장 나쁜 경우).');
   p('OCR이 값을 한두 글자 잘못 읽으면 정답과 정확히 맞지 않으므로, 정답의 70% 이상이 이어서 남은 것은 "비슷하게 남음"으로 따로 센다.');
   p();

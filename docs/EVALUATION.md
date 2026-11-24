@@ -1,7 +1,7 @@
 # 평가 결과 (Evaluation)
 
 > 이 파일은 `npm run eval`이 만든다. 직접 고치지 말고 다시 실행한다. (#251, 지도 교수님 피드백 ②)
-> 커밋 `2f47c59` · 서류 9건 · 정답 개인정보 117개 · 모든 서류와 값은 가짜다.
+> 커밋 `a6a75e7` · 서류 9건 · 정답 개인정보 117개 · 모든 서류와 값은 가짜다.
 
 ## 평가 세트
 
@@ -77,58 +77,53 @@
 
 가짜세트 1·4를 인쇄해 휴대폰으로 찍은 사진(등기부 3장씩, 계약서 6·7장)을 앱과 같은 코드(`slotToSource` → `readDocuments`)로 읽은 결과다.
 OCR 결과는 `tests/eval/ocr/*.json`에 저장해 두고 다시 쓴다 (`scripts/ocr-capture`로 만듦). 사진 원본은 저장소에 없다.
+PART 1 OCR 코드(`src/features/document-input/`)가 바뀌면 OCR 결과를 다시 만들어야 한다. 지금 결과는 #333(OCR 띄어쓰기 수정) 이후 코드로 만들었다.
 사용자가 "Confirm text" 단계에서 표시된 줄을 **고치지 않고 확인만 눌렀다**고 보고 OCR 글자 그대로 분석했다 (가장 나쁜 경우).
 OCR이 값을 한두 글자 잘못 읽으면 정답과 정확히 맞지 않으므로, 정답의 70% 이상이 이어서 남은 것은 "비슷하게 남음"으로 따로 센다.
 
 | 서류 | OCR 줄 | 확인할 줄 | 탐지 | 과잉 |
 |---|---|---|---|---|
-| set1-registry | 78 | 31 | 24 | 1 |
-| set1-lease | 264 | 35 | 8 | 2 |
-| set4-registry | 88 | 40 | 22 | 1 |
-| set4-lease | 311 | 41 | 8 | 2 |
+| set1-registry | 78 | 42 | 24 | 1 |
+| set1-lease | 267 | 77 | 10 | 0 |
+| set4-registry | 66 | 30 | 23 | 1 |
+| set4-lease | 311 | 65 | 14 | 1 |
 
 | 종류 | 정답 | OCR이 정확히 못 읽음 | 미탐지(그대로 남음) | 비슷하게 남음 |
 |---|---|---|---|---|
-| PERSON_NAME | 11 | 2 | 2 | 0 |
+| PERSON_NAME | 11 | 2 | 1 | 0 |
 | RESIDENT_ID | 7 | 4 | 0 | 0 |
 | FOREIGNER_ID | 2 | 1 | 0 | 0 |
 | PHONE_NUMBER | 5 | 4 | 0 | 0 |
 | BANK_ACCOUNT | 2 | 1 | 0 | 0 |
-| ADDRESS | 22 | 6 | 4 | 3 |
-| REGISTRY_ID | 6 | 1 | 0 | 0 |
-| **전체** | **55** | **19** | **6 (10.9%)** | **3 (5.5%)** |
+| ADDRESS | 22 | 6 | 0 | 1 |
+| REGISTRY_ID | 6 | 2 | 0 | 0 |
+| **전체** | **55** | **20** | **1 (1.8%)** | **1 (1.8%)** |
 
 남은 항목 (가짜 값):
 - set1-registry · ADDRESS · `서울특별시 중구 가상동2가 47-12 가상하우스` (비슷하게)
-- set1-lease · PERSON_NAME · `왕리웨이`
-- set4-registry · ADDRESS · `서울특별시 동대문구 가상동 212-5 가상스테이`
-- set4-registry · ADDRESS · `서울특별시 동대문구 가상로17길 9, 203호(가상동)` (비슷하게)
-- set4-registry · ADDRESS · `서울특별시 성북구 가상로 63, 502호(가상동,가상맨션)` (비슷하게)
-- set4-lease · PERSON_NAME · `전우치`
-- set4-lease · ADDRESS · `서울특별시 성북구 가상로 63, 502호(가상동,가상맨션)`
-- set4-lease · ADDRESS · `서울특별시 동대문구 가상로 4, 2층 201호(가상동)`
-- set4-lease · ADDRESS · `서울특별시 동대문구 가상로 21, 1층(가상동)`
+- set4-registry · PERSON_NAME · `황진이`
 
-과잉 마스킹: 탐지 62개 중 6개 (9.7%)
-- `set1-registry · ADDRESS:서울특변시 중구 가상동8가 47-12 가상하우스 제4충 제409호                                      J`
-- `set1-lease · PERSON_NAME:로서의`
-- `set1-lease · PERSON_NAME:로부터`
-- `set4-registry · ADDRESS:서울특별시 동대문구 가상동                대      318m’      20194929`
+과잉 마스킹: 탐지 71개 중 3개 (4.2%)
+- `set1-registry · ADDRESS:서울특변시 중구 가상동8가 47-12 가상하우스 제4충 제409호 J`
+- `set4-registry · ADDRESS:제3충 제208호`
 - `set4-lease · PHONE_NUMBER:0200007319`
-- `set4-lease · PERSON_NAME:로서의`
 
 AI 전송 직전까지 남은 개인정보 (보내기 전 검사 통과 후):
 
 | 목적 | 서류 묶음 | 그대로 남음 | 비슷하게 남음 | 멈춤 |
 |---|---|---|---|---|
-| CLAUSE_EXPLANATION | 2 | 0 / 55 | 0 | 2 |
-| FRAUD_CHECK | 2 | 0 / 55 | 0 | 2 |
-| CONTRACT_EXPLANATION | 2 | 0 / 55 | 0 | 2 |
+| CLAUSE_EXPLANATION | 2 | 0 / 55 | 1 | 1 |
+| FRAUD_CHECK | 2 | 0 / 55 | 1 | 1 |
+| CONTRACT_EXPLANATION | 2 | 0 / 55 | 1 | 1 |
+
+- CLAUSE_EXPLANATION · set1-registry · ADDRESS (비슷하게 남음)
+- FRAUD_CHECK · set1-registry · ADDRESS (비슷하게 남음)
+- CONTRACT_EXPLANATION · set1-registry · ADDRESS (비슷하게 남음)
 
 | 묶음 | STOP | CHECK | UNVERIFIABLE | NO_FLAG | 확인 불가 비율 |
 |---|---|---|---|---|---|
-| 가짜세트1 사진: 개인 등기부 + 개인 임대사업자 계약서 (정상) | 1 | 0 | 7 | 0 | 87.5% |
-| 가짜세트4 사진: 지금 공유 등기부 + 공인중개사 작성 계약서(특약 별지) | 0 | 2 | 4 | 2 | 50.0% |
+| 가짜세트1 사진: 개인 등기부 + 개인 임대사업자 계약서 (정상) | 0 | 0 | 8 | 0 | 100.0% |
+| 가짜세트4 사진: 지금 공유 등기부 + 공인중개사 작성 계약서(특약 별지) | 1 | 2 | 3 | 2 | 37.5% |
 
 ## 한계
 

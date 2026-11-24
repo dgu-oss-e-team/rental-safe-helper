@@ -17,7 +17,7 @@
 
 import { ok, fail, ERROR_CODE, SOURCE_TYPE, DOCUMENT_TYPE } from '../shared/document-model.js';
 import { mergeDocumentModels } from './merge-documents.js';
-import { readDocument, isLowConfidenceBlock } from '../features/document-input/index.js';
+import { readDocument, getFlaggedBlocks } from '../features/document-input/index.js';
 import { classifyDocument, detectPII, extractFields } from '../features/document-analysis/index.js';
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
@@ -32,6 +32,7 @@ import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/inde
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 import { findVisiblePii, unverifiable } from './double-check.js';
 import { titledMaskedText } from './document-names.js';
+import { withPageMarks } from './page-marks.js';
 import { settlePersonAnswers } from './person-questions.js';
 
 /**
@@ -63,6 +64,71 @@ function stoppedAt(step, result) {
 }
 
 /**
+ * 보내기 전 검사가 멈춘 곳의 줄 (#316). 사용자가 화면에서 보고 "이 줄 전체 가리기"를 고를 수 있게 한다.
+ * 줄 글자는 사용자 화면에만 쓰고, 오류 메시지·로그에는 넣지 않는다.
+ * - text: 원래 줄 글자 (사용자가 서류와 비교한다)
+ * - values: 가린 뒤에도 그 줄에 남아 있는 글자 조각. "더 가리기(add)"는 글자 값으로 가리고, 탐지한 값을 먼저 가린 뒤에
+ *   적용되므로 원래 줄 전체 글자로는 맞지 않을 수 있다. 그래서 남은 조각을 가린다. (PDF는 줄 위치 bbox로 가린다)
+ * @typedef {{ documentId: string, blockId: string, pageIndex: number, bbox: import('../shared/document-model.js').BBox, text: string, values: string[] }} StopLine
+ */
+
+/** 가린 글의 자리 표시: "[REDACTED]", 역할 가명 "[Landlord_A]" */
+const MASK_PLACEHOLDER = /\[(?:REDACTED|[A-Za-z]+_[A-Z])\]/;
+
+/**
+ * PART 4가 돌려준 위치({ documentId, blockId })를 서류의 줄로 바꾼다. 못 찾는 위치·빈 줄·같은 줄은 뺀다.
+ * maskedText(가린 글, 블록마다 한 줄)를 주면 그 줄에 남은 조각(values)을 계산한다.
+ * 다른 줄에도 그대로 있는 조각("(서명 또는 인)" 같은 서식 글)은 개인정보가 아니고, 가리면 검사가 다른 줄에서 걸리므로 뺀다.
+ * @param {import('../shared/document-model.js').DocumentModel[]} documents
+ * @param {unknown} where
+ * @param {Record<string, string>} [maskedText]
+ * @returns {StopLine[]}
+ */
+export function stopLinesOf(documents, where, maskedText) {
+  if (!Array.isArray(where)) return [];
+  /** @type {(Omit<StopLine, 'values'> & { masked: string, index: number })[]} */
+  const found = [];
+  const seen = new Set();
+  for (const w of where) {
+    const key = `${w?.documentId}\u0000${w?.blockId}`;
+    if (seen.has(key)) continue;
+    const doc = documents.find((d) => d.documentId === w?.documentId);
+    if (!doc) continue;
+    const maskedLines = maskedText?.[doc.documentId]?.split('\n');
+    let index = 0;
+    for (const page of doc.pages ?? []) {
+      for (const block of page.blocks ?? []) {
+        if (block.blockId === w?.blockId && String(block.text ?? '').trim()) {
+          seen.add(key);
+          found.push({
+            documentId: doc.documentId,
+            blockId: block.blockId,
+            pageIndex: page.pageIndex,
+            bbox: block.bbox,
+            text: block.text,
+            masked: maskedLines?.[index] ?? block.text,
+            index,
+          });
+        }
+        index += 1;
+      }
+    }
+  }
+  // 멈춘 줄을 뺀 나머지 가린 글 (조각이 다른 줄에도 있는지 볼 때 쓴다)
+  const stopKeys = new Set(found.map((l) => `${l.documentId}\u0000${l.index}`));
+  const others = Object.entries(maskedText ?? {})
+    .flatMap(([id, text]) => text.split('\n').filter((_, i) => !stopKeys.has(`${id}\u0000${i}`)))
+    .join('\n');
+  return found.map(({ masked, index, ...line }) => {
+    const pieces = masked
+      .split(MASK_PLACEHOLDER)
+      .map((p) => p.trim())
+      .filter((p) => p.replace(/\s+/g, '').length >= 2 && !others.includes(p));
+    return { ...line, values: [...new Set(pieces)] };
+  });
+}
+
+/**
  * 1) 서류 분석: 목적을 고르기 전에 할 수 있는 일 전부
  * @param {{ files: File[] }} input
  */
@@ -79,14 +145,31 @@ export async function analyzeDocuments({ files }) {
  *   partTypes[i]: 조각마다 판별한 서류 종류 (PART 2 classifyDocument). 한 칸에 다른 서류가 섞였는지 안내할 때 쓴다 (#305)
  *   조각이 하나면 partTypes[i]는 null (서류 전체 판별과 같으므로).
  * @param {{ files: File[], parts?: (File[] | null | undefined)[] }} input
- * @param {{ allowLowConfidence?: boolean }} [options]
+ * @param {{ allowLowConfidence?: boolean, onProgress?: (p: ReadProgress) => void }} [options]
  *   allowLowConfidence: 사진·스캔에서 흐린 줄이 있어도 멈추지 않고 돌려받는다.
  *   이때는 반드시 "Confirm text" 단계에서 흐린 줄을 사용자가 모두 확인한 뒤에 analyzeReadDocuments()로 넘긴다.
+ *   onProgress: 서류(조각)를 읽기 시작할 때, 그리고 PART 1이 쪽마다 onPage를 부르면 쪽마다 불린다 (진행 표시용)
  */
 export async function readDocuments({ files, parts }, options = {}) {
   if (!Array.isArray(files) || files.length === 0) {
     return { ...fail(ERROR_CODE.INVALID_INPUT, 'Please choose at least one file.'), step: 'input' };
   }
+  const { onProgress, ...readOptions } = options;
+  /** 진행을 알리고, PART 1에는 쪽마다 알려 달라고 onPage를 넘긴다 (PART 1이 부르지 않아도 동작한다) */
+  const read1 = (/** @type {File} */ f, /** @type {Omit<ReadProgress, 'pageIndex' | 'pageCount'>} */ at) => {
+    const report = (/** @type {Partial<ReadProgress>} */ extra = {}) => {
+      try {
+        onProgress?.({ ...at, ...extra });
+      } catch {
+        // 진행 표시가 실패해도 읽기는 계속한다
+      }
+    };
+    report();
+    return readDocument(f, {
+      ...readOptions,
+      onPage: (/** @type {{ pageIndex: number, pageCount: number }} */ p) => report({ pageIndex: p.pageIndex, pageCount: p.pageCount }),
+    });
+  };
   const documents = [];
   /** @type {(string[] | null)[]} */
   const partTypes = [];
@@ -94,8 +177,8 @@ export async function readDocuments({ files, parts }, options = {}) {
     const pieces = parts?.[i];
     if (pieces && pieces.length > 1) {
       const read = [];
-      for (const piece of pieces) {
-        const r = await readDocument(piece, options);
+      for (const [k, piece] of pieces.entries()) {
+        const r = await read1(piece, { docIndex: i, docCount: files.length, partIndex: k, partCount: pieces.length });
         if (!r.ok) return stoppedAt('readDocument', r);
         read.push(r.data);
       }
@@ -109,7 +192,7 @@ export async function readDocuments({ files, parts }, options = {}) {
       );
       continue;
     }
-    const r = await readDocument(file, options);
+    const r = await read1(file, { docIndex: i, docCount: files.length, partIndex: 0, partCount: 1 });
     if (!r.ok) return stoppedAt('readDocument', r);
     documents.push(r.data);
     partTypes.push(null);
@@ -117,20 +200,23 @@ export async function readDocuments({ files, parts }, options = {}) {
   return ok({ files, documents, partTypes });
 }
 
+/**
+ * 읽기 진행 (0부터 세는 번호). pageIndex·pageCount는 PART 1이 쪽마다 알려 줄 때만 있다.
+ * @typedef {{ docIndex: number, docCount: number, partIndex: number, partCount: number, pageIndex?: number, pageCount?: number }} ReadProgress
+ */
+
 /** OCR로 읽은 서류인지 (사진 또는 글자 없는 스캔 PDF) → "Confirm text" 단계에서 확인한다 */
 export function needsTextReview(/** @type {import('../shared/document-model.js').DocumentModel} */ doc) {
   return doc.sourceType === SOURCE_TYPE.IMAGE || doc.sourceType === SOURCE_TYPE.IMAGE_PDF;
 }
 
 /**
- * 아직 사용자가 확인하지 않은 흐린 줄 수 (PART 1 isLowConfidenceBlock 기준)
- * 0이 되어야 "Confirm text" 단계에서 다음으로 넘어갈 수 있다.
+ * 아직 사용자가 확인하지 않은 줄 수 (PART 1 getFlaggedBlocks 기준: 흐린 줄 + 당사자·주소 같은 핵심 줄)
+ * 편집 화면이 보여 주는 수와 같아야 한다. 0이 되어야 "Confirm text" 단계에서 다음으로 넘어갈 수 있다.
  * @param {import('../shared/document-model.js').DocumentModel[]} documents
  */
 export function countLinesToCheck(documents) {
-  let n = 0;
-  for (const doc of documents) for (const page of doc.pages ?? []) for (const b of page.blocks ?? []) if (isLowConfidenceBlock(b)) n += 1;
-  return n;
+  return getFlaggedBlocks(documents).length;
 }
 
 /**
@@ -223,15 +309,30 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   const masked = applyMaskingPlan(documents, plan.data, findings, personGroups, userEdits);
   if (!masked.ok) return stoppedAt('applyMaskingPlan', masked);
 
-  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits);
-  if (!check.ok) return stoppedAt('validateMaskedText', check);
+  // 사진(OCR) 서류는 PART 4 사진용 안전망(역할 옆 이름, 동이 붙은 호수)도 본다
+  const photoDocumentIds = documents.filter(needsTextReview).map((d) => d.documentId);
+  // lineBlocks를 넘기면 멈춘 곳 위치(where)에 blockId가 들어간다 (#328)
+  const check = validateMaskedText(masked.data.maskedText, findings, plan.data, userEdits, {
+    photoDocumentIds,
+    lineBlocks: masked.data.lineBlocks,
+  });
+  if (!check.ok) {
+    // 검사가 남은 곳의 위치(where)를 주면, 사용자가 그 줄을 직접 가리고 다시 진행할 수 있게 줄 정보를 붙인다 (#316)
+    const lines = stopLinesOf(documents, /** @type {any} */ (check).where, masked.data.maskedText);
+    return lines.length > 0 ? { ...stoppedAt('validateMaskedText', check), lines } : stoppedAt('validateMaskedText', check);
+  }
 
   // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
   // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
+  // 쪽 표시("--- page 2 ---")를 넣어 AI가 몇 쪽인지 밝힐 수 있게 한다. 검사한 글과 다르게 나오면 쪽 표시 없이 보낸다
+  const paged = withPageMarks(documents, masked.data.maskedText, (docs) => {
+    const r = applyMaskingPlan(docs, plan.data, findings, personGroups, userEdits);
+    return r.ok ? r.data.maskedText : null;
+  });
   const prompt = buildPrompt({
     purpose,
     riskResults,
-    maskedText: titledMaskedText(masked.data.maskedText, documents),
+    maskedText: titledMaskedText(paged, documents),
     legend: masked.data.legend,
   });
   if (!prompt.ok) return stoppedAt('buildPrompt', prompt);

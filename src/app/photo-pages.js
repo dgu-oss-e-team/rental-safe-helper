@@ -173,13 +173,17 @@ async function redrawPhoto(file) {
  * 사진(1장 이상)을 PDF 파일 하나로 합친다 (브라우저 전용)
  * @param {File[]} photos
  * @param {string} name  PDF 파일 이름 (개인정보 없는 이름)
+ * @param {() => void} [onPhoto]  사진 한 장을 준비하기 시작할 때마다 불린다 (진행 표시용)
  * @returns {Promise<File>}
  */
-export async function photosToPdfFile(photos, name) {
+export async function photosToPdfFile(photos, name, onPhoto) {
   /** @type {{ bytes: Uint8Array, format: 'jpg', width: number, height: number }[]} */
   const pages = [];
   // 한 장씩 차례로 (휴대폰 메모리에 큰 사진을 한꺼번에 올리지 않게)
-  for (const photo of photos) pages.push(await redrawPhoto(photo));
+  for (const photo of photos) {
+    onPhoto?.();
+    pages.push(await redrawPhoto(photo));
+  }
   const bytes = await buildPhotoPdf(pages);
   return new File([bytes], name, { type: 'application/pdf' });
 }
@@ -192,11 +196,13 @@ export async function photosToPdfFile(photos, name) {
  * PDF 한 개면 { file, parts: [file] }, 사진만이면 사진 PDF 하나, 섞였으면 조각마다 따로 읽고 그릴 때만 합친다.
  * @param {SlotValue} value
  * @param {string} name  합친 PDF 이름 (개인정보 없는 이름, 예 "lease.pdf")
- * @param {{ toPdf?: (photos: File[], name: string) => Promise<File>, merge?: (pdfs: File[], name: string) => Promise<File> }} [deps]  테스트에서 바꿔 끼운다
+ * @param {{ toPdf?: (photos: File[], name: string, onPhoto?: () => void) => Promise<File>, merge?: (pdfs: File[], name: string) => Promise<File>, onPhoto?: () => void }} [deps]
+ *   toPdf·merge는 테스트에서 바꿔 끼운다. onPhoto: 사진 한 장을 준비하기 시작할 때마다 불린다 (진행 표시용)
  * @returns {Promise<{ file: File, parts: File[], items: number[][] } | null>}
  */
 export async function slotToSource(value, name, deps = {}) {
-  const toPdf = deps.toPdf ?? photosToPdfFile;
+  const makePdf = deps.toPdf ?? photosToPdfFile;
+  const toPdf = (/** @type {File[]} */ photos, /** @type {string} */ pdfName) => makePdf(photos, pdfName, deps.onPhoto);
   const merge = deps.merge ?? mergePdfFiles;
   if (!value) return null;
   if (!Array.isArray(value)) return { file: value, parts: [value], items: [[0]] };

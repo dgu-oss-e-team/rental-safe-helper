@@ -67,14 +67,20 @@ const SHARE = '지\\s*분\\s*(?:\\d+\\s*분\\s*의\\s*\\d+|\\d+\\s*/\\s*\\d+)';
 const CORP_NAME_NOTE = '(?:\\s*[(（]\\s*법\\s*인\\s*명\\s*[)）])?';
 
 /**
+ * 라벨과 이름 사이의 구분 글자: 띄어쓰기, 쌍점, 그리고 사진 OCR이 표 칸 선을 읽은 "|", "ㅣ", "⎸", "│"
+ * 예: "카카오뱅크 ㅣ예금주 ㅣ 전우치", "개업공인 ⎸ 김삿갓" (상욱님 가짜세트4 사진)
+ */
+const SEPARATOR = '[\\s:：|ㅣ⎸│]';
+
+/**
  * 라벨 하나에 대한 정규식을 만든다.
- * 라벨 → (성명) → (지분 표기) → (:) → 공백이나 콜론 1개 이상 → 이름
- * 라벨과 이름 사이에 구분(공백이나 :)이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
+ * 라벨 → (성명) → (지분 표기) → (:) → 구분 글자(SEPARATOR) 1개 이상 → 이름
+ * 라벨과 이름 사이에 구분이 꼭 있어야 한다. "임대인과", "임대인은"을 이름으로 잡지 않으려고.
  * @param {string} label
  */
 function labelRegex(label) {
   return new RegExp(
-    `${spaced(label)}(?:\\s*(?:${NAME_FIELD})${CORP_NAME_NOTE})?(?:\\s*${SHARE})?\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+    `${spaced(label)}(?:\\s*(?:${NAME_FIELD})${CORP_NAME_NOTE})?(?:\\s*${SHARE})?\\s*[:：]?${SEPARATOR}+${NAME_PATTERN}`,
     'g',
   );
 }
@@ -110,7 +116,7 @@ const PERSON_RULES = [
  * "임대인 주소 …"처럼 이름이 바로 안 와도 역할이 시작됐다는 표시로 쓴다. "임대인과", "임대인은"은 제외.
  */
 const ROLE_ANCHORS = rules.persons.flatMap(({ role, labels }) =>
-  labels.map((label) => ({ role, regex: new RegExp(`(?<![가-힣])${spaced(label)}(?=[\\s:：]|$)`, 'g') })),
+  labels.map((label) => ({ role, regex: new RegExp(`(?<![가-힣])${spaced(label)}(?=${SEPARATOR}|$)`, 'g') })),
 );
 
 /**
@@ -118,9 +124,42 @@ const ROLE_ANCHORS = rules.persons.flatMap(({ role, labels }) =>
  * 표준계약서 서명란은 "임대인"이 표 왼쪽에 한 번 나오고, 이름은 다른 줄의 "성명" 칸에 있다.
  */
 const STANDALONE_NAME_REGEX = new RegExp(
-  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?[\\s:：]+${NAME_PATTERN}`,
+  `(?<![가-힣])(?:${rules.standaloneNameFields.map(spaced).join('|')})${CORP_NAME_NOTE}\\s*[:：]?${SEPARATOR}+${NAME_PATTERN}`,
   'g',
 );
+
+/** 서명란 표시: "(서명 또는 인)", "(서명 및 인)", "(서명 또는 날인)" */
+const SIGNATURE_NOTE = '[(（]\\s*서\\s*명\\s*(?:또\\s*는|및)\\s*(?:날\\s*)?인\\s*[)）]';
+
+/**
+ * 서명란 표시 바로 앞의 이름 (라벨 없음): "전우치 (서명 또는 인)", "SATO YK ⎸ (서명 또는 인)"
+ * 사진 OCR은 표의 칸 이름("성명(법인명)", "대표자 성명")을 다른 줄로 떼거나 놓쳐서, 이름과 서명란 표시만 한 줄에 남는다.
+ * (상욱님 가짜세트4 사진, #311 이후)
+ */
+const NAME_BEFORE_SIGNATURE_REGEX = new RegExp(
+  `(?<![가-힣A-Za-z])${NAME_PATTERN}[ \\t|ㅣ⎸│]*(?=${SIGNATURE_NOTE})`,
+  'g',
+);
+
+/**
+ * 서명란 표시 바로 앞의 이름을 찾는다. 역할은 붙이지 않는다(role: null).
+ * 칸 이름이 사라진 줄이라 누구의 서명란인지 확실하지 않기 때문이다. (가리기만 한다)
+ * 사진 서류에서만 쓴다. 글자 PDF는 칸 이름이 남아서 라벨 규칙으로 찾는다.
+ * - 라벨 단어("임대인 (서명 또는 인)"), notNames, 조사가 붙은 낱말, 영문 1-2글자는 이름이 아니다.
+ * - 회사 이름("주식회사가상리츠 (서명 또는 인)")은 앞에 한글이 붙어 있어서 이름 모양이 아니다.
+ * @param {string} text
+ * @returns {{type: string, value: string, start: number, end: number, role: null, birthDate: null}[]}
+ */
+export function findSignatureNames(text) {
+  const results = [];
+  for (const match of text.matchAll(NAME_BEFORE_SIGNATURE_REGEX)) {
+    const name = match[1].trim();
+    if (LABEL_WORDS.has(name) || NOT_NAMES.has(name) || isWordWithParticle(name) || TOO_SHORT_LATIN.test(name)) continue;
+    const start = match.index ?? 0;
+    results.push({ type: PII_TYPE.PERSON_NAME, value: name, start, end: start + name.length, role: null, birthDate: null });
+  }
+  return results;
+}
 
 /**
  * 주민·외국인등록번호 바로 앞의 이름 (라벨 없음).
@@ -296,6 +335,49 @@ export function unitTailsOf(value) {
   if (!/[동층]/.test(tail)) return [];
   const floorUnit = FLOOR_UNIT_TAIL.exec(tail)?.[0].trim();
   return floorUnit && floorUnit !== tail ? [tail, floorUnit] : [tail];
+}
+
+/** 동·리 이름 뒤의 지번: "가상동 212-5" → "212-5" (하이픈이 있는 지번만) */
+const LOT_PIECE = /(?<=[가-힣](?:동|리|가)\s+)\d{1,5}-\d{1,5}(?![\d-])/g;
+/** 지번 뒤, 층·호수 앞의 건물 이름: "212-5 가상스테이 제2층" → "가상스테이" (3글자 이상) */
+const BUILDING_PIECE = /(?<=\d\s+)[가-힣A-Za-z0-9]{3,}(?=\s+제?\s*\d{1,3}\s*층)/g;
+/** 괄호 안 동 이름 뒤의 건물 이름: "(가상동,가상맨션)" → "가상맨션" (3글자 이상) */
+const PAREN_BUILDING_PIECE = /(?<=[(（][가-힣0-9]+\s*,\s*)[가-힣A-Za-z0-9]{3,}(?=\s*[)）])/g;
+
+/**
+ * 사진 등기부 표제부는 소재지 칸이 좁아 지번·건물 이름이 다른 칸 글자와 섞여 따로 읽힌다.
+ *   "a ⎸ 212-5 ⎸ (철근)콘크리트지붕", "p ⎸ 가상스테이 ⎸ 5충 다세대주택" (상욱님 가짜세트4 사진)
+ * 그 줄만 보면 주소인지 알 수 없으므로, 같은 서류에서 찾은 주소의 지번·건물 이름 조각을 다시 찾을 조각으로 쓴다.
+ * - 지번은 하이픈이 있는 것만 ("212-5"). 숫자만 있는 지번("15")은 조항 번호 등과 겹친다. (#221)
+ * - 건물 이름은 3글자 이상만 ("가상스테이", "가상맨션"). 동 이름("가상동")은 집을 가리키지 않아서 넣지 않는다.
+ * @param {string} value 주소 값
+ * @returns {string[]}
+ */
+export function addressPiecesOf(value) {
+  return [
+    ...(value.match(LOT_PIECE) ?? []),
+    ...(value.match(BUILDING_PIECE) ?? []),
+    ...(value.match(PAREN_BUILDING_PIECE) ?? []),
+  ].filter((p) => !NOT_NAMES.has(p));
+}
+
+/**
+ * 층·호수 모양: "제3층 제203호", OCR이 층을 충으로 읽은 "제3충 제203호"
+ * 사진 등기부 전유부분 표에는 층·호수가 따로 나오는데, 위쪽 주소의 층·호수와 글자가 달라지면 다시 찾기로 못 찾는다.
+ */
+const FLOOR_UNIT_REGEX = /제\s*\d{1,3}\s*[층충]\s*제\s*\d{1,5}\s*호(?![가-힣])/g;
+
+/**
+ * 줄 안의 층·호수를 찾는다. (사진 서류에서만 쓴다)
+ * "층"을 "충"으로 잘못 읽은 것은 확인 필요로 표시한다(uncertain).
+ * @param {string} text
+ * @returns {{ type: string, value: string, start: number, end: number, uncertain: boolean }[]}
+ */
+export function findFloorUnits(text) {
+  return [...text.matchAll(FLOOR_UNIT_REGEX)].map((m) => {
+    const start = m.index ?? 0;
+    return { type: PII_TYPE.ADDRESS, value: m[0], start, end: start + m[0].length, uncertain: /충/.test(m[0]) };
+  });
 }
 
 /** 금액·면적 앞 표시: "금", "₩", "￦", "\" (원화 기호 대신 쓰는 경우) */
@@ -507,7 +589,7 @@ function addressResult(text, match) {
   const cut = cutAtTableCell(match[0]);
   // 표 옆 칸에서 끊었으면 괄호를 붙이지 않는다. (옆 칸 글자의 괄호일 수 있다)
   const end = cut === match[0] ? withParenTail(text, start + cut.length) : start + cut.length;
-  const value = text.slice(start, end).trimEnd();
+  const value = trimTableEnd(text.slice(start, end));
   // 등기부 표의 건물내역 칸(철근콘크리트구조·면적·날짜 등)에서 끊긴 주소: 아랫줄이 소재지 칸의 뒷부분일 수 있다
   const tableCut = cut !== match[0] && BUILDING_COLUMN_STOP.test(match[0].slice(cut.length));
   return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length, ...(tableCut ? { tableCut } : {}) };
@@ -555,17 +637,39 @@ const PAREN_REST_REGEX = new RegExp(`^[ \\t]*([^)\\n]*\\)(?:[ \\t]*${DONG_HO})*)
 const TRAILING_REGION_REGEX = new RegExp(
   `(?<![가-힣])(${rules.addressRegions.map(escapeRegex).join('|')})[ \\t,]*$`,
 );
-/** 주소 뒤에 이것만 남아 있으면 "줄 끝까지 온 주소"로 본다. (쉼표, 공백, 괄호 하나) */
-const ADDRESS_LINE_REST = /^[\s,]*(?:\([^)]*\))?[\s,]*$/;
+/** 건물번호만 있는 줄: "9", "12-3", "9," (뒤에 표 칸 선만 올 수 있다) */
+const ROAD_NUMBER_ONLY = /^[ \t]*(\d{1,4}(?:-\d{1,4})?)(?=[ \t,|ㅣ⎸│]*$)/;
+
+/** 주소 뒤에 이것만 남아 있으면 "줄 끝까지 온 주소"로 본다. (쉼표, 공백, 괄호 하나, 사진 OCR이 읽은 표 칸 선) */
+const ADDRESS_LINE_REST = /^[\s,|ㅣ⎸│]*(?:\([^)]*\))?[\s,|ㅣ⎸│]*$/;
+
+/**
+ * 주소 값 끝의 띄어쓰기와 표 칸 선("|", "ㅣ", "⎸", "│")을 뗀다.
+ * 사진 OCR은 표 칸 선을 글자로 읽어서 "…가상로17길 9, |"처럼 주소 끝에 붙는다.
+ * 칸 선이 붙어 있으면 주소가 줄 끝까지 온 것으로 안 보여 아랫줄 "203호(가상동)"를 잇지 못했다. (상욱님 가짜세트4 사진)
+ * @param {string} value
+ */
+function trimTableEnd(value) {
+  return value.replace(/[\s|ㅣ⎸│]+$/, '');
+}
 
 /**
  * 아랫줄 맨 앞의 주소 뒷부분을 찾는다.
  * @param {string} line 한 줄 (줄바꿈 없음)
  * @param {boolean} [afterRegion] 윗줄이 시·도 이름으로 끝났는지
  * @param {boolean} [openParen] 윗줄 주소가 괄호를 열고 끝났는지
+ * @param {boolean} [afterRoad] 윗줄 주소가 도로 이름("가상로17길")으로 끝났는지
  * @returns {{ type: string, value: string, start: number, end: number } | null}
  */
-export function findAddressContinuation(line, afterRegion = false, openParen = false) {
+export function findAddressContinuation(line, afterRegion = false, openParen = false, afterRoad = false) {
+  if (afterRoad) {
+    // 도로 이름 다음 줄에 건물번호만 있는 경우: "서울특별시 동대문구 가상로17길" / "9" (사진 등기부 표제부)
+    const n = line.match(ROAD_NUMBER_ONLY);
+    if (n) {
+      const start = (n.index ?? 0) + n[0].length - n[1].length;
+      return { type: PII_TYPE.ADDRESS, value: n[1], start, end: start + n[1].length };
+    }
+  }
   if (openParen) {
     const p = line.match(PAREN_REST_REGEX);
     if (p) {
@@ -580,7 +684,7 @@ export function findAddressContinuation(line, afterRegion = false, openParen = f
   const start = (m.index ?? 0) + m[0].length - m[1].length;
   const cut = cutAtTableCell(m[1]);
   const end = cut === m[1] ? withParenTail(line, start + cut.length) : start + cut.length;
-  const value = line.slice(start, end).trimEnd();
+  const value = trimTableEnd(line.slice(start, end));
   return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
 }
 
@@ -608,7 +712,7 @@ export function findOrphanUnitTail(line) {
   const start = (m.index ?? 0) + m[0].length - m[1].length;
   const cut = cutAtTableCell(m[1]);
   const end = cut === m[1] ? withParenTail(line, start + cut.length) : start + cut.length;
-  const value = line.slice(start, end).trimEnd();
+  const value = trimTableEnd(line.slice(start, end));
   return { type: PII_TYPE.ADDRESS, value, start, end: start + value.length };
 }
 

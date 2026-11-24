@@ -41,7 +41,7 @@ function extractNormalizedLines(data, imageWidth, imageHeight, fallbackConfidenc
   return rawLines
     .map((line) => {
       const { x0, y0, x1, y1 } = line.bbox;
-      const lineText = line.text ? line.text.trim() : '';
+      const lineText = line.text ? line.text.trim().replace(/\s+/g, ' ') : '';
       const lineConfidence =
         typeof line.confidence === 'number'
           ? Number((line.confidence / 100).toFixed(4))
@@ -146,12 +146,16 @@ export async function recognizeImageText(buffer) {
         tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
         preserve_interword_spaces: '1',
       });
-      // @ts-ignore
-      const fallbackRet = await worker.recognize(uint8Array, {}, { blocks: true });
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM?.AUTO ?? '3',
-        preserve_interword_spaces: '0',
-      });
+      let fallbackRet;
+      try {
+        // @ts-ignore
+        fallbackRet = await worker.recognize(uint8Array, {}, { blocks: true });
+      } finally {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM?.AUTO ?? '3',
+          preserve_interword_spaces: '1',
+        });
+      }
       const fallbackBlocks = extractNormalizedLines(
         fallbackRet.data,
         imageWidth,
