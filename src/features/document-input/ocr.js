@@ -12,6 +12,7 @@ async function getWorker() {
   if (!cachedWorker) {
     // Default CDN paths (no local public assets required)
     cachedWorker = await createWorker('kor+eng', 1);
+    await cachedWorker.setParameters({ preserve_interword_spaces: '1' });
   }
   return cachedWorker;
 }
