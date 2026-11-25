@@ -17,6 +17,7 @@
  *  - 다르다고 나와도 OCR 이름(confidence가 숫자)이 한글 이름 모양(2~4자)이 아니거나 신뢰도가 낮으면 STOP이 아니라 UNVERIFIABLE (#275, #312)
  *    글자 PDF 이름(confidence가 null)은 모양을 보지 않는다. 영문 이름 임대인이 진짜 다른 사람이면 STOP
  *  - 사진·스캔 서류의 주소가 숫자 몇 자만 다르면 STOP이 아니라 CHECK (#312). 글자 PDF끼리는 STOP
+ *  - 사진·스캔 서류 주소에 영문이 섞였거나 동·호수를 못 읽었으면 STOP이 아니라 CHECK (#343).
 */
 
 import { ok, RISK_STATUS, SOURCE_TYPE } from '../../shared/document-model.js';
@@ -444,6 +445,49 @@ function isPhotoDocument(doc) {
   return PERSON_LISTS.some((key) => Array.isArray(doc[key]) && doc[key].some((p) => typeof p?.confidence === 'number'));
 }
 
+/** 영문 글자 (사진에서 "203호"를 "Hams"로 읽는 식으로 섞여 들어온다) */
+const LATIN_LETTER = /[A-Za-z]/;
+
+/** 주소에서 동·호수 조각이 하나라도 읽히는가 (#343) */
+function hasUnitToken(/** @type {string} */ address) {
+  const loose = removeFloorBeforeUnit(address.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, '')).replace(/[\s,]+/g, ' ');
+  return findUnitTokens(loose).length > 0;
+}
+
+/** 한글만 남긴다. 층·호는 등기부와 계약서가 쓰는 방식이 달라서(제2층 제203호 ↔ 2층) 뺀다. */
+const hangulSkeleton = (/** @type {string} */ address) => normalizeAddress(address).replace(/[^가-힣]/g, '').replace(/[층호]/g, '');
+
+/** small의 글자가 big 안에 순서대로 모두 들어 있는가 */
+function isSubsequence(/** @type {string} */ small, /** @type {string} */ big) {
+  let i = 0;
+  for (const ch of big) if (ch === small[i]) i += 1;
+  return i === small.length;
+}
+
+/**
+ * 사진·스캔 쪽 주소가 잘못 읽힌 것 같은가. (#343)
+ *  - 사진 쪽 주소에만 영문이 섞였거나, 반대편에는 호수가 있는데 사진 쪽에는 동·호수가 없을 때만 본다.
+ *  - 사진 쪽에서 읽힌 한글(동 이름, 건물 이름)은 반대편과 모두 맞아야 한다.
+ *    한글이 하나라도 다르면 진짜 다른 집일 수 있어서 STOP을 유지한다. ("나상동" ↔ "가상동")
+ */
+function looksMisread(photoAddress, otherAddress) {
+  const lettersMixed = LATIN_LETTER.test(photoAddress) && !LATIN_LETTER.test(otherAddress);
+  const unitLost = hasUnitToken(otherAddress) && !hasUnitToken(photoAddress);
+  if (!lettersMixed && !unitLost) return false;
+  return isSubsequence(hangulSkeleton(photoAddress), hangulSkeleton(otherAddress));
+}
+
+/** 등기부·계약서 중 사진·스캔 서류의 주소가 잘못 읽힌 것 같은가. (#343) */
+function photoAddressLooksMisread(/** @type {any} */ fields) {
+  const registry = fields?.registry?.address;
+  const contract = fields?.contract?.address;
+  if (typeof registry !== 'string' || typeof contract !== 'string') return false;
+  return (
+    (isPhotoDocument(fields.registry) && looksMisread(registry, contract)) ||
+    (isPhotoDocument(fields.contract) && looksMisread(contract, registry))
+  );
+}
+
 /**
  * 등기부 소재지 ↔ 계약서 소재지
  *  - 한쪽이라도 읽지 못했으면 UNVERIFIABLE
@@ -476,14 +520,18 @@ export function compareAddresses(fields) {
   const roadAddress = fields?.registry?.roadAddress;
   const photo = isPhotoDocument(fields?.registry) || isPhotoDocument(fields?.contract);
   /** 숫자만 다르고 사진·스캔 서류이면 CHECK(OCR이 숫자를 잘못 읽었을 수 있다), 아니면 STOP */
-  const differentAddress = (/** @type {boolean} */ digitsOnly) =>
-    digitsOnly && photo
-      ? buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_digits', values })
-      : buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  const differentAddress = (/** @type {boolean} */ digitsOnly) => {
+    if (photo && digitsOnly) return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_digits', values });
+    // #343: 사진 쪽 주소에 영문이 섞였거나 동·호수를 못 읽었으면 다른 집이라고 단정하지 않는다
+    if (photo && photoAddressLooksMisread(fields)) {
+      return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_unreadable', values });
+    }
+    return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  };
   if (registryStyle === 'LOT' && contractStyle === 'ROAD' && roadAddress) {
     const same = compareRoadAddress(roadAddress, registryAddress, contractAddress);
     if (same === 'MATCH') return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
-        if (same === 'DIFFERENT' || same === 'DIFFERENT_DIGITS') return differentAddress(same === 'DIFFERENT_DIGITS');
+    if (same === 'DIFFERENT' || same === 'DIFFERENT_DIGITS') return differentAddress(same === 'DIFFERENT_DIGITS');
   }
   if (registryStyle === null || registryStyle !== contractStyle) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });
