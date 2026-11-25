@@ -472,8 +472,8 @@ describe('PART 2 등기부 권리: 말소', () => {
       EUL,
     ]);
     expect(r).toEqual([
-      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null },
-      { kind: 'SEIZURE', maxClaimAmount: null, cancelled: false, receivedAt: null },
+      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
+      { kind: 'SEIZURE', maxClaimAmount: null, cancelled: false, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
     ]);
   });
 
@@ -590,8 +590,8 @@ describe('PART 2 등기부 권리: 한 권리를 두 번 세지 않는다', () =
       '근저당권자 주식회사○○은행',
     ]);
     expect(r).toEqual([
-      { kind: 'TRUST', maxClaimAmount: null, cancelled: false, receivedAt: null },
-      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null },
+      { kind: 'TRUST', maxClaimAmount: null, cancelled: false, receivedAt: null, holder: '○○신탁주식회사', holderIsCompany: true, cause: '신탁' },
+      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null, holder: '주식회사○○은행', holderIsCompany: true, cause: null },
     ]);
   });
 

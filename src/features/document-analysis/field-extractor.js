@@ -547,6 +547,9 @@ const RIGHT_KINDS = [
   { kind: 'MORTGAGE', regex: /근\s*저\s*당/ },
   { kind: 'PROVISIONAL_SEIZURE', regex: /가\s*압\s*류/ },
   { kind: 'SEIZURE', regex: /압\s*류/ },
+  { kind: 'PROVISIONAL_DISPOSITION', regex: /가\s*처\s*분/ },
+  { kind: 'PROVISIONAL_REGISTRATION', regex: /가\s*등\s*기/ },
+  { kind: 'AUCTION', regex: /경\s*매\s*개\s*시\s*결\s*정/ },
   // "신탁재산귀속", "신탁재산의귀속"은 신탁이 끝나 소유권이 돌아오는 등기라 신탁이 아니다. (#183 리뷰)
   { kind: 'TRUST', regex: /신\s*탁(?!\s*재\s*산\s*(?:의\s*)?귀\s*속)/ },
   { kind: 'JEONSE', regex: /전\s*세\s*권/ },
@@ -559,9 +562,74 @@ const RIGHT_KINDS = [
  * @property {number | null} maxClaimAmount 채권최고액 (근저당만, 못 읽으면 null)
  * @property {boolean | null} cancelled 말소 여부. 말소 줄이 어느 권리를 가리키는지 모르면 null(확인 필요)
  * @property {string | null} receivedAt 접수일 'YYYY-MM-DD' (못 읽으면 null)
+ * @property {string | null} holder 권리자 이름 (못 읽으면 null)
+ * @property {boolean | null} holderIsCompany 권리자가 법인·기관이면 true, 개인이면 false, holder가 null이면 null
+ * @property {string | null} cause 등기원인 (못 읽으면 null)
  */
 
-/** 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)" */
+const HOLDER_LABEL =
+  /(?:근\s*저\s*당\s*권\s*자|가\s*등\s*기\s*권\s*리\s*자|가\s*처\s*분\s*채\s*권\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|수\s*탁\s*자|채\s*권\s*자|권\s*리\s*자)\s*[:：]?\s*/;
+const HOLDER_COMPANY_REGEX =
+  /주식회사|유한회사|유한책임회사|합자회사|㈜|\(주\)|리츠|투자회사|신탁|법인|은행|조합|금고|캐피탈|보험|공사|공단|세무서|대한민국|법원|(?:특별시|광역시|특별자치시|특별자치도)$/;
+const CAUSE_PATTERNS = [
+  /(?:가\s*압\s*류|가\s*처\s*분|경\s*매\s*개\s*시)\s*결\s*정(?:\([^)]*\))?/,
+  /압\s*류\([^)]*\)/,
+  /(?:근\s*저\s*당\s*권\s*|전\s*세\s*권\s*|임\s*차\s*권\s*)?설\s*정\s*계\s*약/,
+  /임\s*대\s*차\s*계\s*약/,
+  /매\s*매\s*예\s*약/,
+  /매\s*매/,
+  /증\s*여/,
+  /상\s*속/,
+  /신\s*탁/,
+  /해\s*지/,
+];
+
+/**
+ * 권리자 이름을 추출한다.
+ * @param {string} line
+ * @returns {string | null}
+ */
+function parseRightHolder(line) {
+  const m = HOLDER_LABEL.exec(line);
+  if (!m) return null;
+  let rest = line.slice(m.index + m[0].length).trim();
+  // 주민번호·법인번호·주소·채무자 라벨 앞에서 자른다
+  rest = rest.split(/\s+(?:\d{6}-[\d*]{1,7}|채\s*무\s*자|위\s*탁\s*자|대\s*상\s*소\s*유\s*자|서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원|충청|전라|전북|경상|제주)/)[0];
+  rest = rest.replace(/[,.;:]+$/, '').trim();
+  if (!rest || /^\d/.test(rest)) return null;
+  return rest;
+}
+
+/**
+ * 권리자가 법인·기관인지 판별한다.
+ * @param {string | null} holder
+ * @returns {boolean | null}
+ */
+function isCompanyHolder(holder) {
+  if (holder === null) return null;
+  return HOLDER_COMPANY_REGEX.test(holder);
+}
+
+/**
+ * 등기원인을 추출한다.
+ * @param {string} line
+ * @returns {string | null}
+ */
+function parseRightCause(line) {
+  for (const regex of CAUSE_PATTERNS) {
+    const m = regex.exec(line);
+    if (m) {
+      let cause = m[0].replace(/\s+/g, '');
+      if (/결정$/.test(cause)) {
+        const trailingCase = /\(\d{4}[가-힣]+\d+\)/.exec(line.slice(m.index + m[0].length));
+        if (trailingCase) cause += trailingCase[0];
+      }
+      return cause;
+    }
+  }
+  return null;
+}
+
 /**
  * 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)"
  * 사진 OCR은 앞에 표 칸 선·괄호가 더 붙거나("ㅣ [ 갑 구 】", "|  【[ 갑 구 】"), "갑"을 "감"으로 읽는다("[ 감 구 】").
@@ -741,19 +809,52 @@ export function findRegistryRights(lines) {
       cancels.push({ section, rank: target ? target[1] : null });
       continue;
     }
-    if (CONTINUATION_LINE.test(line)) continue;
+    const activeRight =
+      rights.length > 0 && places[rights.length - 1].section === section && places[rights.length - 1].rank === rowRank
+        ? rights[rights.length - 1]
+        : null;
+
+    if (CONTINUATION_LINE.test(line)) {
+      if (activeRight) {
+        if (activeRight.holder === null) {
+          const h = parseRightHolder(line);
+          if (h !== null) {
+            activeRight.holder = h;
+            activeRight.holderIsCompany = isCompanyHolder(h);
+          }
+        }
+        if (activeRight.cause === null) activeRight.cause = parseRightCause(line);
+        else if (/결정$/.test(activeRight.cause)) {
+          const caseNo = /^\s*(\([^)]+\))/.exec(line);
+          if (caseNo) activeRight.cause += caseNo[1].replace(/\s+/g, '');
+        }
+      }
+      continue;
+    }
 
     if (rankMatch && rankMatch[2]) continue; // 부기등기
     const rank = rankMatch ? rankMatch[1] : null;
-    if (rank === null && isWrappedCause(line)) continue; // 다음 줄로 넘어간 등기원인 칸
+    if (rank === null && isWrappedCause(line)) {
+      if (activeRight && activeRight.cause === null) activeRight.cause = parseRightCause(line);
+      continue; // 다음 줄로 넘어간 등기원인 칸
+    }
 
     const found = RIGHT_KINDS.find(({ regex }) => regex.test(line));
     const maxClaim = MAX_CLAIM_LABEL.exec(line);
     if (!found) {
-      // 채권최고액만 다음 줄에 있는 경우: 바로 앞 근저당에 붙인다.
-      const last = rights[rights.length - 1];
-      if (maxClaim && last && last.kind === 'MORTGAGE' && last.maxClaimAmount === null) {
-        last.maxClaimAmount = parseAmount(line.slice(maxClaim.index + maxClaim[0].length));
+      // 채권최고액·등기원인·권리자가 다음 줄에 있는 경우: 바로 앞 권리에 붙인다.
+      if (activeRight) {
+        if (maxClaim && activeRight.kind === 'MORTGAGE' && activeRight.maxClaimAmount === null) {
+          activeRight.maxClaimAmount = parseAmount(line.slice(maxClaim.index + maxClaim[0].length));
+        }
+        if (activeRight.holder === null) {
+          const h = parseRightHolder(line);
+          if (h !== null) {
+            activeRight.holder = h;
+            activeRight.holderIsCompany = isCompanyHolder(h);
+          }
+        }
+        if (activeRight.cause === null) activeRight.cause = parseRightCause(line);
       }
       continue;
     }
@@ -762,6 +863,7 @@ export function findRegistryRights(lines) {
     // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
     if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
 
+    const holder = parseRightHolder(line);
     /** @type {RegistryRight} */
     const right = {
       kind: found.kind,
@@ -770,6 +872,9 @@ export function findRegistryRights(lines) {
       cancelled: false,
       // 순위번호가 있는 권리 줄만 접수일을 읽는다 (줄의 첫 날짜 = 접수 칸)
       receivedAt: rank !== null ? parseDate(line) : null,
+      holder,
+      holderIsCompany: isCompanyHolder(holder),
+      cause: parseRightCause(line),
     };
     rights.push(right);
     if (rank !== null && right.receivedAt === null) waitingDate = { right, seen: 0 };
@@ -790,6 +895,78 @@ export function findRegistryRights(lines) {
     if (r.cancelled === false && unknownCancelSections.has(places[i].section)) r.cancelled = null;
   });
   return rights;
+}
+
+const KNOWN_OWNERSHIP_ROW =
+  /^\s*(?:\d{1,3}\s+)?(?:소\s*유\s*권\s*(?:일\s*부\s*)?이\s*전|소\s*유\s*권\s*보\s*존|[가-힣]{0,10}지\s*분\s*(?:전\s*부\s*|일\s*부\s*)?이\s*전|신\s*탁\s*재\s*산\s*(?:의\s*)?귀\s*속|등\s*기\s*명\s*의\s*인)/;
+
+/**
+ * 갑구·을구에서 알려진 권리·소유권·말소·안내 줄로 분류되지 않은 유효(미말소) 기록 줄 수를 센다.
+ * - 갑구·을구 제목을 둘 다 찾지 못하면 null.
+ * @param {string[]} lines
+ * @returns {number | null}
+ */
+export function findUnknownActiveCount(lines) {
+  const seen = new Set();
+  /** @type {string | null} */
+  let section = null;
+  let inSupplement = false;
+  /** @type {Array<{ section: string, rank: string | null, cancelled: boolean }>} */
+  const unknowns = [];
+  /** @type {Array<{ section: string, rank: string | null }>} */
+  const cancels = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const joined = joinWrappedCancel(lines, i);
+    const line = joined ?? lines[i];
+    if (joined !== null) i += 1;
+    if (SUMMARY_HEADING.test(line)) break;
+    const empty = EMPTY_SECTION.exec(line);
+    if (empty) seen.add(empty[1] === '을' ? '을' : '갑');
+    const heading = sectionHeading(line);
+    if (heading) {
+      section = heading;
+      seen.add(section);
+      inSupplement = false;
+      continue;
+    }
+    if (section !== '을' && EUL_ONLY_ROW.test(line)) {
+      section = '을';
+      seen.add(section);
+      inSupplement = false;
+    }
+    if (section === null) continue;
+    if (NOTE_LINE.test(line) || EMPTY_SECTION.test(line)) continue;
+
+    const rankMatch = RANK_REGEX.exec(line);
+    if (rankMatch) {
+      inSupplement = Boolean(rankMatch[2]);
+      if (rankMatch[2]) continue;
+    } else if (inSupplement) {
+      continue;
+    }
+
+    if (/말\s*소/.test(line)) {
+      const target = CANCEL_TARGET.exec(line);
+      cancels.push({ section, rank: target ? target[1] : null });
+      continue;
+    }
+    if (!rankMatch) continue; // 순위번호 없는 이어지는 줄은 새 미인식 기록으로 세지 않는다
+    if (CONTINUATION_LINE.test(line)) continue;
+    if (KNOWN_OWNERSHIP_ROW.test(line)) continue;
+    if (RIGHT_KINDS.some(({ regex }) => regex.test(line))) continue;
+
+    unknowns.push({ section, rank: rankMatch[1], cancelled: false });
+  }
+
+  if (!seen.has('갑') || !seen.has('을')) return null;
+
+  for (const c of cancels) {
+    if (c.rank === null) continue;
+    const hit = unknowns.find((u) => u.section === c.section && u.rank === c.rank);
+    if (hit) hit.cancelled = true;
+  }
+  return unknowns.filter((u) => !u.cancelled).length;
 }
 
 /**

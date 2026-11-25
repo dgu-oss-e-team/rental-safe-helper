@@ -196,7 +196,7 @@ export const mockExtractedFields = {
     address: '서울특별시 중구 필동로 00, 101호',
     owners: [{ findingId: 'PII_R03', name: '김철수', birthDate: '800101', role: 'OWNER' }],
     rights: [
-      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null },
+      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
     ],
   },
   contract: {
