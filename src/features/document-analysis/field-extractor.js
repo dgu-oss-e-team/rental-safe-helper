@@ -66,6 +66,8 @@ const PAREN_AMOUNT_REGEX = /^\s*정?\s*\(\s*₩?\s*([\d,]+)\s*원?\s*\)/;
  * @returns {number | null}
  */
 export function parseAmount(text) {
+  // 사진 OCR이 빈칸 밑줄·점을 "_", "、"로 읽어 "금 _ 삼천만 _ 원정"처럼 금액 사이에 끼면 띄어쓰기로 본다 (상욱님 가짜세트4 사진)
+  text = text.replace(/[_、]/g, ' ');
   const m = AMOUNT_REGEX.exec(text);
   if (!m) return null;
   if (m[1]) return parseKoreanNumber(m[1]);
@@ -165,11 +167,68 @@ function findAmountInTable(lines, key) {
 }
 
 /**
- * 보증금 (원). 금액 표를 먼저 보고, 없으면 "보증금" 라벨 뒤 금액. 못 찾으면 null.
+ * 민간임대 표준계약서 제1조 제목: "제1조(임대보증금, 월임대료 및 임대차 계약기간)"
+ * 이 아래 금액 표의 첫 금액 줄이 "금 삼천만 원정(\30,000,000) 금 오십오만 원정(\550,000)" (보증금, 월임대료 순서)이다.
+ */
+const LEASE_ARTICLE1 = /제\s*1\s*조\s*[(（]\s*임\s*대\s*보\s*증\s*금\s*,?\s*월\s*임\s*대\s*료/;
+/** 제1조 제목 아래에서 금액 줄을 찾아볼 줄 수 */
+const MAX_ARTICLE1_LOOKAHEAD = 5;
+/** 한글로 적은 금액: "삼천만 원", "오 십 오 만 원" (사진 OCR이 숫자 칸 "\30.000.000"을 망가뜨려도 한글은 남는다) */
+const KOREAN_AMOUNT_GLOBAL = /[일이삼사오육칠팔구십백천만억][일이삼사오육칠팔구십백천만억\s]*\s*원/g;
+
+/** 지급 일정 줄 ("계약금 금 삼백만 원정은 계약 시에 지급", "잔금 …"): 보증금·월세 금액 줄이 아니다 */
+const PAYMENT_LINE = /계\s*약\s*금|중\s*도\s*금|잔\s*금|지\s*급/;
+/** 금액 칸 하나의 끝 "원정" (한글 금액을 못 읽은 칸도 센다) */
+const WON_JEONG = /원\s*정/g;
+/** 금액 줄의 칸 이름 "금액" */
+const AMOUNT_LABEL = /금\s*액/;
+
+/**
+ * 제1조 제목 아래 금액 줄의 [보증금, 월임대료] (사진 서류에서 금액 표 제목 줄 "구분 임대보증금 …"을 못 읽었을 때)
+ * 칸이 깨지면 순서로 짝짓기가 틀릴 수 있어서 좁게 본다. (PR #331 정연님 리뷰)
+ * - 계약금·중도금·잔금·지급 줄에 닿으면 멈춘다. (지급 일정 금액이 보증금이 되지 않게)
+ * - 한글 금액이 2개 이상: 앞이 보증금, 뒤가 월세. 보증금이 월세보다 커야 한다. (아니면 칸이 깨진 것)
+ * - 한글 금액이 1개: "금액" 칸 이름이 있고, 금액 칸("원정")이 하나뿐일 때만 보증금으로 본다.
+ *   ("원정"이 2개인데 금액이 1개면 보증금 칸이 깨지고 월세만 남았을 수 있다)
+ * - 그 밖에는 null
+ * @param {string[]} lines
+ * @returns {number[] | null}
+ */
+function amountsUnderArticle1(lines) {
+  const start = lines.findIndex((line) => LEASE_ARTICLE1.test(line));
+  if (start === -1) return null;
+  for (const raw of lines.slice(start + 1, start + 1 + MAX_ARTICLE1_LOOKAHEAD)) {
+    if (PAYMENT_LINE.test(raw)) return null;
+    const line = raw.replace(/[_、]/g, ' ');
+    const amounts = /** @type {number[]} */ (
+      [...line.matchAll(KOREAN_AMOUNT_GLOBAL)]
+        .map((m) => parseKoreanNumber(m[0].replace(/원$/, '')))
+        .filter((n) => n !== null && n > 0)
+    );
+    if (amounts.length === 0) continue;
+    if (amounts.length >= 2) return amounts[0] > amounts[1] ? amounts.slice(0, 2) : null;
+    const cells = line.match(WON_JEONG)?.length ?? 0;
+    return AMOUNT_LABEL.test(line) && cells <= 1 ? amounts : null;
+  }
+  return null;
+}
+
+/**
+ * 보증금을 찾을 때 "보증금" 라벨 뒤에서 멈추는 말: 보증보험 가입 칸의 "가입대상 금액이 0원 이하"는 보증금이 아니다.
+ * (사진에서 금액 표를 못 읽으면 이 줄의 0원을 보증금으로 읽었다, 상욱님 가짜세트4 사진)
+ */
+const DEPOSIT_LABEL_STOP = new RegExp(`${OTHER_AMOUNT_LABEL.source}|가\\s*입\\s*대\\s*상|미\\s*가\\s*입|대\\s*상\\s*금\\s*액`);
+
+/**
+ * 보증금 (원). 못 찾으면 null.
+ * 1. 금액 표 ("구분 임대보증금 …" / "금액 …")
+ * 2. 민간임대 표준계약서 제1조 아래 금액 줄의 첫 한글 금액 (사진에서 표 제목 줄을 못 읽은 경우)
+ * 3. "보증금" 라벨 뒤 금액. 0원은 보증금으로 보지 않는다. (보증금 0원 계약은 없고, 다른 칸 숫자를 잘못 읽은 것이다)
  * @param {string[]} lines
  */
 export function findDeposit(lines) {
-  return findAmountInTable(lines, 'deposit') ?? findAmountAfterLabel(lines, ['보증금']);
+  const label = findAmountAfterLabel(lines, ['보증금'], DEPOSIT_LABEL_STOP);
+  return findAmountInTable(lines, 'deposit') ?? amountsUnderArticle1(lines)?.[0] ?? (label === 0 ? null : label);
 }
 
 /**
@@ -179,6 +238,7 @@ export function findDeposit(lines) {
 export function findMonthlyRent(lines) {
   return (
     findAmountInTable(lines, 'monthlyRent') ??
+    amountsUnderArticle1(lines)?.[1] ?? // 민간임대 제1조 금액 줄의 둘째 한글 금액 (사진)
     findAmountAfterLabel(lines, ['월세', '차임', '월임대료'], OTHER_AMOUNT_LABEL_FOR_RENT)
   );
 }
@@ -242,7 +302,8 @@ const SPECIAL_TERMS_CLAUSE = /^\s*제\s*\d{1,2}\s*조\s*[(（]\s*특\s*약\s*(?:
  * 띄어쓰기·문장부호를 지우고 비교한다. OCR이 「를 [나 <로, "된다."를 "된다,"로 읽어도 서식으로 본다. (#219 후속 (2))
  */
 const CLAUSE_FORM_TEXT = new RegExp(
-  '^(?:임대사업자와|임대인과)임차인은제\\d+조부터제\\d+조까지에서규정한사항외에필요한사항에대(?:하여|해서)는' +
+  // "필요한"은 사진 OCR이 "필 유한"처럼 잘못 읽기도 해서 한글 2~4자면 서식으로 본다 (상욱님 가짜세트4 사진)
+  '^(?:임대사업자와|임대인과)임차인은제\\d+조부터제\\d+조까지에서규정한사항외에[가-힣]{2,4}사항에대(?:하여|해서)는' +
     '따로특약으로정할수있다(?:다만특약의내용은약관의규제에관한법률을위반해서는(?:안|아니)된다)?$',
 );
 /** 서식 비교용 글자: 한글·숫자만 남긴다 */
@@ -285,6 +346,43 @@ const ANNEX_CONFIRM_LINE =
  * 조항 안의 "별지 제1호 서식에 따라"에서는 멈추지 않는다. (#197 리뷰)
  */
 const ANNEX_STOP = /^\s*■|^\s*[[【]?\s*별\s*지\s*제?\s*\d+\s*호|본\s*계약을\s*증명/;
+/**
+ * 특약 끝의 확인 문장: "위 특약사항을 확인하고 서명합니다. 2026년 11월 22일" (특약 별지)
+ * 이 뒤는 "임대사업자 전우치 (서명 또는 인)" 같은 서명란이라 특약이 아니다. 여기서 멈춘다. (상욱님 피드백)
+ */
+const TERMS_CONFIRM_SENTENCE = /확\s*인\s*하\s*고\s*서\s*명\s*합\s*니\s*다/;
+/**
+ * 특약 칸 사이에 인쇄된 서식 안내: "주택월세 소득공제 안내" / "근로소득이 있는 거주자는 … 문의하시기 바랍니다."
+ * 사진 OCR은 읽는 순서가 바뀌어 이 안내가 특약 사이에 들어온다. 안내 제목부터 끝 문장("문의하시기 바랍니다.")까지 건너뛴다.
+ * 끝 문장을 못 읽어도 번호 특약("1. …")이 나오거나 MAX_NOTICE_LINES줄을 넘으면 안내가 끝난 것으로 본다.
+ * (번호 없는 특약이 안내 뒤에 와도 빠지지 않게, PR #331 정연님 리뷰)
+ */
+const FORM_NOTICE_START = /소\s*득\s*공\s*제\s*안\s*내/;
+const FORM_NOTICE_END = /문\s*의\s*하\s*시\s*기\s*바\s*랍\s*니\s*다/;
+/** 안내 제목 뒤 안내 문장 줄 수 상한 (서식은 3줄: "근로소득이 …" / "라 주택월세에 …" / "문의하시기 바랍니다.") */
+const MAX_NOTICE_LINES = 3;
+
+/**
+ * 특약 본문을 읽으며 서식 안내 줄을 건너뛸지 정한다.
+ * @returns {(line: string) => boolean} 이 줄을 건너뛰면 true
+ */
+function noticeSkipper() {
+  /** 안내 안에서 남은 줄 수 (0이면 안내 밖) */
+  let left = 0;
+  return (line) => {
+    if (FORM_NOTICE_START.test(line)) {
+      left = MAX_NOTICE_LINES;
+      return true;
+    }
+    if (left === 0 || NUMBERED_LINE.test(line)) {
+      left = 0;
+      return false;
+    }
+    left = FORM_NOTICE_END.test(line) ? 0 : left - 1;
+    return true;
+  };
+}
+
 /** 쪽 번호만 있는 줄: "2/3", "(3쪽 / 3쪽)". 특약이 아니다. */
 const PAGE_MARK_LINE = /^\s*(?:\(?\s*\d+\s*쪽\s*\/\s*\d+\s*쪽\s*\)?|\d+\s*\/\s*\d+)\s*$/;
 /**
@@ -321,10 +419,13 @@ function readSpecialTermSection(lines, start) {
   const end = Math.min(lines.length, start + 1 + (annex ? MAX_ANNEX_LINES : MAX_SPECIAL_TERM_LINES));
   /** @type {number[]} */
   const body = [];
+  const skipNotice = noticeSkipper();
   let i = start + 1;
   for (; i < end; i += 1) {
     const line = lines[i];
     if (isSpecialTermsHeading(line)) break; // 다른 특약 제목 ("4. 특약" 다음의 별지 제목 등)
+    if (TERMS_CONFIRM_SENTENCE.test(line)) break;
+    if (skipNotice(line)) continue;
     if (annex) {
       if (ANNEX_STOP.test(line)) break;
       if (ANNEX_CONFIRM_LINE.test(line) || PAGE_MARK_LINE.test(line)) continue;
@@ -364,9 +465,12 @@ function readSpecialTermClause(lines, start) {
   /** @type {number[]} */
   const body = [];
   let nextNumber = 1;
+  const skipNotice = noticeSkipper();
   for (; i < end; i += 1) {
     const line = lines[i];
     if (isSpecialTermsHeading(line)) break;
+    if (TERMS_CONFIRM_SENTENCE.test(line)) break;
+    if (skipNotice(line)) continue;
     if (CLAUSE_SECTION_STOP.test(line) || SPECIAL_TERMS_STOP.test(line)) break;
     const numbered = NUMBERED_LINE.exec(line);
     if (numbered) {
@@ -458,9 +562,39 @@ const RIGHT_KINDS = [
  */
 
 /** 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)" */
-const SECTION_HEADING = /^\s*[【[(]?\s*([갑을])\s*구\s*[】\])]?(?=\s|$)/;
+/**
+ * 갑구·을구 제목 줄: "【 갑 구 】 (소유권에 관한 사항)"
+ * 사진 OCR은 앞에 표 칸 선·괄호가 더 붙거나("ㅣ [ 갑 구 】", "|  【[ 갑 구 】"), "갑"을 "감"으로 읽는다("[ 감 구 】").
+ * (상욱님 가짜세트4 사진: 제목을 못 찾아 소유자·권리가 모두 null이 됐다)
+ */
+const SECTION_HEADING = /^[\s|ㅣ⎸│]*[【[(]{0,2}\s*([갑감을])\s*구\s*[】\])]?(?=\s|$)/;
+/** 제목 글자("갑 구")가 깨져도 남는 부제: "(소유권에 관한 사항)", "(소유권 이외의 권리에 관한 사항)" */
+const GAP_SUBTITLE = /[(（]\s*소\s*유\s*권\s*에\s*관\s*한\s*사\s*항\s*[)）]/;
+const EUL_SUBTITLE = /[(（]\s*소\s*유\s*권\s*이\s*외\s*의\s*권\s*리\s*에\s*관\s*한\s*사\s*항\s*[)）]/;
+/** 부제로 제목을 알아볼 때 줄 길이 상한 (긴 문장 속 괄호는 제목이 아니다) */
+const MAX_SUBTITLE_LINE = 50;
+/**
+ * 을구에만 있는 기록 줄: "1 근저당권설정 …", "2 전세권설정 …" (순위번호 + 등기목적)
+ * 사진 OCR이 을구 제목(회색 띠)을 통째로 못 읽으면, 쪽 순서대로 올린 등기부에서 을구 기록이 갑구 기록으로 읽혀
+ * 지금 소유자·권리를 모두 못 정했다. 갑구를 읽는 중에 이 줄이 나오면 을구가 시작된 것으로 본다. (가짜세트4 사진)
+ */
+const EUL_ONLY_ROW = /^\s*\d{1,3}\s+(?:근\s*저\s*당\s*권|전\s*세\s*권|임\s*차\s*권|지\s*상\s*권|지\s*역\s*권)\s*설\s*정/;
+
+/**
+ * 줄이 갑구·을구 제목이면 '갑' 또는 '을', 아니면 null
+ * @param {string} line
+ * @returns {'갑' | '을' | null}
+ */
+function sectionHeading(line) {
+  const m = SECTION_HEADING.exec(line);
+  if (m) return m[1] === '을' ? '을' : '갑';
+  if (line.trim().length > MAX_SUBTITLE_LINE) return null;
+  if (EUL_SUBTITLE.test(line)) return '을';
+  if (GAP_SUBTITLE.test(line)) return '갑';
+  return null;
+}
 /** 기록이 없는 구를 이렇게 적는 경우도 읽은 것으로 본다: "을구 기록사항 없음" */
-const EMPTY_SECTION = /([갑을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/;
+const EMPTY_SECTION = /([갑감을])\s*구.*기\s*록\s*사\s*항\s*없\s*음/; // "감"은 사진 OCR이 "갑"을 잘못 읽은 것
 /** 끝의 요약표는 위 내용을 되풀이하므로 여기서 멈춘다. */
 const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
 /**
@@ -563,15 +697,24 @@ export function findRegistryRights(lines) {
     if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
-    if (empty) seen.add(empty[1]);
-    const heading = SECTION_HEADING.exec(line);
+    if (empty) seen.add(empty[1] === '을' ? '을' : '갑');
+    const heading = sectionHeading(line);
     if (heading) {
-      section = heading[1];
+      section = heading;
       seen.add(section);
       rowRank = null;
       rowKinds = new Set();
       inSupplement = false;
       continue;
+    }
+    // 을구 제목을 못 읽었어도 을구에만 있는 기록 줄("1 근저당권설정 …")이 나오면 을구가 시작된 것이다 (사진)
+    // 사진을 거꾸로 올려 갑구 제목보다 먼저 나와도 같다.
+    if (section !== '을' && EUL_ONLY_ROW.test(line)) {
+      section = '을';
+      seen.add(section);
+      rowRank = null;
+      rowKinds = new Set();
+      inSupplement = false;
     }
     if (section === null) continue;
     if (NOTE_LINE.test(line)) continue; // 안내 줄의 "말소사항"은 말소 기록이 아니다
@@ -771,10 +914,17 @@ function readGapRows(lines) {
       section = 'STOP';
       return;
     }
-    const heading = SECTION_HEADING.exec(line);
+    const heading = sectionHeading(line);
     if (heading) {
-      section = heading[1];
+      section = heading;
       if (section === '갑') seenGap = true;
+      current = null;
+      waiting = null;
+      return;
+    }
+    // 을구 제목을 못 읽었어도 을구에만 있는 기록 줄("1 근저당권설정 …")부터는 갑구가 아니다 (사진)
+    if (section === '갑' && EUL_ONLY_ROW.test(line)) {
+      section = '을';
       current = null;
       waiting = null;
       return;
@@ -962,7 +1112,8 @@ const MAX_SIGNATURE_LOOKAHEAD = 5;
 export function findContractDate(lines) {
   for (const line of lines) {
     for (const m of line.matchAll(CONTRACT_DATE_LABEL)) {
-      const after = line.slice(m.index + m[0].length);
+      // 사진 OCR이 빈칸 밑줄을 "_"로 읽은 "2026 년 _11 월 _22 일"도 읽는다
+      const after = line.slice(m.index + m[0].length).replace(/_/g, ' ');
       const date = DATE_AT_START.exec(after);
       if (date) {
         const iso = toIsoDate(date[1], date[2], date[3]);
@@ -972,7 +1123,7 @@ export function findContractDate(lines) {
   }
 
   const start = lines.findIndex((line) => SIGNATURE_SENTENCE.test(line));
-  if (start === -1) return null;
+  if (start === -1) return dateAfterTermsConfirm(lines);
   const first = lines[start];
   const sentence = SIGNATURE_SENTENCE.exec(first);
   const candidates = [
@@ -983,5 +1134,19 @@ export function findContractDate(lines) {
     const iso = parseDate(text);
     if (iso) return iso;
   }
-  return null;
+  return dateAfterTermsConfirm(lines);
+}
+
+/**
+ * 3순위: 특약 별지 끝 확인 문장 "위 특약사항을 확인하고 서명합니다. 2026년 11월 22일"의 날짜 (같은 줄 또는 다음 줄)
+ * 사진 OCR이 1쪽 "계약일" 라벨을 깨서 읽었을 때 쓴다. (상욱님 가짜세트4 사진)
+ * @param {string[]} lines
+ * @returns {string | null}
+ */
+function dateAfterTermsConfirm(lines) {
+  const at = lines.findIndex((line) => TERMS_CONFIRM_SENTENCE.test(line));
+  if (at === -1) return null;
+  const m = TERMS_CONFIRM_SENTENCE.exec(lines[at]);
+  const rest = lines[at].slice((m?.index ?? 0) + (m?.[0].length ?? 0));
+  return parseDate(rest.replace(/_/g, ' ')) ?? parseDate((lines[at + 1] ?? '').replace(/_/g, ' '));
 }
