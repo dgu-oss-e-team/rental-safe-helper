@@ -323,6 +323,15 @@ rules:
       left: Special terms read
       right: Terms that matched
     results:
+      STOP:
+        explanation: >-
+          A special term in this contract looks like it bans or limits address registration (전입신고)
+          or the fixed date (확정일자). Without them your deposit may not be protected if the home is
+          sold or goes to auction. Terms that matched: {matched}. {reasons}
+        action: >-
+          Ask the landlord or the agent to remove or change this term before you sign. Make sure you
+          can register your address (전입신고) and get the fixed date (확정일자) as soon as you move in.
+          If you are not sure what the term means, ask a legal aid service or another adviser you trust.
       CHECK:
         explanation: >-
           Some special terms in this contract match types of terms that are often unfavorable
