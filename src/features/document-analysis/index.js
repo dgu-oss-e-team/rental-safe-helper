@@ -43,6 +43,7 @@ import {
   findMonthlyRent,
   findSpecialTerms,
   findSpecialTermLines,
+  findPersonalInfoRange,
   findRegistryRights,
   findUnknownActiveCount,
   findLastTransferDate,
@@ -802,6 +803,7 @@ export function extractFields(documents, findings) {
     deposit: null,
     monthlyRent: null,
     specialTerms: null,
+    personalInfoRange: null,
     contractDate: null,
     landlordCompanies: null,
   };
@@ -818,6 +820,7 @@ export function extractFields(documents, findings) {
       deposit: findDeposit(lines),
       monthlyRent: findMonthlyRent(lines),
       specialTerms: findSpecialTerms(lines),
+      personalInfoRange: findPersonalInfoRange(lines),
       contractDate: findContractDate(lines),
       landlordCompanies: findCorporateNames(lines),
     };
