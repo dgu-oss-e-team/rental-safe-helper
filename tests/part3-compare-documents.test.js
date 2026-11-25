@@ -953,9 +953,27 @@ describe('PART 3 사진 서류의 주소 숫자 차이는 STOP 대신 CHECK (#31
     expect(status(addressFields(REG_203, '서울특별시 동대문구 가상동 212-5 나상스테이 Hams', { photo: true }))).toBe(RISK_STATUS.STOP);
   });
 
-  it('영문 동 이름(A동 ↔ B동)은 양쪽에 영문이 있어서 깨짐으로 보지 않고 STOP', () => {
-    const f = addressFields('서울특별시 동대문구 가상동 212-5 A동 101호', '서울특별시 동대문구 가상동 212-5 B동 101호', { photo: true });
-    expect(status(f)).toBe(RISK_STATUS.STOP);
+  // #343 리뷰: 평가 세트를 다시 캡처한 데이터(#321). 한글이 같으면 숫자·영문이 어떻게 깨져도 CHECK
+  const BOTH_PHOTO = { registry: { sourceType: 'image' }, contract: { sourceType: 'image' } };
+  const REG_303 = '서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제303호';
+
+  it.each([
+    ['호수가 다르고 하이픈도 빠짐 (303 vs 208, 212-5 vs 2125)', '서울특별시 동대문구 가상동 2125 가상스테이 제2층 제208호'],
+    ['지번 하이픈만 빠짐 (212-5 vs 2125)', '서울특별시 동대문구 가상동 2125 가상스테이 제2층 제303호'],
+    ['호는 남고 숫자만 영문으로 깨짐 (제Hams호)', '서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제Hams호'],
+  ])('사진 서류끼리 %s → CHECK', (_name, contract) => {
+    const r = compareAddresses(addressFields(REG_303, contract, BOTH_PHOTO));
+    expect(r.data.status).toBe(RISK_STATUS.CHECK);
+    expect(r.data.explanation).toContain('read incorrectly');
+  });
+
+  it('같은 데이터에서 동 이름이 다르면(나상동 ↔ 가상동) STOP', () => {
+    expect(status(addressFields(REG_303, '서울특별시 동대문구 나상동 2125 가상스테이 제2층 제208호', BOTH_PHOTO))).toBe(RISK_STATUS.STOP);
+  });
+
+  it('글자 PDF끼리면 호수가 달라도 STOP', () => {
+    const textPdf = { registry: { sourceType: 'text_pdf' }, contract: { sourceType: 'text_pdf' } };
+    expect(status(addressFields(REG_303, '서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제208호', textPdf))).toBe(RISK_STATUS.STOP);
   });
 
   it('호수 숫자만 다르면 사진은 기존대로 CHECK(ocr_digits), 글자 PDF는 STOP', () => {

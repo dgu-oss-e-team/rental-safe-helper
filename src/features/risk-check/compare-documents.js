@@ -445,17 +445,12 @@ function isPhotoDocument(doc) {
   return PERSON_LISTS.some((key) => Array.isArray(doc[key]) && doc[key].some((p) => typeof p?.confidence === 'number'));
 }
 
-/** 영문 글자 (사진에서 "203호"를 "Hams"로 읽는 식으로 섞여 들어온다) */
-const LATIN_LETTER = /[A-Za-z]/;
-
-/** 주소에서 동·호수 조각이 하나라도 읽히는가 (#343) */
-function hasUnitToken(/** @type {string} */ address) {
-  const loose = removeFloorBeforeUnit(address.replace(/\([^)]*\)/g, '').replace(/제\s*(?=\d)/g, '')).replace(/[\s,]+/g, ' ');
-  return findUnitTokens(loose).length > 0;
-}
-
-/** 한글만 남긴다. 층·호는 등기부와 계약서가 쓰는 방식이 달라서(제2층 제203호 ↔ 2층) 뺀다. */
-const hangulSkeleton = (/** @type {string} */ address) => normalizeAddress(address).replace(/[^가-힣]/g, '').replace(/[층호]/g, '');
+/**
+ * 숫자·영문·기호를 모두 빼고 한글만 남긴다.
+ * 제·층·호는 등기부와 계약서가 쓰는 방식이 달라서(제2층 제203호 ↔ 2층) 뺀다.
+ */
+const hangulSkeleton = (/** @type {string} */ address) =>
+  normalizeAddress(address).replace(/[^가-힣]/g, '').replace(/[제층호]/g, '');
 
 /** small의 글자가 big 안에 순서대로 모두 들어 있는가 */
 function isSubsequence(/** @type {string} */ small, /** @type {string} */ big) {
@@ -466,16 +461,12 @@ function isSubsequence(/** @type {string} */ small, /** @type {string} */ big) {
 
 /**
  * 사진·스캔 쪽 주소가 잘못 읽힌 것 같은가. (#343)
- *  - 사진 쪽 주소에만 영문이 섞였거나, 반대편에는 호수가 있는데 사진 쪽에는 동·호수가 없을 때만 본다.
- *  - 사진 쪽에서 읽힌 한글(동 이름, 건물 이름)은 반대편과 모두 맞아야 한다.
- *    한글이 하나라도 다르면 진짜 다른 집일 수 있어서 STOP을 유지한다. ("나상동" ↔ "가상동")
+ * 사진 쪽에서 읽힌 한글(시·구·동 이름, 건물 이름)이 반대편과 모두 맞으면, 숫자·영문이 어떻게 달라도 읽기 오류로 본다.
+ * 한글이 하나라도 다르면 진짜 다른 집일 수 있어서 STOP을 유지한다. ("나상동" ↔ "가상동")
+ * 사진에서 못 읽어 빠진 한글은 허용한다. (사진 쪽 한글이 반대편 안에 순서대로 들어 있으면 맞는 것으로 본다)
  */
-function looksMisread(photoAddress, otherAddress) {
-  const lettersMixed = LATIN_LETTER.test(photoAddress) && !LATIN_LETTER.test(otherAddress);
-  const unitLost = hasUnitToken(otherAddress) && !hasUnitToken(photoAddress);
-  if (!lettersMixed && !unitLost) return false;
-  return isSubsequence(hangulSkeleton(photoAddress), hangulSkeleton(otherAddress));
-}
+const looksMisread = (/** @type {string} */ photoAddress, /** @type {string} */ otherAddress) =>
+  isSubsequence(hangulSkeleton(photoAddress), hangulSkeleton(otherAddress));
 
 /** 등기부·계약서 중 사진·스캔 서류의 주소가 잘못 읽힌 것 같은가. (#343) */
 function photoAddressLooksMisread(/** @type {any} */ fields) {

@@ -141,9 +141,9 @@ rules:
       CHECK.ocr_unreadable:
         explanation: >-
           The address on the registry and the address on the contract look different. At least one
-          of the documents was read from a photo or scan, and part of its address (for example the
-          unit number) looks unclear or has stray letters in it, so it may have been read incorrectly.
-          We did not treat this as a different home.
+          of the documents was read from a photo or scan, and the words in the address (city, district,
+          building name) match, so the difference is in numbers or letters that may have been
+          read incorrectly. We did not treat this as a different home.
         action: >-
           The photo may have been read incorrectly. Check the original contract and registry yourself,
           including the lot number and the unit number. If they really differ, get a new registry
