@@ -631,3 +631,36 @@ describe('PART 3 조건문·이중 부정은 STOP이 아니다 (#336 3차 리뷰
     expect(assess(['임차인은 전입신고를 할 수 없다.']).data.status).toBe(STOP);
   });
 });
+
+describe('PART 3 전입신고·확정일자 금지 특약 키워드 보완 (#342)', () => {
+  const missed = [
+    '임차인은 사업자등록 및 전입신고를 하지 아니한다.',
+    '전입신고 및 확정일자는 받지 않기로 한다.',
+    '임차인은 주민등록 이전을 하지 않는다.',
+    '전입신고 및 확정일자를 받지 않는다.',
+    '확정일자를 받을 수 없다.',
+    '전입신고를 하지 않는 경우에만 보증금을 반환한다.',
+  ];
+  it.each(missed)('NO_FLAG로 새지 않고 STOP: %s', (sentence) => {
+    expect(assess([sentence]).data.status).toBe(STOP);
+  });
+
+  const protective = [
+    '임대인은 임차인의 전입신고 및 확정일자를 방해할 수 없다.',
+    '임대인은 전입신고 및 확정일자를 거부할 수 없다.',
+    '전입신고가 제한되는 사유가 발생하면 즉시 임차인에게 알린다.',
+  ];
+  it.each(protective)('보호 특약은 STOP이 아니라 CHECK: %s', (sentence) => {
+    expect(assess([sentence]).data.status).toBe(CHECK);
+  });
+
+  it('주거용에서 흔한 "사업자등록을 하지 않는다"는 걸리지 않는다', () => {
+    expect(assess(['임차인은 이 주택에서 사업자등록을 하지 않는다.']).data.status).toBe(NO_FLAG);
+  });
+
+  it('주민등록번호·"받을 수 있다"·"받는다"는 걸리지 않는다', () => {
+    for (const s of ['임대인은 임차인의 주민등록번호를 기재하지 않는다.', '임차인은 전입신고 및 확정일자를 받을 수 있다.', '임차인은 전입신고 및 확정일자를 받는다.']) {
+      expect(assess([s]).data.status).toBe(NO_FLAG);
+    }
+  });
+});
