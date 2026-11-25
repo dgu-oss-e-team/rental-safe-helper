@@ -654,8 +654,8 @@ describe('PART 3 전입신고·확정일자 금지 특약 키워드 보완 (#342
     expect(assess([sentence]).data.status).toBe(CHECK);
   });
 
-  it('사업자등록만 금지하면 STOP이 아니라 CHECK', () => {
-    expect(assess(['임차인은 사업자등록을 하지 않는다.']).data.status).toBe(CHECK);
+  it('주거용에서 흔한 "사업자등록을 하지 않는다"는 걸리지 않는다', () => {
+    expect(assess(['임차인은 이 주택에서 사업자등록을 하지 않는다.']).data.status).toBe(NO_FLAG);
   });
 
   it('주민등록번호·"받을 수 있다"·"받는다"는 걸리지 않는다', () => {
