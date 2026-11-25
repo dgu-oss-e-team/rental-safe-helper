@@ -612,3 +612,22 @@ describe('PART 3 전입신고 금지 STOP 추가 보완 (#336 2차 리뷰)', () 
     );
   });
 });
+
+describe('PART 3 조건문·이중 부정은 STOP이 아니다 (#336 3차 리뷰)', () => {
+  const notStop = [
+    '임차인이 전입신고를 하지 못하는 경우 계약을 해제할 수 있다.',
+    '전입신고가 불가한 경우 임대인은 보증금을 즉시 반환한다.',
+    '전입신고를 할 수 없을 때에는 계약을 해제할 수 있다.',
+    '임대인은 임차인의 전입신고를 막지 못한다.',
+    '임대인은 임차인의 전입신고를 제한하는 어떠한 행위도 하지 않는다.',
+  ];
+
+  it.each(notStop)('STOP이 아니다: %s', (sentence) => {
+    expect(assess([sentence]).data.status).not.toBe(STOP);
+  });
+
+  it('조건 말이 금지 뒤에 바로 붙지 않으면 STOP을 유지한다', () => {
+    expect(assess(['전입신고는 금지하며 위반 시 계약을 해지한다.']).data.status).toBe(STOP);
+    expect(assess(['임차인은 전입신고를 할 수 없다.']).data.status).toBe(STOP);
+  });
+});
