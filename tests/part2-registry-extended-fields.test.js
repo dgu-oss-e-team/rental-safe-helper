@@ -24,7 +24,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
         receivedAt: '2024-03-01',
         holder: '박가상',
         holderIsCompany: false,
-        cause: '가처분결정(2024카합100)',
+        cause: '가처분결정',
       },
       {
         kind: 'PROVISIONAL_REGISTRATION',
@@ -42,7 +42,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
         receivedAt: '2024-08-20',
         holder: '가상저축은행',
         holderIsCompany: true,
-        cause: '경매개시결정(2024타경555)',
+        cause: '경매개시결정',
       },
     ]);
   });
@@ -153,5 +153,45 @@ describe('PART 2 등기부 미인식 유효 행 수 (unknownActiveCount, #348)',
         cause: '설정계약',
       },
     ]);
+  });
+
+  it('사건번호가 붙은 압류·가압류 원인에서 사건번호를 제외하고, 가등기권자·국·짧은 주소를 처리한다 (#351 리뷰)', () => {
+    const r = findRegistryRights(
+      registry([
+        '1 압류 2024년 2월 1일 압류(세무1과-1234) 권리자 국',
+        '2 소유권이전청구권 2024년 4월 1일',
+        '가등기 제11호 매매예약 가등기권자 이가등 서울시 강남구 테헤란로 1',
+      ]),
+    );
+    expect(r).toEqual([
+      {
+        kind: 'SEIZURE',
+        maxClaimAmount: null,
+        cancelled: false,
+        receivedAt: '2024-02-01',
+        holder: '국',
+        holderIsCompany: true,
+        cause: '압류',
+      },
+      {
+        kind: 'PROVISIONAL_REGISTRATION',
+        maxClaimAmount: null,
+        cancelled: false,
+        receivedAt: '2024-04-01',
+        holder: '이가등',
+        holderIsCompany: false,
+        cause: '매매예약',
+      },
+    ]);
+  });
+
+  it('두 줄로 나뉜 소유권이전("공유자전원지분전부" / "이전")을 unknownActiveCount로 잘못 세지 않는다 (#351 리뷰)', () => {
+    const count = findUnknownActiveCount(
+      registry([
+        '2 공유자전원지분전부 2025년 9월 15일',
+        '이전 제40517호 매매 소유자 김가상',
+      ]),
+    );
+    expect(count).toBe(0);
   });
 });

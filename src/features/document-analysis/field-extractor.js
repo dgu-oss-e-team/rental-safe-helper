@@ -568,12 +568,12 @@ const RIGHT_KINDS = [
  */
 
 const HOLDER_LABEL =
-  /(?:근\s*저\s*당\s*권\s*자|가\s*등\s*기\s*권\s*리\s*자|가\s*처\s*분\s*채\s*권\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|수\s*탁\s*자|채\s*권\s*자|권\s*리\s*자)\s*[:：]?\s*/;
+  /(?:근\s*저\s*당\s*권\s*자|가\s*등\s*기\s*권\s*(?:리\s*)?자|가\s*처\s*분\s*채\s*권\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|수\s*탁\s*자|채\s*권\s*자|권\s*리\s*자)\s*[:：]?\s*/;
 const HOLDER_COMPANY_REGEX =
-  /주식회사|유한회사|유한책임회사|합자회사|㈜|\(주\)|리츠|투자회사|신탁|법인|은행|조합|금고|캐피탈|보험|공사|공단|세무서|대한민국|법원|(?:특별시|광역시|특별자치시|특별자치도)$/;
+  /주식회사|유한회사|유한책임회사|합자회사|㈜|\(주\)|리츠|투자회사|신탁|법인|은행|조합|금고|캐피탈|보험|공사|공단|세무서|대한민국|^국$|법원|(?:특별시|광역시|특별자치시|특별자치도)$/;
 const CAUSE_PATTERNS = [
-  /(?:가\s*압\s*류|가\s*처\s*분|경\s*매\s*개\s*시)\s*결\s*정(?:\([^)]*\))?/,
-  /압\s*류\([^)]*\)/,
+  /(?:가\s*압\s*류|가\s*처\s*분|경\s*매\s*개\s*시)\s*결\s*정/,
+  /압\s*류(?=\s*\()/,
   /(?:근\s*저\s*당\s*권\s*|전\s*세\s*권\s*|임\s*차\s*권\s*)?설\s*정\s*계\s*약/,
   /임\s*대\s*차\s*계\s*약/,
   /매\s*매\s*예\s*약/,
@@ -594,7 +594,9 @@ function parseRightHolder(line) {
   if (!m) return null;
   let rest = line.slice(m.index + m[0].length).trim();
   // 주민번호·법인번호·주소·채무자 라벨 앞에서 자른다
-  rest = rest.split(/\s+(?:\d{6}-[\d*]{1,7}|채\s*무\s*자|위\s*탁\s*자|대\s*상\s*소\s*유\s*자|서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원|충청|전라|전북|경상|제주)/)[0];
+  rest = rest.split(
+    /\s+(?:\d{6}-[\d*]{1,7}|채\s*무\s*자|위\s*탁\s*자|대\s*상\s*소\s*유\s*자|(?:서울|부산|대구|인천|광주|대전|울산|세종)(?:특별자치시|특별시|광역시|시)|경기도|강원(?:특별자치도|도)?|충청[남북]도|전라[남북]도|전북특별자치도|경상[남북]도|제주(?:특별자치도|도)?|[가-힣]{2,4}(?:시|군|구)(?=\s+[가-힣0-9]+(?:구|읍|면|동|로|길)))/,
+  )[0];
   rest = rest.replace(/[,.;:]+$/, '').trim();
   if (!rest || /^\d/.test(rest)) return null;
   return rest;
@@ -611,21 +613,14 @@ function isCompanyHolder(holder) {
 }
 
 /**
- * 등기원인을 추출한다.
+ * 등기원인을 추출한다. (사건번호 괄호는 빼고 원인 종류만 남긴다)
  * @param {string} line
  * @returns {string | null}
  */
 function parseRightCause(line) {
   for (const regex of CAUSE_PATTERNS) {
     const m = regex.exec(line);
-    if (m) {
-      let cause = m[0].replace(/\s+/g, '');
-      if (/결정$/.test(cause)) {
-        const trailingCase = /\(\d{4}[가-힣]+\d+\)/.exec(line.slice(m.index + m[0].length));
-        if (trailingCase) cause += trailingCase[0];
-      }
-      return cause;
-    }
+    if (m) return m[0].replace(/\s+/g, '');
   }
   return null;
 }
@@ -723,6 +718,24 @@ function joinWrappedCancel(lines, i) {
   return `${line}${next.trim()}`;
 }
 
+const WRAPPED_PURPOSE_START = /^\s*(?:이\s*전(?![가-힣])|가\s*등\s*기)/;
+
+function joinWrappedRow(lines, i) {
+  const line = lines[i];
+  const rankMatch = RANK_REGEX.exec(line);
+  const rest = rankMatch ? line.slice(rankMatch[0].length) : line;
+  const next = lines[i + 1];
+  if (next === undefined || RANK_REGEX.test(next)) return null;
+
+  if (REFERENCE_START.test(rest) && !/말\s*소/.test(rest) && WRAPPED_CANCEL_START.test(next)) {
+    return `${line}${next.trim()}`;
+  }
+  if (rankMatch && !rankMatch[2] && WRAPPED_PURPOSE_START.test(next)) {
+    return `${line} ${next.trim()}`;
+  }
+  return null;
+}
+
 /**
  * 등기부 권리(근저당·압류·가압류·신탁·전세권·임차권)를 찾는다. 갑구·을구 안의 줄만 본다.
  * - 갑구·을구 제목을 둘 다 찾았을 때만 결과를 준다. 하나라도 못 찾으면 null(못 읽음).
@@ -760,8 +773,12 @@ export function findRegistryRights(lines) {
   let waitingDate = null;
 
   for (let i = 0; i < lines.length; i += 1) {
-    const joined = joinWrappedCancel(lines, i);
-    const line = joined ?? lines[i];
+    const rawLine = lines[i];
+    const rawRank = RANK_REGEX.exec(rawLine);
+    const wrappedOwnership =
+      rawRank !== null && !rawRank[2] && isWrappedTransfer(rawLine.slice(rawRank[0].length), lines[i + 1]);
+    const joined = joinWrappedRow(lines, i);
+    const line = joined ?? rawLine;
     if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
@@ -824,10 +841,6 @@ export function findRegistryRights(lines) {
           }
         }
         if (activeRight.cause === null) activeRight.cause = parseRightCause(line);
-        else if (/결정$/.test(activeRight.cause)) {
-          const caseNo = /^\s*(\([^)]+\))/.exec(line);
-          if (caseNo) activeRight.cause += caseNo[1].replace(/\s+/g, '');
-        }
       }
       continue;
     }
@@ -917,8 +930,12 @@ export function findUnknownActiveCount(lines) {
   const cancels = [];
 
   for (let i = 0; i < lines.length; i += 1) {
-    const joined = joinWrappedCancel(lines, i);
-    const line = joined ?? lines[i];
+    const rawLine = lines[i];
+    const rawRank = RANK_REGEX.exec(rawLine);
+    const wrappedOwnership =
+      rawRank !== null && !rawRank[2] && isWrappedTransfer(rawLine.slice(rawRank[0].length), lines[i + 1]);
+    const joined = joinWrappedRow(lines, i);
+    const line = joined ?? rawLine;
     if (joined !== null) i += 1;
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
@@ -953,7 +970,7 @@ export function findUnknownActiveCount(lines) {
     }
     if (!rankMatch) continue; // 순위번호 없는 이어지는 줄은 새 미인식 기록으로 세지 않는다
     if (CONTINUATION_LINE.test(line)) continue;
-    if (KNOWN_OWNERSHIP_ROW.test(line)) continue;
+    if (wrappedOwnership || KNOWN_OWNERSHIP_ROW.test(line)) continue;
     if (RIGHT_KINDS.some(({ regex }) => regex.test(line))) continue;
 
     unknowns.push({ section, rank: rankMatch[1], cancelled: false });
