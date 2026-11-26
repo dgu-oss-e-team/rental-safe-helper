@@ -54,12 +54,12 @@ describe('PART 5 prepareForAi(): 목적별로 보낼 서류 (#360)', () => {
     expect(section(r.data.prompt, LEASE)).toContain('--- page 1 ---');
   });
 
-  it('조항·용어 설명: 두 서류 모두 가린 원문 (지금과 같음)', () => {
+  it('조항·용어 설명: 등기부는 요약이 아니라 가린 원문, 계약서는 인적사항 칸만 요약 (PART 2가 찾은 범위)', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.CLAUSE_EXPLANATION);
     expect(r.ok).toBe(true);
     expect(section(r.data.prompt, REGISTRY)).not.toContain(SUMMARY_HEAD);
     expect(section(r.data.prompt, REGISTRY)).toContain('--- page 1 ---');
-    expect(r.data.sending.map((s) => s.mode)).toEqual(['MASKED_TEXT', 'MASKED_TEXT']);
+    expect(r.data.sending.map((s) => s.mode)).toEqual(['MASKED_TEXT', 'PARTY_SUMMARY']);
   });
 
   it('계약 조건 설명: 등기부는 보내지 않고, 까닭(PURPOSE)을 남긴다', () => {
@@ -118,9 +118,11 @@ describe('PART 5 prepareForAi(): 계약서 인적사항 칸 요약 연결 (#360,
   let analysis;
   /** @type {any} */
   let lease;
-  /** 가짜 샘플 계약서의 인적사항 칸 (가린 글 28~33번 줄: 임대인·임차인 주소·번호·성명). PART 2 #352가 주는 범위를 흉내 낸다 */
+  /** 가짜 샘플 계약서의 인적사항 칸 (가린 글 28~33번 줄: 임대인·임차인 주소·번호·성명). PART 2 personalInfoRanges(#352) 대신 정해 둔 범위 */
   const RANGE = { startLine: 28, endLine: 33 };
-  const withRange = (a, range = RANGE) => ({ ...a, fields: { ...a.fields, contract: { ...a.fields.contract, personalInfoRange: range } } });
+  /** @param {any} a @param {any[]} ranges */
+  const withRanges = (a, ranges) => ({ ...a, fields: { ...a.fields, contract: { ...a.fields.contract, personalInfoRanges: ranges } } });
+  const withRange = (a, range = RANGE) => withRanges(a, [range]);
   const stripMarks = (text) => text.split('\n').filter((l) => !/^--- page \d+ ---$/.test(l)).join('\n');
 
   beforeAll(async () => {
@@ -157,8 +159,21 @@ describe('PART 5 prepareForAi(): 계약서 인적사항 칸 요약 연결 (#360,
     expect(stripMarks(text).trimEnd()).toBe(r.data.sentText[lease.documentId]);
   });
 
-  it('범위가 없으면(PART 2 범위를 못 찾음) 가린 원문 그대로 보낸다', () => {
+  it('PART 2가 실제로 찾은 범위(#352)로도 인적사항 칸이 요약되고 임대인 주민등록번호 줄이 프롬프트에서 빠진다', () => {
+    expect(Array.isArray(analysis.fields.contract.personalInfoRanges)).toBe(true);
+    expect(analysis.fields.contract.personalInfoRanges.length).toBeGreaterThan(0);
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
+    const text = section(r.data.prompt, LEASE);
+    expect(text).toContain('Personal information section of the contract');
+    expect(text).not.toContain('주민등록번호 [REDACTED]');
+    // 임차인의 "외국인등록번호 … 성명" 줄은 PART 2 범위에 아직 안 들어간다 (칸 이름 목록에 외국인등록번호가 없음, PART 2에 부탁).
+    // 그 줄도 가린 원문이라 개인정보는 남지 않는다.
+    expect(text).toContain('[특약사항]');
+    expect(r.data.sending.find((s) => s.documentId === lease.documentId)?.mode).toBe('PARTY_SUMMARY');
+  });
+
+  it('범위가 없으면(PART 2 범위를 못 찾음) 가린 원문 그대로 보낸다', () => {
+    const r = prepareForAi(withRanges(analysis, []), MASKING_PURPOSE.FRAUD_CHECK);
     expect(section(r.data.prompt, LEASE)).not.toContain('Personal information section');
     expect(r.data.sending.find((s) => s.documentId === lease.documentId)?.mode).toBe('MASKED_TEXT');
   });
