@@ -212,6 +212,34 @@ export function doneScreen(state, act) {
 }
 
 /**
+ * 서류마다 프롬프트에 어떻게 들어갔는지 안내 (#360). 가린 원문 그대로 넣은 서류는 따로 말하지 않는다.
+ * @param {import('../pipeline.js').SentDocument[] | undefined} sending
+ * @returns {string[]}
+ */
+export function sendingNotes(sending) {
+  if (!Array.isArray(sending)) return [];
+  /** @type {string[]} */
+  const notes = [];
+  for (const s of sending) {
+    const name = DOCUMENT_TEXT[s.documentType] ?? 'Document';
+    if (s.mode === 'SUMMARY') {
+      notes.push(`${name}: only a short list of extracted items is in the prompt, not the full text.`);
+      if ((s.hiddenCount ?? 0) > 0) {
+        const n = /** @type {number} */ (s.hiddenCount);
+        notes.push(
+          `${name}: ${n} ${n === 1 ? 'item was' : 'items were'} hidden in that list because ${n === 1 ? 'it' : 'they'} may contain personal information. Check ${n === 1 ? 'it' : 'them'} in the original yourself.`,
+        );
+      }
+    } else if (s.mode === 'OMIT' && s.reason === 'SUMMARY_FAILED') {
+      notes.push(`${name}: not in the prompt, because we could not prepare its summary. The full text is never shared instead. Check it yourself.`);
+    } else if (s.mode === 'OMIT') {
+      notes.push(`${name}: not in the prompt, because this purpose does not need it.`);
+    }
+  }
+  return notes;
+}
+
+/**
  * "Ask AI" 카드 내용. 사진·스캔 서류는 다시 확인 결과를 본 뒤에만 프롬프트를 보여 준다 (promptHoldReason)
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../pipeline.js').Prepared} prepared
@@ -226,8 +254,19 @@ function askAi(state, prepared, box, status) {
       el('p', { class: 'hint', id: 'prompt-wait' }, [hold]),
     ];
   }
+  const notes = sendingNotes(prepared.sending);
+  // 이 목적에 보낼 서류가 없으면 프롬프트를 만들지 않는다 (#360, 예: 등기부만 올리고 계약 조건 설명)
+  if (!prepared.prompt) {
+    return [
+      el('ul', { class: 'sending-notes', id: 'sending-notes' }, notes.map((n) => el('li', {}, [n]))),
+      el('p', { class: 'hint', id: 'no-prompt' }, [
+        'There is no prompt for this purpose. To ask AI, go back and add the document this purpose needs, or choose another purpose.',
+      ]),
+    ];
+  }
   return [
     el('p', {}, ['Copy the prompt and paste it into the AI chat. This website does not send anything to AI by itself.']),
+    ...(notes.length > 0 ? [el('ul', { class: 'sending-notes', id: 'sending-notes' }, notes.map((n) => el('li', {}, [n])))] : []),
     el('label', { for: 'prompt' }, ['Prompt']),
     box,
     actions([button('Copy prompt', () => copyPrompt(prepared.prompt, box, status), { id: 'copy' })]),

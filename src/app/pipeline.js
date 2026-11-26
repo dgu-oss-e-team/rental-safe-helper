@@ -27,6 +27,9 @@ import {
   createMaskingPlan,
   applyMaskingPlan,
   validateMaskedText,
+  getSendMode,
+  SEND_MODE,
+  buildRegistrySummary,
 } from '../features/masking/index.js';
 import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
@@ -51,7 +54,17 @@ import { settlePersonAnswers } from './person-questions.js';
  * @property {import('../shared/document-model.js').MaskingPlan} maskingPlan
  * @property {Record<string, string>} maskedText
  * @property {Record<string, string>} legend
- * @property {string} prompt
+ * @property {string} prompt  보낼 서류가 하나도 없으면 빈 글 (#360)
+ * @property {Record<string, string>} sentText  documentId → AI 프롬프트에 실제로 넣은 글 (쪽 표시 전). 안 보낸 서류는 없다
+ * @property {SentDocument[]} sending  서류마다 어떻게 보냈는지 (완료 화면 안내용, #360)
+ */
+
+/**
+ * 서류 하나를 AI에 어떻게 보냈는지 (#360)
+ * - mode: 실제로 보낸 방식 (SEND_MODE). 요약을 못 만들어 뺐으면 OMIT
+ * - reason: OMIT일 때 까닭. PURPOSE = 이 목적에는 안 보내는 서류, SUMMARY_FAILED = 요약을 못 만들어 뺌 (가린 원문으로 돌아가지 않음)
+ * - hiddenCount: 요약에서 가린 줄 수 (SUMMARY일 때)
+ * @typedef {{ documentId: string, documentType: string, mode: string, reason?: 'PURPOSE' | 'SUMMARY_FAILED', hiddenCount?: number }} SentDocument
  */
 
 /**
@@ -322,21 +335,49 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
     return lines.length > 0 ? { ...stoppedAt('validateMaskedText', check), lines } : stoppedAt('validateMaskedText', check);
   }
 
-  // 프롬프트에는 마스킹 완료 텍스트와 범례만 넣는다 (PART 3)
+  // 목적별로 서류마다 보낼 방식을 정한다 (#360, PART 4 send-mode.json)
+  // 위 검사는 모든 서류의 가린 글로 그대로 한다: 마스킹 PDF도 같은 계획으로 만들므로, 보내지 않는 서류도 검사에서 빼지 않는다
+  const selected = selectSentText(analysis, purpose, masked.data, userEdits);
+
+  // 요약 글도 보내기 전 검사를 한 번 더 거친다 (요약 함수가 줄마다 미리 검사하지만, 나가는 글은 모두 같은 검사를 통과해야 한다)
+  // 요약 줄은 서류의 줄과 이어지지 않으므로 lineBlocks를 넘기지 않는다 → 멈추면 "이 줄 가리기" 없이 일반 안내만 나온다
+  const summaries = Object.fromEntries(
+    selected.sending.filter((s) => s.mode === SEND_MODE.SUMMARY).map((s) => [s.documentId, selected.sentText[s.documentId]]),
+  );
+  if (Object.keys(summaries).length > 0) {
+    const summaryCheck = validateMaskedText(summaries, findings, plan.data, userEdits, { photoDocumentIds });
+    if (!summaryCheck.ok) return stoppedAt('validateMaskedText', summaryCheck);
+  }
+
+  // 프롬프트에는 마스킹 완료 텍스트(또는 요약)와 범례만 넣는다 (PART 3)
   // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
   // 쪽 표시("--- page 2 ---")를 넣어 AI가 몇 쪽인지 밝힐 수 있게 한다. 검사한 글과 다르게 나오면 쪽 표시 없이 보낸다
-  const paged = withPageMarks(documents, masked.data.maskedText, (docs) => {
+  // 요약은 쪽과 이어지지 않으므로 쪽 표시를 넣지 않는다 (가린 원문으로 다시 덮어쓰지 않게 가린 원문 서류만 넘긴다)
+  const maskedOnly = Object.fromEntries(
+    selected.sending.filter((s) => s.mode === SEND_MODE.MASKED_TEXT).map((s) => [s.documentId, selected.sentText[s.documentId]]),
+  );
+  const paged = withPageMarks(documents, maskedOnly, (docs) => {
     const r = applyMaskingPlan(docs, plan.data, findings, personGroups, userEdits);
     return r.ok ? r.data.maskedText : null;
   });
-  const prompt = buildPrompt({
-    purpose,
-    riskResults,
-    maskedText: titledMaskedText(paged, documents),
-    legend: masked.data.legend,
-    monthlyRent: analysis.fields?.contract?.monthlyRent,
-  });
-  if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
+  /** @type {Record<string, string>} 올린 순서대로 */
+  const promptText = {};
+  for (const documentId of Object.keys(selected.sentText)) promptText[documentId] = paged[documentId] ?? selected.sentText[documentId];
+
+  // 이 목적에 보낼 서류가 하나도 없으면(예: 등기부만 올리고 계약 조건 설명) 프롬프트 없이 진행한다.
+  // 마스킹 PDF는 그대로 만들 수 있어야 하므로 멈추지 않는다. 완료 화면이 sending으로 까닭을 알려 준다.
+  let promptData = '';
+  if (Object.keys(promptText).length > 0) {
+    const prompt = buildPrompt({
+      purpose,
+      riskResults,
+      maskedText: titledMaskedText(promptText, documents),
+      legend: masked.data.legend,
+      monthlyRent: analysis.fields?.contract?.monthlyRent,
+    });
+    if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
+    promptData = prompt.data;
+  }
 
   /** @type {Prepared} */
   const prepared = {
@@ -344,9 +385,60 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
     maskingPlan: plan.data,
     maskedText: masked.data.maskedText,
     legend: masked.data.legend,
-    prompt: prompt.data,
+    prompt: promptData,
+    sentText: selected.sentText,
+    sending: selected.sending,
   };
   return ok(prepared);
+}
+
+/**
+ * 서류마다 AI에 보낼 글을 고른다 (#360). 올린 순서를 지킨다.
+ *  - OMIT: 이 목적에는 보내지 않는다 (예: 계약 조건 설명의 등기부)
+ *  - SUMMARY: PART 4 buildRegistrySummary() 요약. 못 만들면 그 서류를 뺀다. 가린 원문으로 돌아가지 않는다.
+ *    요약은 extractFields()의 registry 하나로 만든다. 등기부를 두 개 올려 데이터가 없는 등기부도 같은 이유로 뺀다.
+ *  - MASKED_TEXT(그 밖): 지금처럼 가린 원문
+ *  - PARTY_SUMMARY(계약서 인적사항 칸 요약, #357)는 PART 4 함수가 main에 들어오면 연결한다. 그 전에는 가린 원문.
+ * @param {Analysis} analysis
+ * @param {string} purpose
+ * @param {{ maskedText: Record<string, string>, legend: Record<string, string> }} masked
+ * @param {import('./masking-edits.js').MaskingEdits} userEdits
+ * @returns {{ sentText: Record<string, string>, sending: SentDocument[] }}
+ */
+function selectSentText(analysis, purpose, masked, userEdits) {
+  /** @type {Record<string, string>} */
+  const sentText = {};
+  /** @type {SentDocument[]} */
+  const sending = [];
+  const registryFields = analysis.fields?.registry;
+  for (const doc of analysis.documents) {
+    const { documentId } = doc;
+    const documentType = doc.documentType ?? DOCUMENT_TYPE.UNKNOWN;
+    const text = masked.maskedText[documentId];
+    if (typeof text !== 'string') continue;
+    const mode = getSendMode(purpose, documentType);
+
+    if (mode === SEND_MODE.OMIT) {
+      sending.push({ documentId, documentType, mode: SEND_MODE.OMIT, reason: 'PURPOSE' });
+      continue;
+    }
+    if (mode === SEND_MODE.SUMMARY) {
+      const summary =
+        registryFields?.documentId === documentId
+          ? buildRegistrySummary(registryFields, analysis.personGroups, masked.legend, userEdits)
+          : null;
+      if (summary?.ok) {
+        sentText[documentId] = summary.data.text;
+        sending.push({ documentId, documentType, mode: SEND_MODE.SUMMARY, hiddenCount: summary.data.hiddenCount });
+      } else {
+        sending.push({ documentId, documentType, mode: SEND_MODE.OMIT, reason: 'SUMMARY_FAILED' });
+      }
+      continue;
+    }
+    sentText[documentId] = text;
+    sending.push({ documentId, documentType, mode: SEND_MODE.MASKED_TEXT });
+  }
+  return { sentText, sending };
 }
 
 /**

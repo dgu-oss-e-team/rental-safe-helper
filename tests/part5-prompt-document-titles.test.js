@@ -70,7 +70,9 @@ describe('PART 5 prepareForAi(): 프롬프트 서류 제목 (#240)', () => {
   it.each(Object.values(MASKING_PURPOSE))('%s: "### 서류 이름"으로 나가고 내부 ID는 나가지 않는다', async (purpose) => {
     const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
     const prepared = prepareForAi(analyzed, purpose).data;
-    expect(prepared.prompt).toContain(`### ${REGISTRY}\n`);
+    // 계약 조건 설명에는 등기부를 보내지 않는다 (#360)
+    if (purpose === MASKING_PURPOSE.CONTRACT_EXPLANATION) expect(prepared.prompt).not.toContain(`### ${REGISTRY}\n`);
+    else expect(prepared.prompt).toContain(`### ${REGISTRY}\n`);
     expect(prepared.prompt).toContain(`### ${LEASE}\n`);
     for (const doc of analyzed.documents) expect(prepared.prompt).not.toContain(doc.documentId);
   });
