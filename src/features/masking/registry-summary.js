@@ -217,9 +217,9 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
   const previous = peopleText(registryFields.previousOwners, groups, known, 'none');
   add((hide) => `Previous owners: ${hide ? HIDDEN : previous}`);
 
-  // null은 "소유권보존만 있음"과 "못 읽음"이 섞여 있다 (INTERFACES.md 5번)
+  // null은 "소유권보존만 있음"과 "못 읽음"이 섞여 있다 (INTERFACES.md 5번). AI가 "이전 없음"으로 단정하지 않게 둘 다 적는다 (#355 리뷰)
   const lastTransfer = registryFields.lastTransferDate;
-  add(() => `Last ownership transfer: ${typeof lastTransfer === 'string' ? (dateText(lastTransfer) ?? COULD_NOT_READ) : 'not found'}`);
+  add(() => `Last ownership transfer: ${typeof lastTransfer === 'string' ? (dateText(lastTransfer) ?? COULD_NOT_READ) : 'not found (only the first registration, or could not read)'}`);
 
   if (rights === null) {
     add(() => `Rights and restrictions: ${COULD_NOT_READ}`);

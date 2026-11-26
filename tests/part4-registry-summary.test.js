@@ -184,6 +184,12 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(summarize({ unknownActiveCount: 0 }).text).not.toMatch(/Unconfirmed|Other register records/);
   });
 
+  it('소유권 이전일이 없으면(null) "소유권보존만 있음 또는 못 읽음"을 같이 적는다 (#355 리뷰: "이전 없음"으로 단정하지 않게)', () => {
+    expect(summarize({ lastTransferDate: null }).text).toContain(
+      'Last ownership transfer: not found (only the first registration, or could not read)',
+    );
+  });
+
   it('지금 소유자가 회사면 회사 이름은 넣지 않고 회사라는 것만 적는다 (ownerCompanies는 화면 전용)', () => {
     const { text } = summarize({ owners: [], ownerCompanies: ['가상부동산신탁주식회사'] });
     expect(text).toContain('Current owner: a company (name not sent)');
