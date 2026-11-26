@@ -684,6 +684,13 @@ describe('PART 3 사진(OCR) 계약서의 전입신고·확정일자 금지 특�
     expect(r.data.explanation).toContain('read incorrectly');
   });
 
+  it('글자 PDF 계약서에 특약 별지만 사진이면(sourceType image_pdf, 임대인 신뢰도 null) CHECK', () => {
+    const f = withTerms(['확정일자는 받을 수 없다.']);
+    f.contract.landlords[0].confidence = null;
+    f.contract.sourceType = SOURCE_TYPE.IMAGE_PDF;
+    expect(assessSpecialTerms(f).data.status).toBe(CHECK);
+  });
+
   it('OCR이 "않는다"를 "앉는다"로 잘못 읽은 부정문도 사진 서류에서는 STOP이 아니다', () => {
     const r = assessSpecialTerms(photoTerms(['임대인은 전입신고를 금지하지 앉는다.']));
     expect(r.data.status).toBe(CHECK);

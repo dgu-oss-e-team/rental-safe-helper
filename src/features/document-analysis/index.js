@@ -785,7 +785,7 @@ export function extractFields(documents, findings) {
   }
 
   /**
-   * @type {{ documentId: string | null, address: string | null,
+   * @type {{ documentId: string | null, sourceType?: string | null, address: string | null,
    *   landlords: Person[] | null, tenants: Person[] | null, accountHolders: Person[] | null,
    *   deposit: number | null, monthlyRent: number | null, specialTerms: string[] | null,
    *   contractDate: string | null }}
@@ -808,6 +808,7 @@ export function extractFields(documents, findings) {
     const lines = linesOf(leaseDoc);
     contract = {
       documentId: leaseDoc.documentId,
+      sourceType: leaseDoc.sourceType,
       address: pickPropertyAddress(hits, { firstAddressFallback: false }),
       landlords: byRole(people, 'LANDLORD'),
       tenants: byRole(people, 'TENANT'),
