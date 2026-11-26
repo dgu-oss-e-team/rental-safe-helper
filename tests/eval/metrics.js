@@ -60,6 +60,20 @@ export function longestCommon(a, b) {
   return best;
 }
 
+/** 사진(OCR) 평가: 정답 값의 이 비율 이상이 이어서 남으면 "비슷하게 남음"으로 본다 (OCR이 몇 글자 잘못 읽어 정확히는 안 맞는 경우) */
+export const NEAR_RATIO = 0.7;
+
+/**
+ * 정답 항목이 정확히는 아니어도 대부분 이어서 보이는지 (OCR 오독으로 한두 글자 다른 경우)
+ * 짧은 값은 적어도 3글자가 이어서 같아야 한다.
+ * @param {TruthItem} item
+ * @param {string} text
+ */
+export function isNearlyVisible(item, text) {
+  const haystack = compact(text);
+  return secretsOf(item).some((s) => longestCommon(s, haystack) >= Math.max(3, Math.ceil(s.length * NEAR_RATIO)));
+}
+
 /** 탐지 값의 이 비율 이상이 정답 값과 이어서 겹치면 "개인정보를 가린 것"으로 본다 */
 export const MIN_OVERLAP = 0.5;
 

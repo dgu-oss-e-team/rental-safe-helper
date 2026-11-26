@@ -43,7 +43,9 @@ import {
   findMonthlyRent,
   findSpecialTerms,
   findSpecialTermLines,
+  findPersonalInfoRanges,
   findRegistryRights,
+  findUnknownActiveCount,
   findLastTransferDate,
   findContractDate,
   findCurrentOwnerLines,
@@ -764,6 +766,7 @@ export function extractFields(documents, findings) {
     owners: null,
     previousOwners: null,
     rights: null,
+    unknownActiveCount: null,
     lastTransferDate: null,
     ownerCompanies: null,
   };
@@ -779,6 +782,7 @@ export function extractFields(documents, findings) {
       owners: owners.current,
       previousOwners: owners.previous,
       rights: findRegistryRights(lines),
+      unknownActiveCount: findUnknownActiveCount(lines),
       lastTransferDate: findLastTransferDate(lines),
       ownerCompanies: findCurrentOwnerCompanies(lines),
     };
@@ -799,6 +803,7 @@ export function extractFields(documents, findings) {
     deposit: null,
     monthlyRent: null,
     specialTerms: null,
+    personalInfoRanges: null,
     contractDate: null,
     landlordCompanies: null,
   };
@@ -816,6 +821,7 @@ export function extractFields(documents, findings) {
       deposit: findDeposit(lines),
       monthlyRent: findMonthlyRent(lines),
       specialTerms: findSpecialTerms(lines),
+      personalInfoRanges: findPersonalInfoRanges(lines),
       contractDate: findContractDate(lines),
       landlordCompanies: findCorporateNames(lines),
     };

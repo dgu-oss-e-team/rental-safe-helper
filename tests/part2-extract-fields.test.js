@@ -164,7 +164,7 @@ describe('PART 2 extractFields 보증금·월세·특약·등기부 권리', () 
   it('Mock 문서에서 보증금·월세·특약·권리를 실제로 읽는다', () => {
     const r = extractFields([mockRegistryDocument, mockLeaseDocument], []);
     expect(r.data.registry.rights).toEqual([
-      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null },
+      { kind: 'MORTGAGE', maxClaimAmount: 120000000, cancelled: false, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
     ]);
     expect(r.data.contract.deposit).toBe(50000000);
     expect(r.data.contract.monthlyRent).toBe(500000);
@@ -224,8 +224,8 @@ describe('PART 2 extractFields 보증금·월세·특약·등기부 권리', () 
       [],
     );
     expect(r.data.registry.rights).toEqual([
-      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null },
-      { kind: 'MORTGAGE', maxClaimAmount: 100000000, cancelled: false, receivedAt: null },
+      { kind: 'PROVISIONAL_SEIZURE', maxClaimAmount: null, cancelled: true, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
+      { kind: 'MORTGAGE', maxClaimAmount: 100000000, cancelled: false, receivedAt: null, holder: null, holderIsCompany: null, cause: null },
     ]);
   });
 

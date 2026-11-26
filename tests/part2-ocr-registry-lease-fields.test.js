@@ -21,7 +21,7 @@ const GAP_ROWS = [
   '제48821호 매매',
 ];
 const EUL_ROWS = ['1 근저당권설정 2022년6월20일 2022년6월20일 채권최고액 금96,000,000원', '제48822호 설정계약 채무자 김가상'];
-const MORTGAGE = { kind: 'MORTGAGE', maxClaimAmount: 96000000, cancelled: false, receivedAt: '2022-06-20' };
+const MORTGAGE = { kind: 'MORTGAGE', maxClaimAmount: 96000000, cancelled: false, receivedAt: '2022-06-20', holder: null, holderIsCompany: null, cause: '설정계약' };
 
 describe('PART 2 사진 등기부: 갑구·을구 제목', () => {
   for (const heading of ['ㅣ [ 갑 구 】 ( 소 유 권 에 관한 사항 ) ㅣ', '|  【[ 갑 구 】 ( 소유권에 관한 사항 )', '[ 감 구 】 ( 소유권에 관한 사항 )', 'TEE ( 소유권에 관한 사항 )']) {
