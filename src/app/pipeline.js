@@ -334,6 +334,7 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
     riskResults,
     maskedText: titledMaskedText(paged, documents),
     legend: masked.data.legend,
+    monthlyRent: analysis.fields?.contract?.monthlyRent,
   });
   if (!prompt.ok) return stoppedAt('buildPrompt', prompt);
 

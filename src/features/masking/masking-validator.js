@@ -206,15 +206,44 @@ const COMPANY_AFTER = /^\s*(?:주식회사|유한회사|회사|법인|㈜|\(주\
 /** 역할 낱말 + (띄어쓰기·세로줄·쌍점) + 한글 2~4자 낱말. OCR이 표 칸 선을 "|", "⎸"로 읽는다. */
 const ROLE_NEXT_WORD = new RegExp(`(?:${ROLE_WORDS.join('|')})[\\s|⎸│:：·]+([가-힣]{2,4})(?![가-힣])`, 'g');
 /** "203호(가상동)"처럼 호수 바로 뒤에 동 이름 괄호. "제24호서식", "제1호"는 앞에 "제"가 붙거나 괄호가 없어서 빠진다. */
-const UNIT_WITH_DONG = /(?<![제\d])\d{1,4}\s?호\s?\([가-힣]/;
+const UNIT_WITH_DONG = /(?<![제\d])\d{1,4}\s?호\s?\(\s?[가-힣]/;
+/**
+ * 사진 OCR이 한 글자씩 띄어 읽은 주소 ("서 울 특별시 동대문구 가 상 로17길 9", "서 물 특 별시 중구 가 상 동 2 가 47-12").
+ * 띄어쓰기를 모두 뺀 줄에서 시·도("…특별시", "…광역시", "○○도") + 시·군·구 + 도로·동 이름 + 번지 숫자가 이어지면 집 주소로 본다.
+ * 시·구까지만 남긴 주소("서울특별시 중구")는 뒤에 도로·동과 숫자가 없어서 빠진다.
+ */
+const SPACED_ADDRESS = new RegExp(
+  '(?:특별시|광역시|특별자치시|특별자치도|별시|(?:경기|강원|충청북|충청남|충북|충남|전라북|전라남|전북|전남|경상북|경상남|경북|경남|제주)도?)' +
+    '[가-힣]{1,5}?(?:시|군|구)[가-힣]{1,8}?(?:로|길|동|가|리)\\d',
+);
+/**
+ * 시·도 이름이 깨지거나 빠진 주소 조각 (#337, #335 리뷰 후속, 상욱님 사진 평가 세트).
+ * OCR이 "서울특별시"를 "특변시"로 읽거나 시·도를 아예 놓치면 SPACED_ADDRESS가 못 잡는다. 띄어쓰기를 모두 뺀 줄에서 본다.
+ * - 구·군 + 도로·동·리 이름 + 번지 숫자 ("중구 가상동2가 47-12", "동대문구 가상로17길 9", "양평군 가상리 12")
+ * - 동·리·도로 이름 + 하이픈 지번 ("가상동2가 47-1", "가상리 123-4", "가상로 63-5")
+ * 시·구까지만 남긴 주소("서울특별시 중구")는 뒤에 도로·동과 숫자가 없어서 빠진다.
+ * 앞이 숫자인 "101동"은 이름이 아니어서 빠진다 (이름 자리에 한글이 와야 한다).
+ */
+/*
+ * 특약 문장이 걸리지 않게 (#339 리뷰, 상욱님):
+ * - 숫자 뒤에 기간·횟수·금액 단위가 오면 주소가 아니다 ("요구사항대로 1개월", "계좌로 2-3일")
+ * - 하이픈이 두 번인 날짜·전화 모양은 지번이 아니다 ("인도일로 2026-12-01")
+ */
+const NOT_LOT_UNIT = '(?:개월|일|년|회|차|주|시간|시|분|초|원|만|천|억|번째|명|세|배|%|퍼센트)';
+const PARTIAL_ADDRESS = new RegExp(
+  `[가-힣]{1,4}(?:구|군)[가-힣]{1,8}?(?:로|길|동|가|리)\\d+(?!\\d|-\\d+-|-?\\d*${NOT_LOT_UNIT})` +
+    `|[가-힣]{1,6}(?:동(?:\\d{1,2}가)?|리|로(?:\\d{1,4}번?길)?|길)\\d{1,5}-\\d{1,5}(?![\\d-]|${NOT_LOT_UNIT})`,
+);
 
 /**
  * 사진(OCR) 서류에서만 보는 남은 개인정보 모양 (PART 2가 OCR 오독으로 놓친 것, 상욱님 가짜세트4 사진 점검)
  * - 역할 낱말 바로 옆에 가려지지 않은 이름 모양 ("개업공인 ⎸ 김삿갓 ⎸ GLEE]")
  * - 동 이름 괄호가 붙은 호수 ("203호(가상동)", OCR이 502를 505로 읽어 원래 값과 비교로도 안 잡힘)
+ * - 한 글자씩 띄어 읽은 집 주소 ("서 울 특별시 동대문구 가 상 로17길 9", 탐지가 놓침)
+ * - 시·도 이름이 깨지거나 빠진 주소 조각 ("중구 가상동2가 47-12", "ee = EL 0 가상동2가 47-1")
  * 글자 PDF에서는 보지 않는다. 서식 문구가 많아 잘못 멈추기 쉽고, 글자 PDF는 PART 2 탐지가 정확하다.
  * @param {string} line  일부러 남긴 자리(가명 등)를 뺀 줄
- * @returns {'NAME' | 'UNIT' | null}
+ * @returns {'NAME' | 'UNIT' | 'ADDRESS' | null}
  */
 export function findPhotoLeftover(line) {
   for (const m of line.matchAll(ROLE_NEXT_WORD)) {
@@ -231,7 +260,9 @@ export function findPhotoLeftover(line) {
     if (ENDS_WITH_PARTICLE.test(m[1]) && !lineEndName && !/^\s*[|⎸│(（]/.test(rest)) continue;
     return 'NAME';
   }
-  return UNIT_WITH_DONG.test(line) ? 'UNIT' : null;
+  if (UNIT_WITH_DONG.test(line)) return 'UNIT';
+  const joined = line.replace(/\s+/g, '');
+  return SPACED_ADDRESS.test(joined) || PARTIAL_ADDRESS.test(joined) ? 'ADDRESS' : null;
 }
 
 /**
@@ -347,8 +378,8 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
   );
   // 사진(OCR) 서류: 역할 낱말 옆 이름, 동 이름이 붙은 호수가 남아 있으면 안 된다 (탐지가 OCR 오독으로 놓친 것)
   const photoIds = new Set(options?.photoDocumentIds ?? []);
-  /** @type {Record<'NAME' | 'UNIT', number[]>} */
-  const photoAt = { NAME: [], UNIT: [] };
+  /** @type {Record<'NAME' | 'UNIT' | 'ADDRESS', number[]>} */
+  const photoAt = { NAME: [], UNIT: [], ADDRESS: [] };
   outsideLines.forEach((line, k) => {
     if (!photoIds.has(locate(outsideStarts[k]).documentId)) return;
     const kind = findPhotoLeftover(line);
@@ -356,6 +387,7 @@ export function validateMaskedText(maskedText, findings, plan, edits, options) {
   });
   report('Masking check failed: a name next to a role word may still be visible in a photo document.', photoAt.NAME);
   report('Masking check failed: a unit number of an address may still be visible in a photo document.', photoAt.UNIT);
+  report('Masking check failed: an address may still be visible in a photo document.', photoAt.ADDRESS);
   // 사용자가 더 가린 글자도 남아 있으면 안 된다
   /** @type {number[]} */
   const addAt = [];

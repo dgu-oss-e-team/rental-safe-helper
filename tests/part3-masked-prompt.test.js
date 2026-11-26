@@ -98,7 +98,7 @@ describe('PART 3 프롬프트: PART 4 마스킹 완료 텍스트·역할 범례 
     const special = results.find((r) => r.ruleId === 'RISKY_SPECIAL_TERM');
     expect(special?.status).toBe(RISK_STATUS.CHECK);
     // 화면용 근거에는 원문이 있다
-    expect(special?.evidence?.right.value).toBe(NAMED_TERM);
+    expect(special?.evidence?.right.value).toBe(`Special term 1: ${NAMED_TERM}`);
 
     const p = buildPrompt({ purpose: FRAUD_CHECK, riskResults: results, maskedText: MASKED_TEXT, legend: LEGEND });
     expect(p.data).not.toContain(special.evidence.right.value);

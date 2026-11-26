@@ -138,6 +138,16 @@ rules:
         action: >-
           Compare the numbers on the original registry and contract yourself, including the lot
           number and the unit number. If they really differ, get a new registry for the exact address.
+      CHECK.ocr_unreadable:
+        explanation: >-
+          The address on the registry and the address on the contract look different. At least one
+          of the documents was read from a photo or scan, and the words in the address (city, district,
+          building name) match, so the difference is in numbers or letters that may have been
+          read incorrectly. We did not treat this as a different home.
+        action: >-
+          The photo may have been read incorrectly. Check the original contract and registry yourself,
+          including the lot number and the unit number. If they really differ, get a new registry
+          for the exact address.
       UNVERIFIABLE:
         explanation: We could not read the address on the registry or on the contract.
         action: Compare the address on the registry and the contract yourself, including the unit number.
@@ -323,6 +333,15 @@ rules:
       left: Special terms read
       right: Terms that matched
     results:
+      STOP:
+        explanation: >-
+          A special term in this contract looks like it bans or limits address registration (전입신고)
+          or the fixed date (확정일자). Without them your deposit may not be protected if the home is
+          sold or goes to auction. Terms that matched: {matched}. {reasons}
+        action: >-
+          Ask the landlord or the agent to remove or change this term before you sign. Make sure you
+          can register your address (전입신고) and get the fixed date (확정일자) as soon as you move in.
+          If you are not sure what the term means, ask a legal aid service or another adviser you trust.
       CHECK:
         explanation: >-
           Some special terms in this contract match types of terms that are often unfavorable
@@ -330,6 +349,17 @@ rules:
         action: >-
           Ask the landlord or the agent to explain or remove these terms before you sign.
           If you are not sure what they mean, ask a legal aid service or another adviser you trust.
+      CHECK.ocr_registration_ban:
+        explanation: >-
+          A special term in this contract may ban or limit address registration (전입신고) or the
+          fixed date (확정일자). But the contract was read from a photo or scan, so a word may have
+          been read incorrectly (for example, "않는다" read as "앉는다"). We did not treat this as a
+          confirmed ban. Terms that matched: {matched}. {reasons}
+        action: >-
+          Read the special terms on the original contract yourself. If a term really bans or limits
+          address registration or the fixed date, ask the landlord or the agent to remove or change it
+          before you sign. If you uploaded a photo, correct the text in the text check step, or upload
+          a clearer photo or the original PDF.
       NO_FLAG:
         explanation: >-
           None of the special terms we could read matched our list of terms that are often

@@ -17,12 +17,14 @@
  *  - 다르다고 나와도 OCR 이름(confidence가 숫자)이 한글 이름 모양(2~4자)이 아니거나 신뢰도가 낮으면 STOP이 아니라 UNVERIFIABLE (#275, #312)
  *    글자 PDF 이름(confidence가 null)은 모양을 보지 않는다. 영문 이름 임대인이 진짜 다른 사람이면 STOP
  *  - 사진·스캔 서류의 주소가 숫자 몇 자만 다르면 STOP이 아니라 CHECK (#312). 글자 PDF끼리는 STOP
+ *  - 사진·스캔 서류 주소에 영문이 섞였거나 동·호수를 못 읽었으면 STOP이 아니라 CHECK (#343).
 */
 
 import { ok, RISK_STATUS, SOURCE_TYPE } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
 import { hasActiveTrust } from './assess-risks.js';
 import rules from '../../config/templates/person-labels.json';
+import { isPhotoDocument } from './photo-document.js';
 
 /** PART 4 personGroups의 status 값 */
 const PERSON_CONFIRMED = 'CONFIRMED';
@@ -426,22 +428,38 @@ function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
 /** 숫자를 뺀 글자. 두 주소가 이 글자까지 같으면 숫자만 다른 것이다. (#312) */
 const stripDigits = (/** @type {string} */ text) => text.replace(/[0-9]/g, '');
 
-/** 사람 목록이 들어 있는 칸. 이름이 있는 줄의 OCR 신뢰도(confidence)가 여기 들어 있다. */
-const PERSON_LISTS = ['owners', 'previousOwners', 'landlords', 'tenants', 'accountHolders'];
+/**
+ * 숫자·영문·기호를 모두 빼고 한글만 남긴다.
+ * 제·층·호는 등기부와 계약서가 쓰는 방식이 달라서(제2층 제203호 ↔ 2층) 뺀다.
+ */
+const hangulSkeleton = (/** @type {string} */ address) =>
+  normalizeAddress(address).replace(/[^가-힣]/g, '').replace(/[제층호]/g, '');
+
+/** small의 글자가 big 안에 순서대로 모두 들어 있는가 */
+function isSubsequence(/** @type {string} */ small, /** @type {string} */ big) {
+  let i = 0;
+  for (const ch of big) if (ch === small[i]) i += 1;
+  return i === small.length;
+}
 
 /**
- * 이 서류가 사진·스캔(OCR)으로 읽은 서류인지. (#312)
- *  - 서류에 sourceType이 있으면 그것을 따른다. (image, image_pdf만 사진·스캔)
- *  - 없으면 사람 정보의 confidence가 숫자인지로 본다. (글자 PDF는 항상 null이다)
- * 판단할 근거가 없으면 false라서, 기존처럼 STOP이 나온다.
- * @param {any} doc  fields.registry 또는 fields.contract
+ * 사진·스캔 쪽 주소가 잘못 읽힌 것 같은가. (#343)
+ * 사진 쪽에서 읽힌 한글(시·구·동 이름, 건물 이름)이 반대편과 모두 맞으면, 숫자·영문이 어떻게 달라도 읽기 오류로 본다.
+ * 한글이 하나라도 다르면 진짜 다른 집일 수 있어서 STOP을 유지한다. ("나상동" ↔ "가상동")
+ * 사진에서 못 읽어 빠진 한글은 허용한다. (사진 쪽 한글이 반대편 안에 순서대로 들어 있으면 맞는 것으로 본다)
  */
-function isPhotoDocument(doc) {
-  if (!doc) return false;
-  if (typeof doc.sourceType === 'string') {
-    return doc.sourceType === SOURCE_TYPE.IMAGE || doc.sourceType === SOURCE_TYPE.IMAGE_PDF;
-  }
-  return PERSON_LISTS.some((key) => Array.isArray(doc[key]) && doc[key].some((p) => typeof p?.confidence === 'number'));
+const looksMisread = (/** @type {string} */ photoAddress, /** @type {string} */ otherAddress) =>
+  isSubsequence(hangulSkeleton(photoAddress), hangulSkeleton(otherAddress));
+
+/** 등기부·계약서 중 사진·스캔 서류의 주소가 잘못 읽힌 것 같은가. (#343) */
+function photoAddressLooksMisread(/** @type {any} */ fields) {
+  const registry = fields?.registry?.address;
+  const contract = fields?.contract?.address;
+  if (typeof registry !== 'string' || typeof contract !== 'string') return false;
+  return (
+    (isPhotoDocument(fields.registry) && looksMisread(registry, contract)) ||
+    (isPhotoDocument(fields.contract) && looksMisread(contract, registry))
+  );
 }
 
 /**
@@ -476,14 +494,18 @@ export function compareAddresses(fields) {
   const roadAddress = fields?.registry?.roadAddress;
   const photo = isPhotoDocument(fields?.registry) || isPhotoDocument(fields?.contract);
   /** 숫자만 다르고 사진·스캔 서류이면 CHECK(OCR이 숫자를 잘못 읽었을 수 있다), 아니면 STOP */
-  const differentAddress = (/** @type {boolean} */ digitsOnly) =>
-    digitsOnly && photo
-      ? buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_digits', values })
-      : buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  const differentAddress = (/** @type {boolean} */ digitsOnly) => {
+    if (photo && digitsOnly) return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_digits', values });
+    // #343: 사진 쪽 주소에 영문이 섞였거나 동·호수를 못 읽었으면 다른 집이라고 단정하지 않는다
+    if (photo && photoAddressLooksMisread(fields)) {
+      return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'ocr_unreadable', values });
+    }
+    return buildRiskResult(ruleId, RISK_STATUS.STOP, { values });
+  };
   if (registryStyle === 'LOT' && contractStyle === 'ROAD' && roadAddress) {
     const same = compareRoadAddress(roadAddress, registryAddress, contractAddress);
     if (same === 'MATCH') return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
-        if (same === 'DIFFERENT' || same === 'DIFFERENT_DIGITS') return differentAddress(same === 'DIFFERENT_DIGITS');
+    if (same === 'DIFFERENT' || same === 'DIFFERENT_DIGITS') return differentAddress(same === 'DIFFERENT_DIGITS');
   }
   if (registryStyle === null || registryStyle !== contractStyle) {
     return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'format_differs', values });

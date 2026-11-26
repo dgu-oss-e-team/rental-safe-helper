@@ -11,7 +11,9 @@ let cachedWorker = null;
 async function getWorker() {
   if (!cachedWorker) {
     // Default CDN paths (no local public assets required)
-    cachedWorker = await createWorker('kor+eng', 1);
+    const worker = await createWorker('kor+eng', 1);
+    await worker.setParameters({ preserve_interword_spaces: '1' });
+    cachedWorker = worker;
   }
   return cachedWorker;
 }
