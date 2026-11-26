@@ -324,6 +324,43 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 
 목적별 처리 규칙은 `src/config/masking/masking-policy.json`. 주민·외국인등록번호·여권번호는 모든 목적에서 `REDACT`.
 
+### 목적별로 보낼 방식과 등기부 요약 (PART 4 → PART 3·5, 지도 교수님 피드백 11/24)
+
+`getSendMode(purpose, documentType)`는 그 목적에서 그 서류를 AI에 어떻게 보낼지 돌려준다. 규칙은 `src/config/masking/send-mode.json`.
+
+| 목적 | 등기부 (`REGISTRY`) | 계약서 (`LEASE_CONTRACT`) |
+|---|---|---|
+| `FRAUD_CHECK` | `SUMMARY` | `MASKED_TEXT` |
+| `CLAUSE_EXPLANATION` | `MASKED_TEXT` | `MASKED_TEXT` |
+| `CONTRACT_EXPLANATION` | `OMIT` | `MASKED_TEXT` |
+
+- `SUMMARY`: `buildRegistrySummary()`의 `text`를 maskedText의 그 서류 자리에 넣는다. 원문은 나가지 않는다.
+- `MASKED_TEXT`: 지금처럼 `applyMaskingPlan()`의 가린 원문. `OMIT`: 보내지 않는다. 설정에 없는 서류 종류는 `MASKED_TEXT`.
+
+`buildRegistrySummary(registryFields, personGroups, legend?, edits?)` → `{ documentId, text, hiddenCount }`
+
+```text
+Extracted items from the property register (the original register text is not sent).
+Address: 서울특별시 중구
+Current owner: [Owner_A]
+Previous owners: [PrevOwner_B]
+Last ownership transfer: 2024-05-10
+Rights and restrictions:
+- Mortgage (근저당권): received 2026-08-25, cause 설정계약, max claim 168,000,000 KRW, holder 주식회사가상은행, active
+- Provisional seizure (가압류): received 2023-02-06, cause 가압류결정, holder [Holder_1] (an individual), cancelled (말소)
+- Seizure (압류): details hidden, check the original register, active
+Unconfirmed register records: 1 (could not read what they are, check the original register)
+1 item hidden (check the original register)
+```
+
+- 개인 이름은 가명. 소유자·이전 소유자는 `personGroups` 가명, 개인 권리자는 `[Holder_1]`부터. 권리자 이름이 소유자와 같아도 생년월일이 없어 같은 가명을 주지 않고 `same name as [Owner_A], not confirmed to be the same person`으로 적는다.
+- 회사 이름은 `holderIsCompany === true`이고 회사 낱말(주식회사·은행·신탁·캐피탈, "특별시"·"구청" 같은 분명한 지자체 모양 등)이 있을 때만 그대로, 아니면 가명. 끝이 "구"인 사람 이름("김철구")은 회사로 보지 않는다.
+- 지금 소유자가 회사면 회사 이름(`ownerCompanies`)은 넣지 않고 `a company (name not sent)`로 적는다. 같은 회사가 권리자(신탁의 수탁자 등)로 나와도 `the current owner (a company, name not sent)`로 적는다. 이때 회사 형태 표기("(주)" ↔ "주식회사")를 빼고, 4자 이상이면 포함·한 글자 차이(OCR)도 같은 회사로 본다(느슨할수록 더 가린다). 짧은 이름("국")은 완전히 같을 때만.
+- 주소는 시·구까지. 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다(없으면 `not shown`).
+- 못 읽은 값, 날짜가 아닌 날짜(연 1900~2099·월 01~12·일 01~31 밖), 0 이하이거나 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 0 이상의 정수가 아니면(없음·`null`·`NaN`·음수) 확인하지 못했다고 적는다.
+- `edits`를 주면 사용자가 ④에서 더 가린 글자(`add`)도 요약에서 가린다.
+- 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 권리 줄은 종류와 말소 여부만 남기고(`details hidden`) 그 밖의 줄은 뺀다. 가린 줄 수가 `hiddenCount`다 (화면 알림용).
+
 ### 사용자 수정 (edits): ④ 보내기 전 확인 화면 (PART 4 UI → PART 5 → PART 4)
 
 사용자가 가릴 항목을 해제하거나 더 가린 내용. PR #37에서 PART 4·5 합의.
@@ -372,6 +409,8 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 | 4 | `createMaskingPlan(findings, personGroups, purpose, edits?)` | PiiFinding[], PersonGroup[], 목적, 사용자 수정(8번, 없으면 빈 값) | MaskingPlan |
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
+| 4 | `getSendMode(purpose, documentType)` | 목적, 서류 종류 | `'SUMMARY'` \| `'MASKED_TEXT'` \| `'OMIT'` |
+| 4 | `buildRegistrySummary(registryFields, personGroups, legend?, edits?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례, 사용자 수정 | `{ documentId, text, hiddenCount }` |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |

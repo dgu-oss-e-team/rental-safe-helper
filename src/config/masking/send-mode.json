@@ -1,0 +1,15 @@
+{
+  "_comment": "목적 x 서류 종류별로 AI에 무엇을 보낼지. SUMMARY = 뽑은 항목 요약(원문 안 나감), MASKED_TEXT = 가린 원문, OMIT = 보내지 않음. 지도 교수님 피드백(11/24): 등기부는 원문 대신 필요한 항목만. 1단계는 사기 점검의 등기부만 SUMMARY, 계약 조건 설명은 등기부를 보내지 않는다. 계약서 인적사항 칸 추출은 2단계. PART 4 담당. 바꿀 때는 docs/INTERFACES.md도 함께 수정.",
+  "FRAUD_CHECK": {
+    "REGISTRY": "SUMMARY",
+    "LEASE_CONTRACT": "MASKED_TEXT"
+  },
+  "CLAUSE_EXPLANATION": {
+    "REGISTRY": "MASKED_TEXT",
+    "LEASE_CONTRACT": "MASKED_TEXT"
+  },
+  "CONTRACT_EXPLANATION": {
+    "REGISTRY": "OMIT",
+    "LEASE_CONTRACT": "MASKED_TEXT"
+  }
+}
