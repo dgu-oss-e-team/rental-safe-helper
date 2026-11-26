@@ -81,19 +81,26 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(text).not.toMatch(/카합|타경/);
   });
 
-  it('개인 권리자는 가명. 소유자와 같은 이름이면 소유자 가명, 아니면 [Holder_1]부터 (같은 이름은 같은 가명)', () => {
+  it('개인 권리자는 [Holder_1]부터 가명 (같은 이름은 같은 가명)', () => {
     const { text } = summarize({
       rights: [
         { kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '2025-05-02', holder: '이가상', holderIsCompany: false, cause: '설정계약' },
-        { kind: 'PROVISIONAL_SEIZURE', cancelled: false, receivedAt: '2025-06-01', holder: '홍 길동', holderIsCompany: false, cause: '가압류결정' },
         { kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '이가상', holderIsCompany: false, cause: '압류' },
       ],
     });
     expect(text).not.toContain('이가상');
     expect(text).toContain('holder [Holder_1] (an individual), active');
-    expect(text).toContain('cause 가압류결정, holder [Owner_A] (an individual)');
     expect(text.match(/\[Holder_1\]/g)).toHaveLength(2);
     expect(text).not.toContain('[Holder_2]');
+  });
+
+  it('소유자와 이름만 같은 권리자는 소유자 가명을 쓰지 않고 "같은 이름, 같은 사람인지 확인 안 됨"으로 적는다 (#355 리뷰)', () => {
+    const { text } = summarize({
+      rights: [{ kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '2025-06-01', holder: '홍 길동', holderIsCompany: false, cause: '설정계약' }],
+    });
+    expect(text).not.toContain('홍');
+    expect(text).toContain('holder [Holder_1] (an individual, same name as [Owner_A], not confirmed to be the same person)');
+    expect(text).not.toMatch(/holder \[Owner_A\]/);
   });
 
   it('회사인지 애매한 권리자(holderIsCompany: null)는 가명', () => {
@@ -102,6 +109,18 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     });
     expect(text).not.toContain('가상상사');
     expect(text).toContain('holder [Holder_1] (an individual)');
+  });
+
+  it('holderIsCompany가 true여도 회사 낱말이 없는 이름은 가명 (#355 리뷰)', () => {
+    const { text } = summarize({
+      rights: [
+        { kind: 'MORTGAGE', maxClaimAmount: 30000000, cancelled: false, receivedAt: '2025-05-02', holder: '박가상', holderIsCompany: true, cause: '설정계약' },
+        { kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '국', holderIsCompany: true, cause: '압류' },
+      ],
+    });
+    expect(text).not.toContain('박가상');
+    expect(text).toContain('holder [Holder_1] (an individual)');
+    expect(text).toContain('cause 압류, holder 국, active');
   });
 
   it('못 읽은 값은 말없이 빼지 않고 "Could not read"로 적는다', () => {
@@ -114,7 +133,41 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(text).toContain('Address: Could not read');
     expect(text).toContain('Current owner: Could not read');
     expect(text).toContain('Previous owners: Could not read');
-    expect(text).toContain('- Mortgage (근저당권): received Could not read, max claim Could not read, holder Could not read, cancellation unclear, check the original');
+    expect(text).toContain(
+      '- Mortgage (근저당권): received Could not read, cause Could not read, max claim Could not read, holder Could not read, cancellation unclear, check the original',
+    );
+  });
+
+  it('날짜 칸이 날짜 모양이 아니거나 금액이 숫자가 아니면 줄을 빼지 않고 "Could not read" (#355 리뷰)', () => {
+    const { text, hiddenCount } = summarize({
+      lastTransferDate: '010-1111-2222',
+      rights: [
+        { kind: 'MORTGAGE', maxClaimAmount: Number.NaN, cancelled: false, receivedAt: '010-9876-5432', holder: '주식회사가상은행', holderIsCompany: true, cause: '설정계약' },
+      ],
+    });
+    expect(hiddenCount).toBe(0);
+    expect(text).not.toMatch(/010-|NaN/);
+    expect(text).toContain('Last ownership transfer: Could not read');
+    expect(text).toContain('- Mortgage (근저당권): received Could not read, cause 설정계약, max claim Could not read, holder 주식회사가상은행, active');
+  });
+
+  it('등기원인이 목록에 없으면 말없이 빼지 않고 "not shown" (#355 리뷰)', () => {
+    const { text } = summarize({
+      rights: [{ kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '가상세무서', holderIsCompany: true, cause: '가상세무서 처분' }],
+    });
+    expect(text).toContain('- Seizure (압류): received 2025-07-01, cause not shown, holder 가상세무서, active');
+  });
+
+  it('공동 소유자 중 가명을 못 찾은 사람은 합치지 않고 몇 명인지 적는다 (#355 리뷰)', () => {
+    const { text } = summarize({
+      owners: [
+        { findingId: 'PII_R01', name: '홍길동' },
+        { findingId: 'NO_SUCH_1', name: '김가상' },
+        { findingId: 'NO_SUCH_2', name: '이가상' },
+      ],
+    });
+    expect(text).toContain('Current owner: [Owner_A], 2 other people (name hidden)');
+    expect(summarize({ owners: [{ findingId: null, name: '김가상' }] }).text).toContain('Current owner: 1 person (name hidden)');
   });
 
   it('권리 목록을 못 읽은 것(null)과 권리가 없는 것([])을 구분한다', () => {
@@ -122,9 +175,11 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(summarize({ rights: [] }).text).toContain('Rights and restrictions: none recorded');
   });
 
-  it('알아보지 못한 유효한 등기 줄은 개수와 "원본 확인"을 적는다. 갑구·을구를 못 찾으면(null) 그렇다고 적는다', () => {
+  it('알아보지 못한 유효한 등기 줄은 개수와 "원본 확인"을 적는다. 값이 없으면(null·필드 없음) 확인 못 했다고 적는다', () => {
     expect(summarize({ unknownActiveCount: 2 }).text).toContain('Unconfirmed register records: 2 (could not read what they are, check the original register)');
     expect(summarize({ unknownActiveCount: null }).text).toContain('Other register records: could not check, check the original register');
+    // PART 2 #351 머지 전에는 필드 자체가 없다 (#355 리뷰)
+    expect(summarize({ unknownActiveCount: undefined }).text).toContain('Other register records: could not check, check the original register');
     expect(summarize({ unknownActiveCount: 0 }).text).not.toMatch(/Unconfirmed|Other register records/);
   });
 
@@ -134,13 +189,23 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(text).not.toMatch(/Current owner:.*가상부동산신탁/);
   });
 
+  it('소유자 회사가 신탁 권리자로도 나오면 권리자 칸에도 이름 대신 "지금 소유자(회사)"로 적는다 (#355 리뷰)', () => {
+    const { text } = summarize({
+      owners: [],
+      ownerCompanies: ['가상부동산신탁주식회사'],
+      rights: [{ kind: 'TRUST', cancelled: false, receivedAt: '2024-09-23', holder: '가상부동산신탁 주식회사', holderIsCompany: true, cause: '신탁' }],
+    });
+    expect(text).not.toContain('가상부동산신탁');
+    expect(text).toContain('- Trust (신탁): received 2024-09-23, cause 신탁, holder the current owner (a company, name not sent), active');
+  });
+
   it('요약에 같은 이름이 확인 안 된 가명만 범례에 있으면 그 가명을 쓴다 (가린 원문과 같은 글자)', () => {
     const r = buildRegistrySummary(registry(), GROUPS, { '[Owner_A]': 'owner', '[PrevOwner_B?]': 'same name as [PrevOwner_B]' });
     expect(r.ok && r.data.text).toContain('Previous owners: [PrevOwner_B?]');
   });
 
   it('검사에 걸리면 그 값만 [hidden]으로 바꾸고, 원래 값은 남기지 않는다', () => {
-    // 회사 이름 칸에 주소·전화번호가 붙어 읽힌 경우
+    // 회사 이름 칸에 전화번호가 붙어 읽힌 경우
     const { text, hiddenCount } = summarize({
       rights: [
         { kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '2025-05-02', holder: '주식회사가상은행 010-1234-5678', holderIsCompany: true, cause: '설정계약' },
@@ -160,19 +225,26 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(text).not.toContain('홍길동');
   });
 
-  it('값을 가려도 걸리면 그 줄을 통째로 뺀다 (원문으로 돌아가지 않음)', () => {
-    // 접수일 칸에 휴대폰 번호가 읽힌 경우: 바꿀 수 있는 값(권리자)을 가려도 남는다
-    const { text, hiddenCount } = summarize({
-      rights: [
-        { kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '010-9876-5432', holder: '주식회사가상은행', holderIsCompany: true, cause: '설정계약' },
-        { kind: 'TRUST', cancelled: false, receivedAt: '2024-09-23', holder: '가상부동산신탁주식회사', holderIsCompany: true, cause: '신탁' },
-      ],
-    });
-    expect(hiddenCount).toBe(1);
-    expect(text).not.toContain('010-9876-5432');
-    expect(text).not.toContain('Mortgage');
-    expect(text).toContain('- Trust (신탁): received 2024-09-23, cause 신탁, holder 가상부동산신탁주식회사, active');
-    expect(text).toContain('1 item hidden (check the original register)');
+  it('사용자가 확인 화면에서 더 가린 글자(edits.add)도 요약에서 가린다 (#355 리뷰)', () => {
+    const edits = { remove: [], add: [{ id: 'U1', value: '가상캐피탈', documentId: 'DOC_REGISTRY' }] };
+    const r = buildRegistrySummary(registry(), GROUPS, LEGEND, /** @type {any} */ (edits));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.text).not.toContain('가상캐피탈');
+    expect(r.data.text).toContain('- Provisional seizure (가압류): received 2023-02-06, cause 가압류결정, holder [hidden], cancelled (말소)');
+    expect(r.data.hiddenCount).toBe(1);
+  });
+
+  it('값을 가려도 걸리면 권리 줄은 종류와 말소 여부만 남긴다 (근저당이 사라지지 않게, #355 리뷰)', () => {
+    // 사용자가 "설정계약"까지 가린 경우: 권리자를 가려도 등기원인이 남아 걸린다
+    const edits = { remove: [], add: [{ id: 'U1', value: '설정계약', documentId: 'DOC_REGISTRY' }] };
+    const r = buildRegistrySummary(registry(), GROUPS, LEGEND, /** @type {any} */ (edits));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.text).not.toContain('설정계약');
+    expect(r.data.text).toContain('- Mortgage (근저당권): details hidden, check the original register, active');
+    expect(r.data.text).toContain('- Provisional seizure (가압류): received 2023-02-06, cause 가압류결정, holder 주식회사가상캐피탈, cancelled (말소)');
+    expect(r.data.text).toContain('1 item hidden (check the original register)');
   });
 
   it('등기부 데이터가 없으면 실패한다', () => {

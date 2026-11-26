@@ -9,7 +9,7 @@
  *   applyMaskingPlan(documents, plan, findings, personGroups, edits?) → Result<{ maskedText, legend }>   (apply-masking-plan.js, PART 3 프롬프트용)
  *   validateMaskedText(maskedText, findings, plan, edits?)       → Result<{ checked: number }>     (masking-validator.js, 외부 전달 전 검사)
  *   getSendMode(purpose, documentType)                           → 'SUMMARY' | 'MASKED_TEXT' | 'OMIT'  (send-mode.js)
- *   buildRegistrySummary(registryFields, personGroups, legend?)  → Result<{ documentId, text, hiddenCount }>  (registry-summary.js)
+ *   buildRegistrySummary(registryFields, personGroups, legend?, edits?) → Result<{ documentId, text, hiddenCount }>  (registry-summary.js)
  *   applyPersonAnswers(personGroups, personAnswers)              → Result<PersonGroup[]>  (person-answers.js)
  *   renderPersonQuestions({ analysis, personGroups, personAnswers, onChange }) → HTMLElement | null  (② "같은 사람인가요?")
  *   renderMaskingReview({ analysis, prepared, edits, onChange }) → HTMLElement  (④ 확인 화면)
