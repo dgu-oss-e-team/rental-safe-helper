@@ -25,6 +25,7 @@
  *   apply-masking-plan.js    계획을 글에 적용, 가명 범례
  *   masking-validator.js     외부 전달 전 검사
  *   send-mode.js, registry-summary.js   목적별로 보낼 방식, 등기부 요약 (원문 대신 뽑은 항목)
+ *   alias-utils.js           요약에서 같이 쓰는 가명 고르기·회사 이름 비교
  *   user-edits.js, review-model.js, masking-review-ui.js   ④ 확인 화면과 사용자 수정
  */
 
