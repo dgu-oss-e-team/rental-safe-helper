@@ -207,7 +207,8 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 - `holder`: 권리자 이름 (`string | null`, 못 읽으면 `null`)
 - `holderIsCompany`: 권리자가 법인·은행·신탁·조합 등 회사이면 `true`, 개인이면 `false`, `holder`가 `null`이면 `null`
 - `cause`: 등기원인 (예: `'설정계약'`, `'매매'`, `'결정'`, 못 읽으면 `null`)
-- `unknownActiveCount`: 갑구·을구에서 알려진 권리·말소·안내 줄로 분류되지 않은 미말소 유효 줄 수 (`number | null`)
+
+`registry.unknownActiveCount`는 갑구·을구에서 알려진 권리·말소·안내 줄로 분류되지 않은 미말소 유효 줄 수 (`number | null`)다.
 
 `contract.personalInfoRanges`는 계약서 전체 줄 배열(`linesOf`) 기준 인적사항(임대인·임차인·중개사·서명란) 구간의 `{ startLine, endLine }` (0-based, 양끝 포함) 배열이다. 상단 당사자 표와 하단 서명란처럼 떨어져 있으면 각각 원소로 들어가며, 없으면 `[]`, 계약서가 없으면 `null`이다.
 `birthDate`는 동일 인물 판정에만 쓰고 AI로 보내지 않는다. 읽지 못한 값은 `null`로 두고 추측하지 않는다.
