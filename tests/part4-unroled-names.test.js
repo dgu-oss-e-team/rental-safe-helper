@@ -164,7 +164,8 @@ describe('PART 4 역할 없는 이름의 가명 연결: 빽빽한 가짜 서류 
   it('같은 등기부의 을구 채무자 박영수는 예전 소유자 가명 그대로, 동명이인이 있는 김철수는 가린다', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
     expect(r.ok).toBe(true);
-    const lines = r.data.prompt.split('\n');
+    // 가린 원문(④ 화면·마스킹 PDF)에서 가명 연결을 본다. 사기 점검의 등기부는 프롬프트에 요약으로 들어가서 원문 줄이 없다 (#360)
+    const lines = Object.values(r.data.maskedText).join('\n').split('\n');
     expect(lines.some((l) => /채무자 \[PrevOwner_E\](?!\?)/.test(l))).toBe(true);
     expect(r.data.legend['[PrevOwner_E?]']).toBeUndefined();
     // 소유자·임대인·예금주가 모두 김철수(동명이인)라 영수자 김철수는 누구인지 정하지 않는다
