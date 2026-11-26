@@ -34,6 +34,43 @@ export function withPageMarks(documents, checkedText, maskDocs) {
 }
 
 /**
+ * 인적사항 칸 요약(PART 4 buildContractPartySummary)을 넣은 계약서 글에 쪽 표시를 넣는다 (#360)
+ * 요약을 넣은 글은 쪽마다 다시 가린 글과 맞지 않으므로, 줄마다의 blockId(요약 줄은 null)로 쪽을 찾는다.
+ * 요약 줄(null)은 바로 앞 줄의 쪽을 따르고, 맨 앞이면 다음 원문 줄의 쪽을 따른다.
+ * 안전: 쪽 표시 줄만 끼운다. 줄 수가 맞지 않거나 모르는 blockId가 있으면 쪽 표시 없이 받은 글 그대로 돌려준다.
+ * @param {import('../shared/document-model.js').DocumentModel | undefined} doc
+ * @param {string} text  보내기 전 검사를 통과한 글
+ * @param {(string | null)[]} lineBlocks  text의 줄 순서대로 blockId
+ * @returns {string}
+ */
+export function withPageMarksByBlocks(doc, text, lineBlocks) {
+  if (!doc || !Array.isArray(doc.pages) || !Array.isArray(lineBlocks)) return text;
+  const lines = text.split('\n');
+  if (lines.length !== lineBlocks.length) return text;
+  /** @type {Map<string, number>} */
+  const pageOf = new Map();
+  for (const page of doc.pages) for (const block of page.blocks ?? []) pageOf.set(block.blockId, page.pageIndex);
+  if (lineBlocks.some((b) => b !== null && !pageOf.has(b))) return text;
+  const firstKnown = lineBlocks.find((b) => b !== null);
+  if (firstKnown == null) return text;
+
+  /** @type {string[]} */
+  const out = [];
+  let current = /** @type {number} */ (pageOf.get(firstKnown));
+  out.push(pageMark(current));
+  lines.forEach((line, i) => {
+    const block = lineBlocks[i];
+    const page = block === null ? current : /** @type {number} */ (pageOf.get(block));
+    if (page !== current) {
+      current = page;
+      out.push(pageMark(current));
+    }
+    out.push(line);
+  });
+  return out.join('\n');
+}
+
+/**
  * @param {import('../shared/document-model.js').DocumentModel | undefined} doc
  * @param {string} checked
  * @param {(docs: import('../shared/document-model.js').DocumentModel[]) => Record<string, string> | null} maskDocs

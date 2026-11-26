@@ -30,12 +30,13 @@ import {
   getSendMode,
   SEND_MODE,
   buildRegistrySummary,
+  buildContractPartySummary,
 } from '../features/masking/index.js';
 import { exportMaskedPDF, previewMaskedPages } from '../features/pdf-export/index.js';
 import { emptyEdits, normalizeEdits } from './masking-edits.js';
 import { findVisiblePii, unverifiable } from './double-check.js';
 import { titledMaskedText } from './document-names.js';
-import { withPageMarks } from './page-marks.js';
+import { withPageMarks, withPageMarksByBlocks } from './page-marks.js';
 import { settlePersonAnswers } from './person-questions.js';
 
 /**
@@ -62,6 +63,7 @@ import { settlePersonAnswers } from './person-questions.js';
 /**
  * 서류 하나를 AI에 어떻게 보냈는지 (#360)
  * - mode: 실제로 보낸 방식 (SEND_MODE). 요약을 못 만들어 뺐으면 OMIT
+ *   PARTY_SUMMARY = 계약서 인적사항 칸만 요약으로 바꾸고 나머지는 가린 원문 (범위를 못 찾으면 MASKED_TEXT)
  * - reason: OMIT일 때 까닭. PURPOSE = 이 목적에는 안 보내는 서류, SUMMARY_FAILED = 요약을 못 만들어 뺌 (가린 원문으로 돌아가지 않음)
  * - hiddenCount: 요약에서 가린 줄 수 (SUMMARY일 때)
  * @typedef {{ documentId: string, documentType: string, mode: string, reason?: 'PURPOSE' | 'SUMMARY_FAILED', hiddenCount?: number }} SentDocument
@@ -339,20 +341,30 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   // 위 검사는 모든 서류의 가린 글로 그대로 한다: 마스킹 PDF도 같은 계획으로 만들므로, 보내지 않는 서류도 검사에서 빼지 않는다
   const selected = selectSentText(analysis, purpose, masked.data, userEdits);
 
-  // 요약 글도 보내기 전 검사를 한 번 더 거친다 (요약 함수가 줄마다 미리 검사하지만, 나가는 글은 모두 같은 검사를 통과해야 한다)
-  // 요약 줄은 서류의 줄과 이어지지 않으므로 lineBlocks를 넘기지 않는다 → 멈추면 "이 줄 가리기" 없이 일반 안내만 나온다
-  const summaries = Object.fromEntries(
-    selected.sending.filter((s) => s.mode === SEND_MODE.SUMMARY).map((s) => [s.documentId, selected.sentText[s.documentId]]),
-  );
-  if (Object.keys(summaries).length > 0) {
-    const summaryCheck = validateMaskedText(summaries, findings, plan.data, userEdits, { photoDocumentIds });
-    if (!summaryCheck.ok) return stoppedAt('validateMaskedText', summaryCheck);
+  // 요약을 넣은 글도 보내기 전 검사를 한 번 더 거친다 (요약 함수가 미리 검사하지만, 나가는 글은 모두 같은 검사를 통과해야 한다)
+  // 등기부 요약 줄은 서류의 줄과 이어지지 않으므로 lineBlocks가 없다 → 멈추면 "이 줄 가리기" 없이 일반 안내만 나온다
+  // 인적사항 요약을 넣은 계약서는 PART 4가 돌려준 줄 순서(lineBlocks)를 넘겨, 원문 줄에서 멈추면 그 줄을 알려 준다
+  const summarized = selected.sending.filter((s) => s.mode === SEND_MODE.SUMMARY || s.mode === SEND_MODE.PARTY_SUMMARY);
+  if (summarized.length > 0) {
+    const summaryCheck = validateMaskedText(
+      Object.fromEntries(summarized.map((s) => [s.documentId, selected.sentText[s.documentId]])),
+      findings,
+      plan.data,
+      userEdits,
+      { photoDocumentIds, lineBlocks: /** @type {Record<string, string[]>} */ (/** @type {unknown} */ (selected.sentLineBlocks)) },
+    );
+    if (!summaryCheck.ok) {
+      const lines = stopLinesOf(documents, /** @type {any} */ (summaryCheck).where, masked.data.maskedText);
+      return lines.length > 0 ? { ...stoppedAt('validateMaskedText', summaryCheck), lines } : stoppedAt('validateMaskedText', summaryCheck);
+    }
   }
 
   // 프롬프트에는 마스킹 완료 텍스트(또는 요약)와 범례만 넣는다 (PART 3)
   // 서류 제목은 내부 ID 대신 "Property register (등기부등본)" 같은 이름으로 넘긴다 (#240)
   // 쪽 표시("--- page 2 ---")를 넣어 AI가 몇 쪽인지 밝힐 수 있게 한다. 검사한 글과 다르게 나오면 쪽 표시 없이 보낸다
-  // 요약은 쪽과 이어지지 않으므로 쪽 표시를 넣지 않는다 (가린 원문으로 다시 덮어쓰지 않게 가린 원문 서류만 넘긴다)
+  //  - 가린 원문: 지금처럼 쪽마다 다시 가려 맞춰 본다 (withPageMarks)
+  //  - 인적사항 요약을 넣은 계약서: 줄마다의 blockId로 쪽을 찾아 표시만 끼운다 (withPageMarksByBlocks)
+  //  - 등기부 요약: 쪽과 이어지지 않으므로 쪽 표시를 넣지 않는다
   const maskedOnly = Object.fromEntries(
     selected.sending.filter((s) => s.mode === SEND_MODE.MASKED_TEXT).map((s) => [s.documentId, selected.sentText[s.documentId]]),
   );
@@ -360,6 +372,13 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
     const r = applyMaskingPlan(docs, plan.data, findings, personGroups, userEdits);
     return r.ok ? r.data.maskedText : null;
   });
+  for (const [documentId, blocks] of Object.entries(selected.sentLineBlocks)) {
+    paged[documentId] = withPageMarksByBlocks(
+      documents.find((d) => d.documentId === documentId),
+      selected.sentText[documentId],
+      blocks,
+    );
+  }
   /** @type {Record<string, string>} 올린 순서대로 */
   const promptText = {};
   for (const documentId of Object.keys(selected.sentText)) promptText[documentId] = paged[documentId] ?? selected.sentText[documentId];
@@ -397,20 +416,26 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
  *  - OMIT: 이 목적에는 보내지 않는다 (예: 계약 조건 설명의 등기부)
  *  - SUMMARY: PART 4 buildRegistrySummary() 요약. 못 만들면 그 서류를 뺀다. 가린 원문으로 돌아가지 않는다.
  *    요약은 extractFields()의 registry 하나로 만든다. 등기부를 두 개 올려 데이터가 없는 등기부도 같은 이유로 뺀다.
+ *  - PARTY_SUMMARY: PART 4 buildContractPartySummary()로 가린 계약서의 인적사항 칸만 요약으로 바꾼다 (본문·특약은 가린 원문).
+ *    인적사항 칸 범위를 못 찾으면(replaced: false) 가린 원문 그대로 보낸다. 팀 합의에서 원문을 허용한 유일한 경우다.
+ *    요약은 extractFields()의 contract 하나로 만든다. 특약 별지 같은 다른 계약서 서류는 가린 원문.
  *  - MASKED_TEXT(그 밖): 지금처럼 가린 원문
- *  - PARTY_SUMMARY(계약서 인적사항 칸 요약, #357)는 PART 4 함수가 main에 들어오면 연결한다. 그 전에는 가린 원문.
  * @param {Analysis} analysis
  * @param {string} purpose
- * @param {{ maskedText: Record<string, string>, legend: Record<string, string> }} masked
+ * @param {{ maskedText: Record<string, string>, legend: Record<string, string>, lineBlocks?: Record<string, string[]> }} masked
  * @param {import('./masking-edits.js').MaskingEdits} userEdits
- * @returns {{ sentText: Record<string, string>, sending: SentDocument[] }}
+ * @returns {{ sentText: Record<string, string>, sending: SentDocument[], sentLineBlocks: Record<string, (string | null)[]> }}
+ *   sentLineBlocks: 인적사항 요약을 넣은 계약서의 줄 순서대로 blockId (요약 줄은 null). 검사·쪽 표시에 쓴다
  */
 function selectSentText(analysis, purpose, masked, userEdits) {
   /** @type {Record<string, string>} */
   const sentText = {};
   /** @type {SentDocument[]} */
   const sending = [];
+  /** @type {Record<string, (string | null)[]>} */
+  const sentLineBlocks = {};
   const registryFields = analysis.fields?.registry;
+  const contractFields = analysis.fields?.contract;
   for (const doc of analysis.documents) {
     const { documentId } = doc;
     const documentType = doc.documentType ?? DOCUMENT_TYPE.UNKNOWN;
@@ -435,10 +460,28 @@ function selectSentText(analysis, purpose, masked, userEdits) {
       }
       continue;
     }
+    if (mode === SEND_MODE.PARTY_SUMMARY && contractFields?.documentId === documentId) {
+      const party = buildContractPartySummary({
+        maskedText: text,
+        contractFields,
+        personGroups: analysis.personGroups,
+        purpose,
+        legend: masked.legend,
+        lineBlocks: masked.lineBlocks?.[documentId],
+        registryFields,
+        document: doc,
+      });
+      if (party.ok && party.data.replaced) {
+        sentText[documentId] = party.data.text;
+        if (Array.isArray(party.data.lineBlocks)) sentLineBlocks[documentId] = party.data.lineBlocks;
+        sending.push({ documentId, documentType, mode: SEND_MODE.PARTY_SUMMARY });
+        continue;
+      }
+    }
     sentText[documentId] = text;
     sending.push({ documentId, documentType, mode: SEND_MODE.MASKED_TEXT });
   }
-  return { sentText, sending };
+  return { sentText, sending, sentLineBlocks };
 }
 
 /**

@@ -230,6 +230,8 @@ export function sendingNotes(sending) {
           `${name}: ${n} ${n === 1 ? 'item was' : 'items were'} hidden in that list because ${n === 1 ? 'it' : 'they'} may contain personal information. Check ${n === 1 ? 'it' : 'them'} in the original yourself.`,
         );
       }
+    } else if (s.mode === 'PARTY_SUMMARY') {
+      notes.push(`${name}: the section with the parties' personal details is replaced by a short list of roles. The rest is the masked text.`);
     } else if (s.mode === 'OMIT' && s.reason === 'SUMMARY_FAILED') {
       notes.push(`${name}: not in the prompt, because we could not prepare its summary. The full text is never shared instead. Check it yourself.`);
     } else if (s.mode === 'OMIT') {
