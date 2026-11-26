@@ -1,0 +1,64 @@
+{
+  "description": "사진 평가 세트 (#251). 가짜세트1·4를 인쇄해 휴대폰으로 찍은 사진을 앱과 같은 코드로 OCR한 결과(tests/eval/ocr/*.json)로 평가한다. 사진 원본은 저장소에 넣지 않는다. 정답표는 글자 PDF와 같은 tests/eval/truth/*.json을 쓴다(사진이 모든 쪽을 담고 있음). files는 쪽 순서대로 적는다.",
+  "documents": [
+    {
+      "document": "set1-registry",
+      "ocr": "tests/eval/ocr/set1-registry.photo.json",
+      "folder": "가짜_등기부등본_개인_사진",
+      "files": [
+        "KakaoTalk_20261122_031537764.jpg",
+        "KakaoTalk_20261122_031537764_01.jpg",
+        "KakaoTalk_20261122_031537764_02.jpg"
+      ]
+    },
+    {
+      "document": "set1-lease",
+      "ocr": "tests/eval/ocr/set1-lease.photo.json",
+      "folder": "가짜_임대차계약서_개인정상_사진",
+      "files": [
+        "KakaoTalk_20261122_031537764_03.jpg",
+        "KakaoTalk_20261122_031537764_04.jpg",
+        "KakaoTalk_20261122_031537764_05.jpg",
+        "KakaoTalk_20261122_031537764_06.jpg",
+        "KakaoTalk_20261122_031537764_07.jpg",
+        "KakaoTalk_20261122_031537764_08.jpg"
+      ]
+    },
+    {
+      "document": "set4-registry",
+      "ocr": "tests/eval/ocr/set4-registry.photo.json",
+      "folder": "가짜_등기부등본_공인중개사_사진",
+      "files": [
+        "KakaoTalk_20261123_165334336_09.jpg",
+        "KakaoTalk_20261123_165334336_08.jpg",
+        "KakaoTalk_20261123_165334336_07.jpg"
+      ]
+    },
+    {
+      "document": "set4-lease",
+      "ocr": "tests/eval/ocr/set4-lease.photo.json",
+      "folder": "가짜_계약서_공인중개사_사진",
+      "files": [
+        "KakaoTalk_20261123_165334336.jpg",
+        "KakaoTalk_20261123_165334336_01.jpg",
+        "KakaoTalk_20261123_165334336_02.jpg",
+        "KakaoTalk_20261123_165334336_03.jpg",
+        "KakaoTalk_20261123_165334336_04.jpg",
+        "KakaoTalk_20261123_165334336_05.jpg",
+        "KakaoTalk_20261123_165334336_06.jpg"
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "id": "set1-photo",
+      "label": "가짜세트1 사진: 개인 등기부 + 개인 임대사업자 계약서 (정상)",
+      "documents": ["set1-registry", "set1-lease"]
+    },
+    {
+      "id": "set4-photo",
+      "label": "가짜세트4 사진: 지금 공유 등기부 + 공인중개사 작성 계약서(특약 별지)",
+      "documents": ["set4-registry", "set4-lease"]
+    }
+  ]
+}

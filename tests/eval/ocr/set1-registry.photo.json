@@ -1,0 +1,886 @@
+{
+ "documentId": "doc-1795494572642-yhm3w",
+ "documentType": "UNKNOWN",
+ "sourceType": "image_pdf",
+ "pages": [
+  {
+   "pageIndex": 0,
+   "width": 1485,
+   "height": 1920,
+   "blocks": [
+    {
+     "blockId": "p0_b0",
+     "text": "EERE le oF Ee ee i —— Sa 4 =",
+     "bbox": {
+      "x": 0,
+      "y": 0,
+      "width": 0.7886,
+      "height": 0.0109
+     },
+     "confidence": 0.26
+    },
+    {
+     "blockId": "p0_b1",
+     "text": "=",
+     "bbox": {
+      "x": 0.0626,
+      "y": 0.0583,
+      "width": 0.031,
+      "height": 0.0135
+     },
+     "confidence": 0.39
+    },
+    {
+     "blockId": "p0_b2",
+     "text": "eg",
+     "bbox": {
+      "x": 0.0384,
+      "y": 0.0724,
+      "width": 0.0222,
+      "height": 0.0078
+     },
+     "confidence": 0.21
+    },
+    {
+     "blockId": "p0_b3",
+     "text": "= - = _",
+     "bbox": {
+      "x": 0.2929,
+      "y": 0.0938,
+      "width": 0.4034,
+      "height": 0.0068
+     },
+     "confidence": 0.45
+    },
+    {
+     "blockId": "p0_b4",
+     "text": "등기사항전부증명서(말소사항 포함)",
+     "bbox": {
+      "x": 0.2902,
+      "y": 0.0927,
+      "width": 0.4303,
+      "height": 0.0203
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b5",
+     "text": "- 집합건물 -",
+     "bbox": {
+      "x": 0.4505,
+      "y": 0.1193,
+      "width": 0.1131,
+      "height": 0.0135
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p0_b6",
+     "text": "고유번호 1102-2018-004127",
+     "bbox": {
+      "x": 0.7515,
+      "y": 0.1427,
+      "width": 0.1785,
+      "height": 0.0099
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b7",
+     "text": "[집합건물] 서울특별시 중구 가상동2가 47-12 가상하우스 제4충 제402호",
+     "bbox": {
+      "x": 0.0862,
+      "y": 0.1625,
+      "width": 0.4808,
+      "height": 0.012
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p0_b8",
+     "text": "【 표 제 부 】 ( 1동의 건물의 표시 )",
+     "bbox": {
+      "x": 0.367,
+      "y": 0.1901,
+      "width": 0.6323,
+      "height": 0.0135
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p0_b9",
+     "text": "[WE] _ 규수 | ovmawiiiwr | daa | eludes",
+     "bbox": {
+      "x": 0.0855,
+      "y": 0.2094,
+      "width": 0.829,
+      "height": 0.024
+     },
+     "confidence": 0.44
+    },
+    {
+     "blockId": "p0_b10",
+     "text": "1 2018년3원14일 _ |서울특별시 중구 가상동8가 철근콘크리트구조",
+     "bbox": {
+      "x": 0.0923,
+      "y": 0.2359,
+      "width": 0.563,
+      "height": 0.0125
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b11",
+     "text": "47-12 (철근)콘크리트지붕",
+     "bbox": {
+      "x": 0.2909,
+      "y": 0.25,
+      "width": 0.3791,
+      "height": 0.012
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b12",
+     "text": "가상하우스 5층 다세대주택",
+     "bbox": {
+      "x": 0.2923,
+      "y": 0.2646,
+      "width": 0.3481,
+      "height": 0.013
+     },
+     "confidence": 0.88
+    },
+    {
+     "blockId": "p0_b13",
+     "text": "[도로명주소] 1층 21.40ㅠ",
+     "bbox": {
+      "x": 0.2929,
+      "y": 0.2802,
+      "width": 0.3266,
+      "height": 0.0125
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p0_b14",
+     "text": "서울특별시 중구 가상로3길 2% 142.35ㅁ",
+     "bbox": {
+      "x": 0.2916,
+      "y": 0.2938,
+      "width": 0.3354,
+      "height": 0.0125
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b15",
+     "text": "21 3% 142.350",
+     "bbox": {
+      "x": 0.2916,
+      "y": 0.3083,
+      "width": 0.3354,
+      "height": 0.0115
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b16",
+     "text": "4층 128.62m'",
+     "bbox": {
+      "x": 0.5421,
+      "y": 0.3229,
+      "width": 0.0855,
+      "height": 0.0099
+     },
+     "confidence": 0.8
+    },
+    {
+     "blockId": "p0_b17",
+     "text": "5% 96.18",
+     "bbox": {
+      "x": 0.5421,
+      "y": 0.3375,
+      "width": 0.0781,
+      "height": 0.0104
+     },
+     "confidence": 0.72
+    },
+    {
+     "blockId": "p0_b18",
+     "text": "옥탑1충",
+     "bbox": {
+      "x": 0.5428,
+      "y": 0.3521,
+      "width": 0.0492,
+      "height": 0.0109
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p0_b19",
+     "text": "18.72m' (1A A Al 9)",
+     "bbox": {
+      "x": 0.5441,
+      "y": 0.3651,
+      "width": 0.1347,
+      "height": 0.0109
+     },
+     "confidence": 0.54
+    },
+    {
+     "blockId": "p0_b20",
+     "text": "( 대지권의 목적인 토지의 표시 )",
+     "bbox": {
+      "x": 0.3993,
+      "y": 0.3922,
+      "width": 0.2222,
+      "height": 0.0115
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b21",
+     "text": "[Eres] saaw [Aw] wa | eneadioie",
+     "bbox": {
+      "x": 0.0862,
+      "y": 0.4078,
+      "width": 0.8498,
+      "height": 0.0245
+     },
+     "confidence": 0.27
+    },
+    {
+     "blockId": "p0_b22",
+     "text": "1 1. 서울특별시 중구 가상동2가 대 298까 2018년3월14일 등기",
+     "bbox": {
+      "x": 0.0929,
+      "y": 0.4313,
+      "width": 0.7751,
+      "height": 0.0161
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p0_b23",
+     "text": "47-12",
+     "bbox": {
+      "x": 0.1724,
+      "y": 0.4531,
+      "width": 0.0357,
+      "height": 0.0083
+     },
+     "confidence": 0.96
+    },
+    {
+     "blockId": "p0_b24",
+     "text": "[ 표 제 부 】 ( 전유부분의 건물의 표시 ) |",
+     "bbox": {
+      "x": 0.3475,
+      "y": 0.4755,
+      "width": 0.5966,
+      "height": 0.0193
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p0_b25",
+     "text": "Fu Les",
+     "bbox": {
+      "x": 0.7737,
+      "y": 0.5036,
+      "width": 0.1468,
+      "height": 0.0115
+     },
+     "confidence": 0.17
+    },
+    {
+     "blockId": "p0_b26",
+     "text": "1 201833914 제4층 #4025 철근콘크리트구조",
+     "bbox": {
+      "x": 0.0916,
+      "y": 0.5281,
+      "width": 0.5286,
+      "height": 0.013
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b27",
+     "text": "31.27m'",
+     "bbox": {
+      "x": 0.5037,
+      "y": 0.5443,
+      "width": 0.0498,
+      "height": 0.0089
+     },
+     "confidence": 0.23
+    }
+   ]
+  },
+  {
+   "pageIndex": 1,
+   "width": 1262,
+   "height": 1920,
+   "blocks": [
+    {
+     "blockId": "p1_b0",
+     "text": "드나 히노 pee",
+     "bbox": {
+      "x": 0,
+      "y": 0,
+      "width": 0.9992,
+      "height": 0.0177
+     },
+     "confidence": 0.16
+    },
+    {
+     "blockId": "p1_b1",
+     "text": "x 노우 5",
+     "bbox": {
+      "x": 0,
+      "y": 0.0156,
+      "width": 0.9992,
+      "height": 0.0073
+     },
+     "confidence": 0.41
+    },
+    {
+     "blockId": "p1_b2",
+     "text": "| Ss",
+     "bbox": {
+      "x": 0.916,
+      "y": 0.024,
+      "width": 0.0832,
+      "height": 0.0099
+     },
+     "confidence": 0.48
+    },
+    {
+     "blockId": "p1_b3",
+     "text": "- [짐합건물] 서울특변시 중구 가상동8가 47-12 가상하우스 제4충 제409호 J",
+     "bbox": {
+      "x": 0,
+      "y": 0.0677,
+      "width": 0.9699,
+      "height": 0.0141
+     },
+     "confidence": 0.78
+    },
+    {
+     "blockId": "p1_b4",
+     "text": "3 지권의 표시 )",
+     "bbox": {
+      "x": 0.0016,
+      "y": 0.0823,
+      "width": 0.9945,
+      "height": 0.012
+     },
+     "confidence": 0.82
+    },
+    {
+     "blockId": "p1_b5",
+     "text": "3 ( 대지권의 표시 등기원인 및 기타사항 |",
+     "bbox": {
+      "x": 0.0055,
+      "y": 0.0859,
+      "width": 0.9643,
+      "height": 0.0214
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p1_b6",
+     "text": "= [owe] ames _aAwws | 57",
+     "bbox": {
+      "x": 0,
+      "y": 0.0964,
+      "width": 0.7504,
+      "height": 0.0328
+     },
+     "confidence": 0.43
+    },
+    {
+     "blockId": "p1_b7",
+     "text": "A 298분 2018닌3원2일 WAT |",
+     "bbox": {
+      "x": 0.2219,
+      "y": 0.1182,
+      "width": 0.7504,
+      "height": 0.0115
+     },
+     "confidence": 0.77
+    },
+    {
+     "blockId": "p1_b8",
+     "text": "3 2번 별도등기 말소",
+     "bbox": {
+      "x": 0.1038,
+      "y": 0.1922,
+      "width": 0.6339,
+      "height": 0.012
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b9",
+     "text": "2018년4월9일 등기",
+     "bbox": {
+      "x": 0.6101,
+      "y": 0.2047,
+      "width": 0.1252,
+      "height": 0.012
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b10",
+     "text": "[갑구 】 (소유권에 관한 AF)",
+     "bbox": {
+      "x": 0.393,
+      "y": 0.2359,
+      "width": 0.2845,
+      "height": 0.0125
+     },
+     "confidence": 0.69
+    },
+    {
+     "blockId": "p1_b11",
+     "text": "[.태보| wes | w+ | 동기원엔 [wanda]",
+     "bbox": {
+      "x": 0.0935,
+      "y": 0.2495,
+      "width": 0.8859,
+      "height": 0.0234
+     },
+     "confidence": 0.32
+    },
+    {
+     "blockId": "p1_b12",
+     "text": "소유권보존 2018년3원14일 공유자",
+     "bbox": {
+      "x": 0.1823,
+      "y": 0.274,
+      "width": 0.4849,
+      "height": 0.0156
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p1_b13",
+     "text": "제18264호 지분 2분의 1",
+     "bbox": {
+      "x": 0.3526,
+      "y": 0.2865,
+      "width": 0.3597,
+      "height": 0.0151
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p1_b14",
+     "text": "김선달 760423-#xwssnr",
+     "bbox": {
+      "x": 0.6236,
+      "y": 0.3021,
+      "width": 0.1577,
+      "height": 0.0094
+     },
+     "confidence": 0.62
+    },
+    {
+     "blockId": "p1_b15",
+     "text": "서울특별시 노원구 가상로",
+     "bbox": {
+      "x": 0.6228,
+      "y": 0.313,
+      "width": 0.1823,
+      "height": 0.0115
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b16",
+     "text": "88,205동1103호(가상동,가상그린아파트)",
+     "bbox": {
+      "x": 0.622,
+      "y": 0.3245,
+      "width": 0.2853,
+      "height": 0.013
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p1_b17",
+     "text": "지분 2분의 1",
+     "bbox": {
+      "x": 0.6228,
+      "y": 0.3406,
+      "width": 0.0895,
+      "height": 0.0099
+     },
+     "confidence": 0.94
+    },
+    {
+     "blockId": "p1_b18",
+     "text": "박흥부 680915-*******",
+     "bbox": {
+      "x": 0.6236,
+      "y": 0.3536,
+      "width": 0.1585,
+      "height": 0.0089
+     },
+     "confidence": 0.89
+    },
+    {
+     "blockId": "p1_b19",
+     "text": "서울특별시 서대문구 가상로",
+     "bbox": {
+      "x": 0.6228,
+      "y": 0.3651,
+      "width": 0.1989,
+      "height": 0.0104
+     },
+     "confidence": 0.94
+    },
+    {
+     "blockId": "p1_b20",
+     "text": "14,301호(가상동,가상빌라)",
+     "bbox": {
+      "x": 0.6236,
+      "y": 0.3781,
+      "width": 0.1894,
+      "height": 0.0109
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b21",
+     "text": "1-1 1번등기명의인표시 {| 2018년6월11일 | Ee] 주소 서울특별시 은평구 가상로7길",
+     "bbox": {
+      "x": 0.0935,
+      "y": 0.3943,
+      "width": 0.8463,
+      "height": 0.0151
+     },
+     "confidence": 0.82
+    },
+    {
+     "blockId": "p1_b22",
+     "text": "변경 = AAT 9, 202호(가상동)",
+     "bbox": {
+      "x": 0.1767,
+      "y": 0.4089,
+      "width": 0.5666,
+      "height": 0.013
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p1_b23",
+     "text": "2018년9월3일 부기",
+     "bbox": {
+      "x": 0.6228,
+      "y": 0.424,
+      "width": 0.1268,
+      "height": 0.0094
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b24",
+     "text": "2 공유자전원지분전부 _ | 2018년9월3일 3018년7월20일 소유자 홍길동 690819-******",
+     "bbox": {
+      "x": 0.0895,
+      "y": 0.4406,
+      "width": 0.7488,
+      "height": 0.0109
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p1_b25",
+     "text": "이전 제40517호 매매 서울특별시 서초구 가상로52길 3,",
+     "bbox": {
+      "x": 0.1743,
+      "y": 0.4536,
+      "width": 0.6862,
+      "height": 0.0115
+     },
+     "confidence": 0.94
+    },
+    {
+     "blockId": "p1_b26",
+     "text": "201호(가상동)",
+     "bbox": {
+      "x": 0.6228,
+      "y": 0.4688,
+      "width": 0.0975,
+      "height": 0.0094
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b27",
+     "text": "열람일시 © 2026년11월17일 10시42분07초 2:",
+     "bbox": {
+      "x": 0.0531,
+      "y": 0.8839,
+      "width": 0.9461,
+      "height": 0.0135
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p1_b28",
+     "text": "의 8... T——",
+     "bbox": {
+      "x": 0,
+      "y": 0.9932,
+      "width": 0.9992,
+      "height": 0.0068
+     },
+     "confidence": 0.16
+    }
+   ]
+  },
+  {
+   "pageIndex": 2,
+   "width": 1310,
+   "height": 1920,
+   "blocks": [
+    {
+     "blockId": "p2_b0",
+     "text": "— Te ay EE rT Sy a 그 2256",
+     "bbox": {
+      "x": 0,
+      "y": 0,
+      "width": 0.9992,
+      "height": 0.0135
+     },
+     "confidence": 0.29
+    },
+    {
+     "blockId": "p2_b1",
+     "text": "Sma TS = eSaS— ——",
+     "bbox": {
+      "x": 0,
+      "y": 0,
+      "width": 0.9992,
+      "height": 0.0266
+     },
+     "confidence": 0.19
+    },
+    {
+     "blockId": "p2_b2",
+     "text": "RR SPE) 서울특별시 중구 >",
+     "bbox": {
+      "x": 0,
+      "y": 0.0437,
+      "width": 0.3092,
+      "height": 0.0151
+     },
+     "confidence": 0.72
+    },
+    {
+     "blockId": "p2_b3",
+     "text": "ee = EL 0 가상동2가 47-1 \"",
+     "bbox": {
+      "x": 0,
+      "y": 0.0495,
+      "width": 0.4534,
+      "height": 0.0177
+     },
+     "confidence": 0.6
+    },
+    {
+     "blockId": "p2_b4",
+     "text": "0866 [을구】 (소유",
+     "bbox": {
+      "x": 0.0695,
+      "y": 0.0792,
+      "width": 0.926,
+      "height": 0.0146
+     },
+     "confidence": 0.73
+    },
+    {
+     "blockId": "p2_b5",
+     "text": "NSF SHA 이외의 권리에 관한 사항 ) | :",
+     "bbox": {
+      "x": 0,
+      "y": 0.0875,
+      "width": 0.9977,
+      "height": 0.0219
+     },
+     "confidence": 0.77
+    },
+    {
+     "blockId": "p2_b6",
+     "text": "SE :",
+     "bbox": {
+      "x": 0,
+      "y": 0.1078,
+      "width": 0.9244,
+      "height": 0.0068
+     },
+     "confidence": 0.4
+    },
+    {
+     "blockId": "p2_b7",
+     "text": "= 기록사항 없음 |",
+     "bbox": {
+      "x": 0,
+      "y": 0.1135,
+      "width": 0.9252,
+      "height": 0.0141
+     },
+     "confidence": 0.86
+    },
+    {
+     "blockId": "p2_b8",
+     "text": "= |",
+     "bbox": {
+      "x": 0.0008,
+      "y": 0.1292,
+      "width": 0.9252,
+      "height": 0.0104
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p2_b9",
+     "text": "EE 하 여 백 --",
+     "bbox": {
+      "x": 0.4092,
+      "y": 0.1464,
+      "width": 0.2221,
+      "height": 0.013
+     },
+     "confidence": 0.77
+    },
+    {
+     "blockId": "p2_b10",
+     "text": "마슬시이티 극러픽)9988 4 관할등기소 서울중앙지방법원 중부등기소",
+     "bbox": {
+      "x": 0.1031,
+      "y": 0.176,
+      "width": 0.8275,
+      "height": 0.013
+     },
+     "confidence": 0.61
+    },
+    {
+     "blockId": "p2_b11",
+     "text": "ass FEE 말소사항을 표시함, * 기록사항 없는 I.",
+     "bbox": {
+      "x": 0.1168,
+      "y": 0.1823,
+      "width": 0.4519,
+      "height": 0.0203
+     },
+     "confidence": 0.8
+    },
+    {
+     "blockId": "p2_b12",
+     "text": "* 중병서는 컬러 또는 혹벽으로 a4 i , 홀구는 '기록사항 없음'으로 표시함.",
+     "bbox": {
+      "x": 0.1023,
+      "y": 0.1969,
+      "width": 0.5931,
+      "height": 0.0177
+     },
+     "confidence": 0.81
+    },
+    {
+     "blockId": "p2_b13",
+     "text": "* 본 등기시 는 \"",
+     "bbox": {
+      "x": 0.1008,
+      "y": 0.213,
+      "width": 0.255,
+      "height": 0.0115
+     },
+     "confidence": 0.69
+    },
+    {
+     "blockId": "p2_b14",
+     "text": "동기사항중명서는 열람용이므로 출력하신 둥기사항중명서는 법적인 효릭이 ~.",
+     "bbox": {
+      "x": 0.1344,
+      "y": 0.2172,
+      "width": 0.4641,
+      "height": 0.0224
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p2_b15",
+     "text": "이 문서는 테스트용 가상 문 ’",
+     "bbox": {
+      "x": 0.2084,
+      "y": 0.238,
+      "width": 0.3947,
+      "height": 0.0094
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p2_b16",
+     "text": "MELEE 가상 문서입니다. 설제 EEA 아니며, 이듬 ws 주소는 Ae 값입니다.",
+     "bbox": {
+      "x": 0.2397,
+      "y": 0.2396,
+      "width": 0.5939,
+      "height": 0.0193
+     },
+     "confidence": 0.54
+    },
+    {
+     "blockId": "p2_b17",
+     "text": "oJ 근}- Q",
+     "bbox": {
+      "x": 0.3405,
+      "y": 0.3724,
+      "width": 0.3328,
+      "height": 0.0214
+     },
+     "confidence": 0.78
+    },
+    {
+     "blockId": "p2_b18",
+     "text": "p= [= Oo",
+     "bbox": {
+      "x": 0.3466,
+      "y": 0.3885,
+      "width": 0.3145,
+      "height": 0.0203
+     },
+     "confidence": 0.35
+    },
+    {
+     "blockId": "p2_b19",
+     "text": "열람일시 20269119179 10시42분07초 3/3",
+     "bbox": {
+      "x": 0.0405,
+      "y": 0.8724,
+      "width": 0.9588,
+      "height": 0.0146
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p2_b20",
+     "text": "ㅡ희어우우부불우우우루리링청징359323조3즈세 세세 세세 9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000비",
+     "bbox": {
+      "x": 0,
+      "y": 0.9943,
+      "width": 0.9992,
+      "height": 0.0057
+     },
+     "confidence": 0
+    }
+   ]
+  }
+ ]
+}

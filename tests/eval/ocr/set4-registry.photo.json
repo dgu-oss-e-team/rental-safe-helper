@@ -1,0 +1,754 @@
+{
+ "documentId": "doc-1795494713964-xzftb",
+ "documentType": "UNKNOWN",
+ "sourceType": "image_pdf",
+ "pages": [
+  {
+   "pageIndex": 0,
+   "width": 1920,
+   "height": 1882,
+   "blocks": [
+    {
+     "blockId": "p0_b0",
+     "text": ": 등기사항전부증명서(말소사항 포함)",
+     "bbox": {
+      "x": 0,
+      "y": 0.06,
+      "width": 0.7104,
+      "height": 0.0287
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p0_b1",
+     "text": ": - 집합건물 -",
+     "bbox": {
+      "x": 0,
+      "y": 0.0935,
+      "width": 0.5552,
+      "height": 0.0181
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b2",
+     "text": "[집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제2층 제303호",
+     "bbox": {
+      "x": 0.0792,
+      "y": 0.1472,
+      "width": 0.4849,
+      "height": 0.0213
+     },
+     "confidence": 0.89
+    },
+    {
+     "blockId": "p0_b3",
+     "text": "[EA 부 】 (159 건물의 표시 )",
+     "bbox": {
+      "x": 0.3583,
+      "y": 0.1913,
+      "width": 0.287,
+      "height": 0.0165
+     },
+     "confidence": 0.84
+    },
+    {
+     "blockId": "p0_b4",
+     "text": "접 수 소재지번,건물명칭 및 번호",
+     "bbox": {
+      "x": 0.1984,
+      "y": 0.2226,
+      "width": 0.2891,
+      "height": 0.0165
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b5",
+     "text": "1",
+     "bbox": {
+      "x": 0.0854,
+      "y": 0.2487,
+      "width": 0.0052,
+      "height": 0.0112
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p0_b6",
+     "text": "2019년4월2일 서울특별시 동대문구 가상동",
+     "bbox": {
+      "x": 0.1604,
+      "y": 0.2508,
+      "width": 0.3057,
+      "height": 0.0165
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b7",
+     "text": "212-5",
+     "bbox": {
+      "x": 0.2823,
+      "y": 0.2731,
+      "width": 0.0349,
+      "height": 0.0106
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b8",
+     "text": "가상스테이",
+     "bbox": {
+      "x": 0.2828,
+      "y": 0.2906,
+      "width": 0.0677,
+      "height": 0.0143
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b9",
+     "text": "[도로명주소]",
+     "bbox": {
+      "x": 0.2839,
+      "y": 0.3103,
+      "width": 0.0813,
+      "height": 0.0143
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b10",
+     "text": "서울특별시 동대문구 가상로17길",
+     "bbox": {
+      "x": 0.2823,
+      "y": 0.3284,
+      "width": 0.2104,
+      "height": 0.0159
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b11",
+     "text": "9",
+     "bbox": {
+      "x": 0.2818,
+      "y": 0.3491,
+      "width": 0.0063,
+      "height": 0.0106
+     },
+     "confidence": 0.95
+    },
+    {
+     "blockId": "p0_b12",
+     "text": "등기원인 및 기타사항",
+     "bbox": {
+      "x": 0.7396,
+      "y": 0.4888,
+      "width": 0.1427,
+      "height": 0.0138
+     },
+     "confidence": 0.94
+    },
+    {
+     "blockId": "p0_b13",
+     "text": "도 2019년4월2일 등기",
+     "bbox": {
+      "x": 0.2672,
+      "y": 0.5143,
+      "width": 0.5656,
+      "height": 0.0159
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p0_b14",
+     "text": "[ 표 제 부 】 ( 전유부분의 건물의 표시 )",
+     "bbox": {
+      "x": 0.337,
+      "y": 0.576,
+      "width": 0.3245,
+      "height": 0.0165
+     },
+     "confidence": 0.88
+    },
+    {
+     "blockId": "p0_b15",
+     "text": "1 물",
+     "bbox": {
+      "x": 0.3526,
+      "y": 0.6084,
+      "width": 0.0276,
+      "height": 0.0128
+     },
+     "confidence": 0.74
+    },
+    {
+     "blockId": "p0_b16",
+     "text": "2019년4월일 제3충 제208호",
+     "bbox": {
+      "x": 0.1641,
+      "y": 0.6344,
+      "width": 0.2203,
+      "height": 0.0143
+     },
+     "confidence": 0.82
+    },
+    {
+     "blockId": "p0_b17",
+     "text": "등기원인 및 기타사항 |",
+     "bbox": {
+      "x": 0.7469,
+      "y": 0.6105,
+      "width": 0.1651,
+      "height": 0.0138
+     },
+     "confidence": 0.83
+    },
+    {
+     "blockId": "p0_b18",
+     "text": "철근콘크리트구조",
+     "bbox": {
+      "x": 0.4896,
+      "y": 0.6371,
+      "width": 0.1083,
+      "height": 0.0133
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p0_b19",
+     "text": "33.06m’",
+     "bbox": {
+      "x": 0.487,
+      "y": 0.6573,
+      "width": 0.0474,
+      "height": 0.0106
+     },
+     "confidence": 0.56
+    },
+    {
+     "blockId": "p0_b20",
+     "text": ":",
+     "bbox": {
+      "x": 0,
+      "y": 0.6057,
+      "width": 0.0068,
+      "height": 0.0175
+     },
+     "confidence": 0.3
+    },
+    {
+     "blockId": "p0_b21",
+     "text": ":",
+     "bbox": {
+      "x": 0,
+      "y": 0.6366,
+      "width": 0.0063,
+      "height": 0.0266
+     },
+     "confidence": 0.44
+    },
+    {
+     "blockId": "p0_b22",
+     "text": "기",
+     "bbox": {
+      "x": 0,
+      "y": 0.6631,
+      "width": 0.0063,
+      "height": 0.0096
+     },
+     "confidence": 0.43
+    },
+    {
+     "blockId": "p0_b23",
+     "text": "]",
+     "bbox": {
+      "x": 0,
+      "y": 0.6743,
+      "width": 0.0063,
+      "height": 0.0112
+     },
+     "confidence": 0.54
+    },
+    {
+     "blockId": "p0_b24",
+     "text": "A",
+     "bbox": {
+      "x": 0,
+      "y": 0.6854,
+      "width": 0.0063,
+      "height": 0.0138
+     },
+     "confidence": 0.54
+    },
+    {
+     "blockId": "p0_b25",
+     "text": ":",
+     "bbox": {
+      "x": 0,
+      "y": 0.7088,
+      "width": 0.0057,
+      "height": 0.0138
+     },
+     "confidence": 0.19
+    },
+    {
+     "blockId": "p0_b26",
+     "text": "Papm——",
+     "bbox": {
+      "x": 0.9943,
+      "y": 0.0005,
+      "width": 0.0057,
+      "height": 0.0452
+     },
+     "confidence": 0
+    },
+    {
+     "blockId": "p0_b27",
+     "text": "UPRIMA RAT AES BE 000 S200 라오 4 50 우다) 고아 아그 | 이 ITT THN 104 5 J Te RI IS 0 FINE 1 혼자 한 하항해해222222222000090~000020000000000000000000000000000000000000000000000700",
+     "bbox": {
+      "x": 0.9901,
+      "y": 0.0484,
+      "width": 0.0099,
+      "height": 0.9501
+     },
+     "confidence": 0.13
+    }
+   ]
+  },
+  {
+   "pageIndex": 1,
+   "width": 1440,
+   "height": 1920,
+   "blocks": [
+    {
+     "blockId": "p1_b0",
+     "text": "집합건물] 서울특별시 동대문구 가상동 212-5 가상스테이 제3층 제203호",
+     "bbox": {
+      "x": 0.0431,
+      "y": 0.0286,
+      "width": 0.5347,
+      "height": 0.0182
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p1_b1",
+     "text": "( 대지권의 표시 )",
+     "bbox": {
+      "x": 0.4382,
+      "y": 0.0589,
+      "width": 0.1319,
+      "height": 0.012
+     },
+     "confidence": 0.88
+    },
+    {
+     "blockId": "p1_b2",
+     "text": "표시번호 대지권비율 등기원인 및 기타사항 |",
+     "bbox": {
+      "x": 0.0486,
+      "y": 0.0776,
+      "width": 0.9167,
+      "height": 0.0208
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p1_b3",
+     "text": "—",
+     "bbox": {
+      "x": 0.8424,
+      "y": 0.1031,
+      "width": 0.1222,
+      "height": 0.0089
+     },
+     "confidence": 0.8
+    },
+    {
+     "blockId": "p1_b4",
+     "text": "1 소유권대지권 318분의 21.73 2019년3월20일 대지권",
+     "bbox": {
+      "x": 0.1319,
+      "y": 0.1016,
+      "width": 0.6118,
+      "height": 0.0177
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p1_b5",
+     "text": "2019년4월2일 등기",
+     "bbox": {
+      "x": 0.5875,
+      "y": 0.1245,
+      "width": 0.1313,
+      "height": 0.0115
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b6",
+     "text": "ㅣ [ 갑 구 】 ( 소유권에 관한 사항 ) ㅣ",
+     "bbox": {
+      "x": 0.0375,
+      "y": 0.149,
+      "width": 0.9236,
+      "height": 0.0302
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p1_b7",
+     "text": "Tr pes",
+     "bbox": {
+      "x": 0.0354,
+      "y": 0.1745,
+      "width": 0.0715,
+      "height": 0.0104
+     },
+     "confidence": 0.41
+    },
+    {
+     "blockId": "p1_b8",
+     "text": "순위번호 등기목적 권리자 및 기타사항",
+     "bbox": {
+      "x": 0.0521,
+      "y": 0.1818,
+      "width": 0.7944,
+      "height": 0.0187
+     },
+     "confidence": 0.93
+    },
+    {
+     "blockId": "p1_b9",
+     "text": "1 소유권보존 2019년4월2일 소유자 전우치 790318-*#*****",
+     "bbox": {
+      "x": 0.0486,
+      "y": 0.2057,
+      "width": 0.7667,
+      "height": 0.0172
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p1_b10",
+     "text": "제23118호 서울특별시 동대문구 가상로17길 9, |",
+     "bbox": {
+      "x": 0.316,
+      "y": 0.2245,
+      "width": 0.6417,
+      "height": 0.0208
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b11",
+     "text": "3203호(가상동) |",
+     "bbox": {
+      "x": 0.5951,
+      "y": 0.2417,
+      "width": 0.3618,
+      "height": 0.0167
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p1_b12",
+     "text": "1-1 1번등기명의인표시 2022년5월30일 전우치의 주소 서울특별시 성북구 가상로",
+     "bbox": {
+      "x": 0.0507,
+      "y": 0.262,
+      "width": 0.8396,
+      "height": 0.0172
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p1_b13",
+     "text": "변경 전거 63, 503호(가상동,가상맨션)",
+     "bbox": {
+      "x": 0.1375,
+      "y": 0.2781,
+      "width": 0.6583,
+      "height": 0.0167
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p1_b14",
+     "text": "2025년6월20일 부기 |",
+     "bbox": {
+      "x": 0.5965,
+      "y": 0.2911,
+      "width": 0.3576,
+      "height": 0.0182
+     },
+     "confidence": 0.85
+    },
+    {
+     "blockId": "p1_b15",
+     "text": "2 소유권일부이전 2083년6월20일 ㅣ 2022년6월13일 | FHA AE 289 1 |",
+     "bbox": {
+      "x": 0.0521,
+      "y": 0.3151,
+      "width": 0.9007,
+      "height": 0.0167
+     },
+     "confidence": 0.71
+    },
+    {
+     "blockId": "p1_b16",
+     "text": "제48821호 증여 황진이 890605-예에에 |",
+     "bbox": {
+      "x": 0.3181,
+      "y": 0.3318,
+      "width": 0.6333,
+      "height": 0.0151
+     },
+     "confidence": 0.67
+    },
+    {
+     "blockId": "p1_b17",
+     "text": "서울특별시 성북구 가상로 63,",
+     "bbox": {
+      "x": 0.5958,
+      "y": 0.3516,
+      "width": 0.2104,
+      "height": 0.0125
+     },
+     "confidence": 0.94
+    },
+    {
+     "blockId": "p1_b18",
+     "text": "1 조에 Jo",
+     "bbox": {
+      "x": 0.6236,
+      "y": 0.3661,
+      "width": 0.1083,
+      "height": 0.0104
+     },
+     "confidence": 0.23
+    },
+    {
+     "blockId": "p1_b19",
+     "text": "803호(가상동,가상맨션)",
+     "bbox": {
+      "x": 0.5951,
+      "y": 0.3672,
+      "width": 0.1653,
+      "height": 0.0115
+     },
+     "confidence": 0.87
+    },
+    {
+     "blockId": "p1_b20",
+     "text": "J",
+     "bbox": {
+      "x": 0,
+      "y": 0.9276,
+      "width": 0.0042,
+      "height": 0.0089
+     },
+     "confidence": 0.33
+    },
+    {
+     "blockId": "p1_b21",
+     "text": "2/3",
+     "bbox": {
+      "x": 0.8938,
+      "y": 0.9526,
+      "width": 0.0181,
+      "height": 0.0078
+     },
+     "confidence": 0.96
+    },
+    {
+     "blockId": "p1_b22",
+     "text": "열람일시 : 2026년11월21일 1641 18¥ 44%",
+     "bbox": {
+      "x": 0.0722,
+      "y": 0.9531,
+      "width": 0.2451,
+      "height": 0.0146
+     },
+     "confidence": 0.74
+    }
+   ]
+  },
+  {
+   "pageIndex": 2,
+   "width": 1920,
+   "height": 1690,
+   "blocks": [
+    {
+     "blockId": "p2_b0",
+     "text": "[집합건물] 서울특별시 동대문구 가상동 210-5 가상스테이 제2층 제203호",
+     "bbox": {
+      "x": 0.0302,
+      "y": 0.0142,
+      "width": 0.5495,
+      "height": 0.0302
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p2_b1",
+     "text": "[ 을 구 】 ( 소유권 이외의 권리에 관한 사항 ) ㅣ",
+     "bbox": {
+      "x": 0.2969,
+      "y": 0.071,
+      "width": 0.6781,
+      "height": 0.042
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p2_b2",
+     "text": "근저당권설정 2022년6월20일 2022년6월20일 채권최고액 금96,000,000원 ㅣ",
+     "bbox": {
+      "x": 0.124,
+      "y": 0.1438,
+      "width": 0.8484,
+      "height": 0.0497
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p2_b3",
+     "text": "제48822호 설정계약 채무자 전우치 |",
+     "bbox": {
+      "x": 0.3094,
+      "y": 0.1757,
+      "width": 0.662,
+      "height": 0.0438
+     },
+     "confidence": 0.91
+    },
+    {
+     "blockId": "p2_b4",
+     "text": "서울특별시 성북구 가상로 63, 502호(가상동,가 |",
+     "bbox": {
+      "x": 0.6,
+      "y": 0.2083,
+      "width": 0.3703,
+      "height": 0.0355
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p2_b5",
+     "text": "상맨션)",
+     "bbox": {
+      "x": 0.5995,
+      "y": 0.2337,
+      "width": 0.0536,
+      "height": 0.0178
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p2_b6",
+     "text": "근저당권자 주식회사가상은행 110111-0012345 |",
+     "bbox": {
+      "x": 0.599,
+      "y": 0.2574,
+      "width": 0.3698,
+      "height": 0.0331
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p2_b7",
+     "text": "서울특별시 중구 가상대로 100(가상동)",
+     "bbox": {
+      "x": 0.5979,
+      "y": 0.2822,
+      "width": 0.2854,
+      "height": 0.0243
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p2_b8",
+     "text": "공동담보 지분 전부",
+     "bbox": {
+      "x": 0.5979,
+      "y": 0.3083,
+      "width": 0.1417,
+      "height": 0.0195
+     },
+     "confidence": 0.88
+    },
+    {
+     "blockId": "p2_b9",
+     "text": "관할등기소 서울북부지방법원 동대문등기소",
+     "bbox": {
+      "x": 0.6464,
+      "y": 0.4118,
+      "width": 0.3156,
+      "height": 0.0231
+     },
+     "confidence": 0.9
+    },
+    {
+     "blockId": "p2_b10",
+     "text": "RAS FOU 부분은 말소사항을 표시함. * 기록사항 없는 갑구, 을구는 '기록사항 없음 '으로 TAY,",
+     "bbox": {
+      "x": 0.0271,
+      "y": 0.442,
+      "width": 0.662,
+      "height": 0.0325
+     },
+     "confidence": 0.83
+    },
+    {
+     "blockId": "p2_b11",
+     "text": "* 중명서는 컬러 또는 혹백으로 출력 가능함.",
+     "bbox": {
+      "x": 0.0276,
+      "y": 0.4763,
+      "width": 0.2781,
+      "height": 0.0231
+     },
+     "confidence": 0.92
+    },
+    {
+     "blockId": "p2_b12",
+     "text": "PE 동기사항중명서는 열람용이므로 출력하신 등기사항중명서는 법적인 호력이 없습니다.",
+     "bbox": {
+      "x": 0.0276,
+      "y": 0.513,
+      "width": 0.5542,
+      "height": 0.0314
+     },
+     "confidence": 0.88
+    },
+    {
+     "blockId": "p2_b13",
+     "text": "이 EAE 테스트용 가상 문서입니다. 실제 등기사항중명서가 아니며, 이름 ㆍ번호 ㆍ주소는 모두 지어낸 값입니다.",
+     "bbox": {
+      "x": 0.1432,
+      "y": 0.5509,
+      "width": 0.6964,
+      "height": 0.0331
+     },
+     "confidence": 0.86
+    },
+    {
+     "blockId": "p2_b14",
+     "text": "a)",
+     "bbox": {
+      "x": 0.2969,
+      "y": 0.6592,
+      "width": 0.0052,
+      "height": 0.016
+     },
+     "confidence": 0.39
+    }
+   ]
+  }
+ ]
+}
