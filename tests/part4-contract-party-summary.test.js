@@ -71,7 +71,8 @@ describe('PART 4 계약서 인적사항 칸 요약 (buildContractPartySummary)',
     expect(text).toContain('Landlord: [Owner_A] (same person as the owner on the register)');
     expect(text).toContain('Tenant: [Tenant_B]');
     expect(text).toContain('Payment account holder: [AccountHolder_C] (a different person from the landlord)');
-    expect(text).toContain('Real estate agent: listed (name and contact details hidden)');
+    // 칸 이름만 보고 붙이므로 "등록된 중개사 있음"이 아니라 "중개사 칸이 있음"으로 적는다 (#357 리뷰)
+    expect(text).toContain('Real estate agent: a section for the agent is present (details hidden)');
   });
 
   it('사기 점검: 임대인과 예금주가 같은 사람, 소유자와 다른 임대인, 확인 안 된 사람', () => {
@@ -91,6 +92,19 @@ describe('PART 4 계약서 인적사항 칸 요약 (buildContractPartySummary)',
     expect(r2.ok && r2.data.text).toContain('Payment account holder: [AccountHolder_D] (not confirmed whether this is the landlord)');
   });
 
+  it('사기 점검: 확인 안 된(AMBIGUOUS) 그룹은 소유자·임대인 역할이 합쳐져 있어도 "같은 사람"이라고 하지 않는다 (#357 리뷰)', () => {
+    const groups = [
+      { personId: 'P1', alias: '[Owner_A]', roles: ['OWNER', 'LANDLORD', 'ACCOUNT_HOLDER'], findingIds: ['PII_R01', 'PII_L01', 'PII_L03'], status: 'AMBIGUOUS' },
+      { personId: 'P2', alias: '[Tenant_B]', roles: ['TENANT'], findingIds: ['PII_L02'], status: 'CONFIRMED' },
+    ];
+    const r = buildContractPartySummary({ maskedText: MASKED, contractFields: contract(), personGroups: groups, purpose: FRAUD_CHECK });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.text).not.toContain('same person');
+    expect(r.data.text).toContain('Landlord: [Owner_A] (not confirmed whether this is the owner on the register)');
+    expect(r.data.text).toContain('Payment account holder: [Owner_A] (not confirmed whether this is the landlord)');
+  });
+
   it('사기 점검: 등기부가 없으면(소유자 없음) 소유자 관계는 적지 않는다', () => {
     const groups = GROUPS.map((g) => ({ ...g, roles: g.roles.filter((r) => r !== 'OWNER') }));
     const r = buildContractPartySummary({ maskedText: MASKED, contractFields: contract(), personGroups: groups, purpose: FRAUD_CHECK });
@@ -99,14 +113,50 @@ describe('PART 4 계약서 인적사항 칸 요약 (buildContractPartySummary)',
 
   it('임대인이 회사면 회사 이름은 넣지 않는다 (landlordCompanies는 화면 전용)', () => {
     const { text } = run({ landlords: [], landlordCompanies: ['주식회사가상리츠'] });
-    expect(text).toContain('Landlord: a company (name not sent)');
+    expect(text).toContain('Landlord: a company (name not sent), while the owner on the register is an individual');
     expect(text).not.toContain('가상리츠');
+  });
+
+  it('임대인·소유자가 둘 다 회사면 등기부 데이터로 같은 회사인지 다른 회사인지 적는다 (#357 리뷰)', () => {
+    const groups = [{ personId: 'P2', alias: '[Tenant_B]', roles: ['TENANT'], findingIds: ['PII_L02'], status: 'CONFIRMED' }];
+    /** @param {string[]} ownerCompanies */
+    const landlordLine = (ownerCompanies) => {
+      const r = buildContractPartySummary({
+        maskedText: MASKED,
+        contractFields: contract({ landlords: [], landlordCompanies: ['주식회사 가상리츠'], accountHolders: [] }),
+        personGroups: groups,
+        purpose: FRAUD_CHECK,
+        registryFields: ownerCompanies ? { ownerCompanies } : undefined,
+      });
+      return r.ok ? r.data.text.split('\n').find((l) => l.startsWith('Landlord:')) : null;
+    };
+    expect(landlordLine(['주식회사가상리츠'])).toBe('Landlord: a company (name not sent), the same company as the owner on the register');
+    expect(landlordLine(['가상부동산신탁주식회사'])).toBe('Landlord: a company (name not sent), a different company from the owner on the register');
+    // 등기부 데이터가 없으면 같은지 모른다고 적는다 (같다고 가정하지 않게)
+    expect(landlordLine(/** @type {any} */ (undefined))).toBe('Landlord: a company (name not sent), not confirmed whether this is the owner on the register');
+  });
+
+  it('사기 점검: 소유자가 회사이고 임대인이 개인이면 그 관계를 적는다 (소유자 그룹이 없어도 관계가 빠지지 않게, #357 리뷰)', () => {
+    const groups = GROUPS.map((g) => ({ ...g, roles: g.roles.filter((r) => r !== 'OWNER') }));
+    const r = buildContractPartySummary({
+      maskedText: MASKED,
+      contractFields: contract(),
+      personGroups: groups,
+      purpose: FRAUD_CHECK,
+      registryFields: { ownerCompanies: ['가상부동산신탁주식회사'] },
+    });
+    expect(r.ok && r.data.text).toContain('Landlord: [Owner_A] (an individual, while the owner on the register is a company)');
   });
 
   it('못 읽은 사람은 "Could not read"', () => {
     const { text } = run({ landlords: null, tenants: null, accountHolders: null });
     expect(text).toContain('Landlord: Could not read');
     expect(text).toContain('Tenant: Could not read');
+  });
+
+  it('예금주를 못 읽었으면(null) "Could not read", 읽었는데 없으면([]) "none found"로 적는다 (#357 리뷰)', () => {
+    expect(run({ accountHolders: null }).text).toContain('Payment account holder: Could not read');
+    expect(run({ accountHolders: [] }).text).toContain('Payment account holder: none found');
   });
 
   it.each([CLAUSE_EXPLANATION, CONTRACT_EXPLANATION])('%s: 가명 없이 어떤 역할 칸이 있는지만 적는다', (purpose) => {
@@ -127,6 +177,17 @@ describe('PART 4 계약서 인적사항 칸 요약 (buildContractPartySummary)',
     expect(run({ personalInfoRange: null })).toMatchObject({ text: MASKED, replaced: false });
     expect(run({ personalInfoRange: { startLine: 3, endLine: 99 } })).toMatchObject({ text: MASKED, replaced: false });
     expect(run({ personalInfoRange: { startLine: 5, endLine: 2 } })).toMatchObject({ text: MASKED, replaced: false });
+  });
+
+  it('document를 주었는데 가린 글의 줄 수가 서류 줄 수와 다르면(쪽 표시가 먼저 들어간 글 등) 바꾸지 않는다 (#357 리뷰)', () => {
+    const lines = MASKED.split('\n');
+    const document = { documentId: 'DOC_LEASE', pages: [{ blocks: lines.map((t, i) => ({ blockId: `b${i}`, text: t })) }] };
+    // 줄 수가 같으면 바꾼다
+    expect(run({}, FRAUD_CHECK, { document }).replaced).toBe(true);
+    // 쪽 표시 한 줄이 맨 앞에 들어가 줄 순서가 밀린 글
+    const paged = ['--- page 1 ---', ...lines].join('\n');
+    const r = buildContractPartySummary({ maskedText: paged, contractFields: contract(), personGroups: GROUPS, purpose: FRAUD_CHECK, document });
+    expect(r.ok && r.data).toMatchObject({ text: paged, replaced: false });
   });
 
   it('lineBlocks를 주면 바꾼 글의 줄 순서에 맞춰 돌려준다 (요약 줄은 null, 멈춘 줄 위치를 맞추려고)', () => {
@@ -190,11 +251,19 @@ describe('PART 4 인적사항 칸 요약: 평가 세트 계약서로 확인', ()
         purpose,
         legend: masked.legend,
         lineBlocks: masked.lineBlocks[lease.documentId],
+        registryFields: a.fields.registry,
+        document: lease,
       });
       expect(r.ok && r.data.replaced, purpose).toBe(true);
       if (!r.ok) continue;
-      // 칸 안의 원래 이름(중개사 포함)이 남지 않는다
-      for (const name of ['김삿갓', '임꺽정', 'SATO YUKI']) expect(r.data.text.slice(0, r.data.text.indexOf('제1조') > 0 ? r.data.text.indexOf('제1조') : 400)).not.toContain(name);
+      // 범위 안의 원래 줄이 결과에 하나도 남지 않는다 (줄 단위 비교, #357 리뷰)
+      // 같은 글자의 줄이 범위 밖에도 있으면(예: "주소", "임대사업자" 같은 칸 이름) 그 줄은 범위 밖에서 나온 것이라 뺀다
+      const maskedLines = text.split('\n');
+      const outside = new Set(maskedLines.filter((_, i) => i < top.startLine || i > top.endLine));
+      const outLines = new Set(r.data.text.split('\n'));
+      const inside = maskedLines.slice(top.startLine, top.endLine + 1).filter((l) => l.trim() !== '' && !outside.has(l));
+      expect(inside.length, purpose).toBeGreaterThan(3);
+      for (const line of inside) expect(outLines.has(line), `${purpose}: ${line}`).toBe(false);
       const check = validateMaskedText({ ...masked.maskedText, [lease.documentId]: r.data.text }, a.findings, plan, undefined, {
         lineBlocks: { ...masked.lineBlocks, [lease.documentId]: /** @type {string[]} */ (r.data.lineBlocks) },
       });

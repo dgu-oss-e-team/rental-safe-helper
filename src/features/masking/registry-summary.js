@@ -24,9 +24,10 @@
  */
 
 import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
-import { coarsenAddress, unconfirmedAlias } from './create-masking-plan.js';
+import { coarsenAddress } from './create-masking-plan.js';
 import { findLeftoverNumber, findLookalikeNumber, findPhotoLeftover } from './masking-validator.js';
 import { validAdds } from './user-edits.js';
+import { aliasOf, squash, companyNames, sameCompany } from './alias-utils.js';
 
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
 /** @typedef {{ findingId?: string | null, name?: string | null }} RegistryPerson */
@@ -89,21 +90,6 @@ const cancelledText = (cancelled) =>
   cancelled === true ? 'cancelled (말소)' : cancelled === false ? 'active' : 'cancellation unclear, check the original';
 
 /**
- * 가명 고르기: personGroups에서 findingId가 든 그룹의 가명.
- * 범례에 "확인 안 된 같은 이름" 가명만 있으면 그것을 쓴다 (가린 원문과 같은 글자가 되게).
- * @param {string | null | undefined} findingId
- * @param {PersonGroup[]} personGroups
- * @param {Record<string, string>} legend
- */
-export function aliasOf(findingId, personGroups, legend) {
-  if (!findingId) return null;
-  const group = personGroups.find((g) => g.findingIds.includes(findingId));
-  if (!group) return null;
-  const unconfirmed = unconfirmedAlias(group.alias);
-  return !(group.alias in legend) && unconfirmed in legend ? unconfirmed : group.alias;
-}
-
-/**
  * 사람 목록 → 가명 목록 글자. null이면 못 읽음, []이면 없음.
  * 가명을 못 찾은 사람은 하나로 합치지 않고 몇 명인지 적는다 (공동 소유자 수가 사라지지 않게).
  * @param {RegistryPerson[] | null | undefined} people
@@ -121,9 +107,6 @@ function peopleText(people, personGroups, legend, emptyText) {
   if (unmatched > 0) parts.push(`${unmatched} ${parts.length > 0 ? 'other ' : ''}${unmatched === 1 ? 'person' : 'people'} (name hidden)`);
   return parts.join(', ');
 }
-
-/** 이름 비교용: 띄어쓰기를 뺀다 */
-const squash = (/** @type {string} */ s) => s.replace(/\s+/g, '');
 
 /** 날짜 칸: 이 모양이 아니면(번호가 섞여 읽힌 경우 등) 못 읽은 것으로 본다 */
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -172,14 +155,12 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
   /** @type {RegistryRight[] | null} */
   const rights = Array.isArray(registryFields.rights) ? registryFields.rights : null;
   /** @type {string[]} 지금 소유자 회사 이름 (띄어쓰기 뺀 것). 요약에 넣지 않는다 */
-  const ownerCompanies = (Array.isArray(registryFields.ownerCompanies) ? registryFields.ownerCompanies : [])
-    .filter((/** @type {unknown} */ n) => typeof n === 'string' && n.trim() !== '')
-    .map((/** @type {string} */ n) => squash(n));
+  const ownerCompanies = companyNames(registryFields.ownerCompanies);
 
   /** @param {RegistryRight} r  회사로 보고 이름을 그대로 둘 권리자인가 */
   const isCompanyHolder = (r) => r.holderIsCompany === true && typeof r.holder === 'string' && COMPANY_WORD.test(squash(r.holder));
   /** @param {string} holder  지금 소유자 회사와 같은 이름인가 */
-  const isOwnerCompany = (holder) => ownerCompanies.some((c) => squash(holder).includes(c) || c.includes(squash(holder)));
+  const isOwnerCompany = (holder) => ownerCompanies.some((c) => sameCompany(c, holder));
 
   // 개인 권리자 가명: [Holder_1]부터 (같은 이름은 같은 가명).
   // 소유자·이전 소유자와 이름이 같아도 같은 사람인지 모르므로 따로 가명을 주고 "같은 이름"이라고만 적는다.
