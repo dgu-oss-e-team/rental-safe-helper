@@ -775,8 +775,6 @@ export function findRegistryRights(lines) {
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
     const rawRank = RANK_REGEX.exec(rawLine);
-    const wrappedOwnership =
-      rawRank !== null && !rawRank[2] && isWrappedTransfer(rawLine.slice(rawRank[0].length), lines[i + 1]);
     const joined = joinWrappedRow(lines, i);
     const line = joined ?? rawLine;
     if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
