@@ -337,7 +337,7 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 - `PARTY_SUMMARY`: 가린 원문에서 인적사항 칸 줄만 `buildContractPartySummary()`의 요약으로 바꾼다. 본문·특약은 가린 원문 그대로.
 - `MASKED_TEXT`: 지금처럼 `applyMaskingPlan()`의 가린 원문. `OMIT`: 보내지 않는다. 설정에 없는 서류 종류는 `MASKED_TEXT`.
 
-`buildRegistrySummary(registryFields, personGroups, legend?)` → `{ documentId, text, hiddenCount }`
+`buildRegistrySummary(registryFields, personGroups, legend?, edits?)` → `{ documentId, text, hiddenCount }`
 
 ```text
 Extracted items from the property register (the original register text is not sent).
@@ -348,13 +348,18 @@ Last ownership transfer: 2024-05-10
 Rights and restrictions:
 - Mortgage (근저당권): received 2026-08-25, cause 설정계약, max claim 168,000,000 KRW, holder 주식회사가상은행, active
 - Provisional seizure (가압류): received 2023-02-06, cause 가압류결정, holder [Holder_1] (an individual), cancelled (말소)
+- Seizure (압류): details hidden, check the original register, active
 Unconfirmed register records: 1 (could not read what they are, check the original register)
 1 item hidden (check the original register)
 ```
 
-- 개인 이름은 가명(소유자·이전 소유자는 `personGroups` 가명, 개인 권리자는 `[Holder_1]`부터), `holderIsCompany === true`인 회사 이름만 그대로. 주소는 시·구까지.
-- 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다.
-- 못 읽은 값은 `Could not read`. 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 줄을 뺀다. 가리거나 뺀 줄 수가 `hiddenCount`다 (화면 알림용).
+- 개인 이름은 가명. 소유자·이전 소유자는 `personGroups` 가명, 개인 권리자는 `[Holder_1]`부터. 권리자 이름이 소유자와 같아도 생년월일이 없어 같은 가명을 주지 않고 `same name as [Owner_A], not confirmed to be the same person`으로 적는다.
+- 회사 이름은 `holderIsCompany === true`이고 회사 낱말(주식회사·은행·신탁·캐피탈 등)이 있을 때만 그대로, 아니면 가명.
+- 지금 소유자가 회사면 회사 이름(`ownerCompanies`)은 넣지 않고 `a company (name not sent)`로 적는다. 같은 회사가 권리자(신탁의 수탁자 등)로 나와도 `the current owner (a company, name not sent)`로 적는다.
+- 주소는 시·구까지. 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다(없으면 `not shown`).
+- 못 읽은 값, 날짜 모양이 아닌 날짜, 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 없거나 `null`이면 확인하지 못했다고 적는다.
+- `edits`를 주면 사용자가 ④에서 더 가린 글자(`add`)도 요약에서 가린다.
+- 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 권리 줄은 종류와 말소 여부만 남기고(`details hidden`) 그 밖의 줄은 뺀다. 가린 줄 수가 `hiddenCount`다 (화면 알림용).
 
 `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks? })` → `{ documentId, text, replaced, lineBlocks? }`
 
@@ -420,7 +425,7 @@ Real estate agent: listed (name and contact details hidden)
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
 | 4 | `getSendMode(purpose, documentType)` | 목적, 서류 종류 | `'SUMMARY'` \| `'PARTY_SUMMARY'` \| `'MASKED_TEXT'` \| `'OMIT'` |
-| 4 | `buildRegistrySummary(registryFields, personGroups, legend?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례 | `{ documentId, text, hiddenCount }` |
+| 4 | `buildRegistrySummary(registryFields, personGroups, legend?, edits?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례, 사용자 수정 | `{ documentId, text, hiddenCount }` |
 | 4 | `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks? })` | 계약서 가린 글, 추출 데이터의 `contract`, 인물 판별 결과, 목적 | `{ documentId, text, replaced, lineBlocks? }` |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
