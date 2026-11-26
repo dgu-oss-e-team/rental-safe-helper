@@ -349,6 +349,17 @@ rules:
         action: >-
           Ask the landlord or the agent to explain or remove these terms before you sign.
           If you are not sure what they mean, ask a legal aid service or another adviser you trust.
+      CHECK.ocr_registration_ban:
+        explanation: >-
+          A special term in this contract may ban or limit address registration (전입신고) or the
+          fixed date (확정일자). But the contract was read from a photo or scan, so a word may have
+          been read incorrectly (for example, "않는다" read as "앉는다"). We did not treat this as a
+          confirmed ban. Terms that matched: {matched}. {reasons}
+        action: >-
+          Read the special terms on the original contract yourself. If a term really bans or limits
+          address registration or the fixed date, ask the landlord or the agent to remove or change it
+          before you sign. If you uploaded a photo, correct the text in the text check step, or upload
+          a clearer photo or the original PDF.
       NO_FLAG:
         explanation: >-
           None of the special terms we could read matched our list of terms that are often

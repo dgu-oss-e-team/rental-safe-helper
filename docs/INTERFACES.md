@@ -195,6 +195,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     deposit, monthlyRent, specialTerms: ['...'],
     contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
     landlordCompanies: ['주식회사가상리츠']  // "성명(법인명)" 칸의 회사 이름 (임대사업자). 화면 전용, 프롬프트에 넣지 않음. 계약서가 없으면 null
+    sourceType: 'text_pdf' | 'image_pdf' | 'image'   // 계약서 문서의 sourceType. 사진·스캔 판별에 쓴다. (#341)
   }
 }
 ```

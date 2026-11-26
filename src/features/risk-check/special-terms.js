@@ -10,6 +10,8 @@
  *  - 단, severity가 STOP인 분류(전입신고·확정일자 금지)는 부정문("금지하지 않는다")이 아닌 특약에 걸리면 STOP (#278)
  *    부정문은 negation 문구로 알아보고, 그런 특약만 걸렸으면 CHECK로 남긴다.
  *  - 읽었는데 키워드에 걸리는 특약이 없으면 NO_FLAG ("안전하다"는 뜻이 아니다)
+ *  - 단, 계약서가 사진·스캔(OCR)으로 읽은 서류이면 STOP이 아니라 CHECK (ocr_registration_ban, #341)
+ *    ("않는다"를 "앉는다"로 잘못 읽으면 부정문을 못 알아봐서 유리한 특약이 STOP이 될 수 있다)
  *
  * 개인정보
  *  - 설명(explanation)과 행동 안내(action)에는 특약 원문을 넣지 않는다. 특약 문장에 실제 이름이 있을 수 있고,
@@ -30,6 +32,7 @@ import { load } from 'js-yaml';
 import keywordsText from '../../config/rules/special-term-keywords.yaml?raw';
 import { ok, fail, ERROR_CODE, RISK_STATUS } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
+import { isPhotoDocument } from './photo-document.js';
 
 const RULE_ID = 'RISKY_SPECIAL_TERM';
 
@@ -416,7 +419,12 @@ export function assessSpecialTerms(fields) {
     })
     .filter((line) => line !== null);
 
-  return buildRiskResult(RULE_ID, stopIds.length > 0 ? RISK_STATUS.STOP : RISK_STATUS.CHECK, {
+  // 사진·스캔 계약서는 글자를 잘못 읽었을 수 있어서 STOP 대신 CHECK로 낮춘다. (#341)
+  const wantsStop = stopIds.length > 0;
+  const downgraded = wantsStop && isPhotoDocument(fields?.contract);
+
+  return buildRiskResult(RULE_ID, wantsStop && !downgraded ? RISK_STATUS.STOP : RISK_STATUS.CHECK, {
+    variant: downgraded ? 'ocr_registration_ban' : undefined,
     // label·reason은 키워드 파일에 있는 문구다. 특약 원문이 아니므로 설명에 넣어도 된다.
     params: {
       matched: matched.map((c) => c.label).join('; '),

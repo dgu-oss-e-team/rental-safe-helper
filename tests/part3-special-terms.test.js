@@ -8,7 +8,7 @@ import {
 } from '../src/features/risk-check/special-terms.js';
 import { assessRisks, buildPrompt } from '../src/features/risk-check/index.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
-import { MASKING_PURPOSE, RISK_STATUS } from '../src/shared/document-model.js';
+import { MASKING_PURPOSE, RISK_STATUS, SOURCE_TYPE } from '../src/shared/document-model.js';
 
 const { STOP, CHECK, NO_FLAG, UNVERIFIABLE } = RISK_STATUS;
 
@@ -662,5 +662,64 @@ describe('PART 3 전입신고·확정일자 금지 특약 키워드 보완 (#342
     for (const s of ['임대인은 임차인의 주민등록번호를 기재하지 않는다.', '임차인은 전입신고 및 확정일자를 받을 수 있다.', '임차인은 전입신고 및 확정일자를 받는다.']) {
       expect(assess([s]).data.status).toBe(NO_FLAG);
     }
+  });
+});
+
+describe('PART 3 사진(OCR) 계약서의 전입신고·확정일자 금지 특약은 STOP 대신 CHECK (#341)', () => {
+  /** 임대인 이름에 OCR 신뢰도(숫자)를 붙여 사진 서류로 만든다 */
+  const photoTerms = (specialTerms) => {
+    const f = withTerms(specialTerms);
+    f.contract.landlords[0].confidence = 0.9;
+    return f;
+  };
+  const banned = ['임차인은 전입신고를 하지 않는다.', '확정일자는 받을 수 없다.'];
+
+  it.each(banned)('글자 PDF는 그대로 STOP: %s', (sentence) => {
+    expect(assess([sentence]).data.status).toBe(STOP);
+  });
+
+  it.each(banned)('사진 서류는 STOP이 아니라 CHECK: %s', (sentence) => {
+    const r = assessSpecialTerms(photoTerms([sentence]));
+    expect(r.data.status).toBe(CHECK);
+    expect(r.data.explanation).toContain('read incorrectly');
+  });
+
+  it('글자 PDF 계약서에 특약 별지만 사진이면(sourceType image_pdf, 임대인 신뢰도 null) CHECK', () => {
+    const f = withTerms(['확정일자는 받을 수 없다.']);
+    f.contract.landlords[0].confidence = null;
+    f.contract.sourceType = SOURCE_TYPE.IMAGE_PDF;
+    expect(assessSpecialTerms(f).data.status).toBe(CHECK);
+  });
+
+  it('OCR이 "않는다"를 "앉는다"로 잘못 읽은 부정문도 사진 서류에서는 STOP이 아니다', () => {
+    const r = assessSpecialTerms(photoTerms(['임대인은 전입신고를 금지하지 앉는다.']));
+    expect(r.data.status).toBe(CHECK);
+  });
+
+  it('sourceType이 image이면 사람 신뢰도가 없어도 사진 서류로 본다', () => {
+    const f = withTerms(['확정일자는 받을 수 없다.']);
+    f.contract.sourceType = SOURCE_TYPE.IMAGE;
+    expect(assessSpecialTerms(f).data.status).toBe(CHECK);
+  });
+
+  it('sourceType이 text_pdf이면 신뢰도가 숫자여도 STOP 그대로', () => {
+    const f = photoTerms(['확정일자는 받을 수 없다.']);
+    f.contract.sourceType = SOURCE_TYPE.TEXT_PDF;
+    expect(assessSpecialTerms(f).data.status).toBe(STOP);
+  });
+
+  it('사진 서류에서도 설명·행동 안내에 특약 원문이 없다', () => {
+    const r = assessSpecialTerms(photoTerms(['임차인은 전입신고를 하지 않는다.']));
+    expect(r.data.explanation).not.toContain('임차인은');
+    expect(r.data.action).not.toContain('임차인은');
+  });
+
+  it('assessRisks()에서도 RISKY_SPECIAL_TERM이 CHECK로 나온다', () => {
+    const risks = assessRisks(photoTerms(['확정일자는 받을 수 없다.']), mockPersonGroups);
+    expect(risks.data.find((x) => x.ruleId === 'RISKY_SPECIAL_TERM')?.status).toBe(CHECK);
+  });
+
+  it('사진 서류에서 키워드에 안 걸리면 NO_FLAG 그대로', () => {
+    expect(assessSpecialTerms(photoTerms(['도배는 임대인이 해 준다.'])).data.status).toBe(NO_FLAG);
   });
 });
