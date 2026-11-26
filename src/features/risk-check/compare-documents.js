@@ -24,6 +24,7 @@ import { ok, RISK_STATUS, SOURCE_TYPE } from '../../shared/document-model.js';
 import { buildRiskResult } from './risk-explanations.js';
 import { hasActiveTrust } from './assess-risks.js';
 import rules from '../../config/templates/person-labels.json';
+import { isPhotoDocument } from './photo-document.js';
 
 /** PART 4 personGroups의 status 값 */
 const PERSON_CONFIRMED = 'CONFIRMED';
@@ -426,24 +427,6 @@ function compareRoadAddress(roadAddress, registryAddress, contractAddress) {
 
 /** 숫자를 뺀 글자. 두 주소가 이 글자까지 같으면 숫자만 다른 것이다. (#312) */
 const stripDigits = (/** @type {string} */ text) => text.replace(/[0-9]/g, '');
-
-/** 사람 목록이 들어 있는 칸. 이름이 있는 줄의 OCR 신뢰도(confidence)가 여기 들어 있다. */
-const PERSON_LISTS = ['owners', 'previousOwners', 'landlords', 'tenants', 'accountHolders'];
-
-/**
- * 이 서류가 사진·스캔(OCR)으로 읽은 서류인지. (#312)
- *  - 서류에 sourceType이 있으면 그것을 따른다. (image, image_pdf만 사진·스캔)
- *  - 없으면 사람 정보의 confidence가 숫자인지로 본다. (글자 PDF는 항상 null이다)
- * 판단할 근거가 없으면 false라서, 기존처럼 STOP이 나온다.
- * @param {any} doc  fields.registry 또는 fields.contract
- */
-function isPhotoDocument(doc) {
-  if (!doc) return false;
-  if (typeof doc.sourceType === 'string') {
-    return doc.sourceType === SOURCE_TYPE.IMAGE || doc.sourceType === SOURCE_TYPE.IMAGE_PDF;
-  }
-  return PERSON_LISTS.some((key) => Array.isArray(doc[key]) && doc[key].some((p) => typeof p?.confidence === 'number'));
-}
 
 /**
  * 숫자·영문·기호를 모두 빼고 한글만 남긴다.
