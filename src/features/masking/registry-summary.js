@@ -89,7 +89,7 @@ const cancelledText = (cancelled) =>
  * @param {PersonGroup[]} personGroups
  * @param {Record<string, string>} legend
  */
-function aliasOf(findingId, personGroups, legend) {
+export function aliasOf(findingId, personGroups, legend) {
   if (!findingId) return null;
   const group = personGroups.find((g) => g.findingIds.includes(findingId));
   if (!group) return null;

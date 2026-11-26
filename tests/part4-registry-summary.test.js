@@ -36,15 +36,15 @@ const summarize = (over) => {
 };
 
 describe('PART 4 목적별로 보낼 방식 (getSendMode)', () => {
-  it('1단계 표: 사기 점검의 등기부만 요약, 계약 조건 설명은 등기부를 보내지 않는다', () => {
+  it('표: 사기 점검의 등기부만 요약, 계약 조건 설명은 등기부를 보내지 않는다, 계약서는 인적사항 칸만 요약', () => {
     const { FRAUD_CHECK, CLAUSE_EXPLANATION, CONTRACT_EXPLANATION } = MASKING_PURPOSE;
     const { REGISTRY, LEASE_CONTRACT } = DOCUMENT_TYPE;
     expect(getSendMode(FRAUD_CHECK, REGISTRY)).toBe(SEND_MODE.SUMMARY);
-    expect(getSendMode(FRAUD_CHECK, LEASE_CONTRACT)).toBe(SEND_MODE.MASKED_TEXT);
+    expect(getSendMode(FRAUD_CHECK, LEASE_CONTRACT)).toBe(SEND_MODE.PARTY_SUMMARY);
     expect(getSendMode(CLAUSE_EXPLANATION, REGISTRY)).toBe(SEND_MODE.MASKED_TEXT);
-    expect(getSendMode(CLAUSE_EXPLANATION, LEASE_CONTRACT)).toBe(SEND_MODE.MASKED_TEXT);
+    expect(getSendMode(CLAUSE_EXPLANATION, LEASE_CONTRACT)).toBe(SEND_MODE.PARTY_SUMMARY);
     expect(getSendMode(CONTRACT_EXPLANATION, REGISTRY)).toBe(SEND_MODE.OMIT);
-    expect(getSendMode(CONTRACT_EXPLANATION, LEASE_CONTRACT)).toBe(SEND_MODE.MASKED_TEXT);
+    expect(getSendMode(CONTRACT_EXPLANATION, LEASE_CONTRACT)).toBe(SEND_MODE.PARTY_SUMMARY);
   });
 
   it('설정에 없는 목적·서류 종류는 지금처럼 가린 원문', () => {

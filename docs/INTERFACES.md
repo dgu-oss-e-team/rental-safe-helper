@@ -329,11 +329,12 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 
 | 목적 | 등기부 (`REGISTRY`) | 계약서 (`LEASE_CONTRACT`) |
 |---|---|---|
-| `FRAUD_CHECK` | `SUMMARY` | `MASKED_TEXT` |
-| `CLAUSE_EXPLANATION` | `MASKED_TEXT` | `MASKED_TEXT` |
-| `CONTRACT_EXPLANATION` | `OMIT` | `MASKED_TEXT` |
+| `FRAUD_CHECK` | `SUMMARY` | `PARTY_SUMMARY` |
+| `CLAUSE_EXPLANATION` | `MASKED_TEXT` | `PARTY_SUMMARY` |
+| `CONTRACT_EXPLANATION` | `OMIT` | `PARTY_SUMMARY` |
 
 - `SUMMARY`: `buildRegistrySummary()`의 `text`를 maskedText의 그 서류 자리에 넣는다. 원문은 나가지 않는다.
+- `PARTY_SUMMARY`: 가린 원문에서 인적사항 칸 줄만 `buildContractPartySummary()`의 요약으로 바꾼다. 본문·특약은 가린 원문 그대로.
 - `MASKED_TEXT`: 지금처럼 `applyMaskingPlan()`의 가린 원문. `OMIT`: 보내지 않는다. 설정에 없는 서류 종류는 `MASKED_TEXT`.
 
 `buildRegistrySummary(registryFields, personGroups, legend?)` → `{ documentId, text, hiddenCount }`
@@ -354,6 +355,21 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 - 개인 이름은 가명(소유자·이전 소유자는 `personGroups` 가명, 개인 권리자는 `[Holder_1]`부터), `holderIsCompany === true`인 회사 이름만 그대로. 주소는 시·구까지.
 - 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다.
 - 못 읽은 값은 `Could not read`. 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 줄을 뺀다. 가리거나 뺀 줄 수가 `hiddenCount`다 (화면 알림용).
+
+`buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks? })` → `{ documentId, text, replaced, lineBlocks? }`
+
+- `maskedText`는 `applyMaskingPlan()`의 그 계약서 가린 글(쪽 표시 넣기 전). 줄 순서가 PART 2 `linesOf`와 같아서 `contract.personalInfoRange`(한 칸) 또는 `personalInfoRanges`(여러 칸)의 줄을 그대로 바꾼다.
+- 첫 칸은 아래 요약으로, 나머지 칸(서명 칸 등)은 `contents hidden` 한 줄로 바꾼다. 범위가 없거나 줄 수가 안 맞으면 바꾸지 않는다(`replaced: false`).
+- 사기 점검은 가명과 관계, 조항·계약 설명은 역할만 적는다. 임대인 회사 이름(`landlordCompanies`)은 넣지 않는다.
+- `lineBlocks`를 주면 바꾼 글의 줄 순서에 맞춘 것을 돌려준다(요약 줄은 `null`). `validateMaskedText`의 멈춘 줄 위치에 쓴다.
+
+```text
+Personal information section of the contract: extracted items (the original lines are not sent).
+Landlord: [Owner_A] (same person as the owner on the register)
+Tenant: [Tenant_C]
+Payment account holder: [AccountHolder_D] (not confirmed whether this is the landlord)
+Real estate agent: listed (name and contact details hidden)
+```
 
 ### 사용자 수정 (edits): ④ 보내기 전 확인 화면 (PART 4 UI → PART 5 → PART 4)
 
@@ -403,8 +419,9 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 | 4 | `createMaskingPlan(findings, personGroups, purpose, edits?)` | PiiFinding[], PersonGroup[], 목적, 사용자 수정(8번, 없으면 빈 값) | MaskingPlan |
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
-| 4 | `getSendMode(purpose, documentType)` | 목적, 서류 종류 | `'SUMMARY'` \| `'MASKED_TEXT'` \| `'OMIT'` |
+| 4 | `getSendMode(purpose, documentType)` | 목적, 서류 종류 | `'SUMMARY'` \| `'PARTY_SUMMARY'` \| `'MASKED_TEXT'` \| `'OMIT'` |
 | 4 | `buildRegistrySummary(registryFields, personGroups, legend?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례 | `{ documentId, text, hiddenCount }` |
+| 4 | `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks? })` | 계약서 가린 글, 추출 데이터의 `contract`, 인물 판별 결과, 목적 | `{ documentId, text, replaced, lineBlocks? }` |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
