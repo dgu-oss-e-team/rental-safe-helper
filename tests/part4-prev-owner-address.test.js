@@ -72,8 +72,12 @@ describe('PART 4 이전 소유자 주소 가리기: 공유 등기부 가짜 서�
   it('예전 공유자(이몽룡·심청)의 마포구 주소는 AI 글에 남지 않고, 지금 소유자 주소는 시·구까지 남는다', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
     expect(r.ok).toBe(true);
+    // AI로 가는 글(프롬프트)에는 예전 공유자 주소가 없다
     expect(r.data.prompt).not.toContain('마포구');
-    expect(r.data.prompt).toContain('매매 서울특별시 송파구');
-    expect(r.data.prompt).toContain('[PrevOwner_B]의 주소 [REDACTED]');
+    // 가린 원문(④ 화면·마스킹 PDF)에서 가린 모양을 본다. 사기 점검의 등기부는 프롬프트에 요약으로 들어가서 원문 줄이 없다 (#360)
+    const masked = Object.values(r.data.maskedText).join('\n');
+    expect(masked).not.toContain('마포구');
+    expect(masked).toContain('매매 서울특별시 송파구');
+    expect(masked).toContain('[PrevOwner_B]의 주소 [REDACTED]');
   });
 });
