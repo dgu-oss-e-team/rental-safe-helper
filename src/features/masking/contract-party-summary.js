@@ -10,7 +10,8 @@
  *    같은 사람인지 확인 안 된 그룹(AMBIGUOUS)은 역할이 합쳐져 있어도 "확인 안 됨"으로 적는다.
  *    못 읽은 역할(예금주 포함)은 말없이 빼지 않고 "Could not read" / "none found"로 적는다.
  *  - 임대인·소유자가 회사면 회사 이름은 넣지 않는다 (INTERFACES.md 5번: 화면 전용).
- *    대신 등기부 데이터(registryFields)를 주면 회사 이름끼리 비교해 "소유자와 같은 회사 / 다른 회사"를 적는다.
+ *    대신 등기부 데이터(registryFields)를 주면 회사 형태 표기를 뺀 이름이 완전히 같을 때만 "소유자와 같은 회사"로 적고,
+ *    다르면 단정하지 않고 "이름이 맞지 않음(원본 확인)"으로 적는다. 등기부를 안 줬으면 비교하지 않았다고 적는다.
  *  - 조항·계약 설명: 이름을 어차피 다 가리므로 어떤 역할 칸이 있는지만 적는다.
  *  - 범위는 PART 2 extractFields()의 contract.personalInfoRanges(여러 칸) 또는 personalInfoRange(한 칸).
  *    둘 다 없거나, 범위가 줄 수를 넘거나, document를 주었는데 가린 글의 줄 수가 서류 줄 수(PART 2 linesOf)와 다르면
@@ -20,7 +21,7 @@
  */
 
 import { ok, fail, ERROR_CODE, MASKING_PURPOSE } from '../../shared/document-model.js';
-import { aliasOf, companyNames, sameCompany } from './alias-utils.js';
+import { aliasOf, companyNames, isSameCompany } from './alias-utils.js';
 
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
 /** @typedef {{ startLine: number, endLine: number }} LineRange */
@@ -123,18 +124,23 @@ function fraudLines(contractFields, registryFields, groups, legend, hasBroker) {
               : '';
     lines.push(`Landlord: ${alias(g)}${relation}`);
   }
-  // 임대인 (회사): 이름은 넣지 않고, 등기부 소유자 회사와 같은지만 적는다
+  // 임대인 (회사): 이름은 넣지 않고, 등기부 소유자 회사와 같은지만 적는다.
+  // "같은 회사"는 회사 형태 표기만 빼고 완전히 같을 때만 (다른 회사를 같다고 하면 사기 점검이 틀어진다, #357 2차 리뷰).
+  // 다르면 단정하지 않는다 (OCR 오독일 수 있다). 등기부를 안 줬으면 비교하지 않았다고 적는다.
   for (const company of landlordCompanies) {
-    const relation = ownerCompanies.some((c) => sameCompany(c, company))
+    const relation = ownerCompanies.some((c) => isSameCompany(c, company))
       ? 'the same company as the owner on the register'
       : ownerIsCompany
-        ? 'a different company from the owner on the register'
+        ? 'the company name does not match the owner on the register (check the original)'
         : ownerIsPerson
           ? 'while the owner on the register is an individual'
-          : 'not confirmed whether this is the owner on the register';
+          : registryFields == null
+            ? 'no register provided, so not compared'
+            : 'not confirmed whether this is the owner on the register';
     lines.push(`Landlord: a company (name not sent), ${relation}`);
   }
-  if ((landlords ?? []).length === 0 && landlordCompanies.length === 0) lines.push(`Landlord: ${COULD_NOT_READ}`);
+  const landlordKnown = (landlords ?? []).length > 0 || landlordCompanies.length > 0;
+  if (!landlordKnown) lines.push(`Landlord: ${COULD_NOT_READ}`);
 
   // 임차인
   const tenants = groupsOf(contractFields.tenants, groups);
@@ -149,14 +155,17 @@ function fraudLines(contractFields, registryFields, groups, legend, hasBroker) {
     lines.push(`Payment account holder: ${Array.isArray(contractFields.accountHolders) && contractFields.accountHolders.length > 0 ? COULD_NOT_READ : 'none found'}`);
   } else {
     for (const g of holders) {
+      // 임대인을 못 읽었으면 비교 대상이 없으므로 "다른 사람"이라고 하지 않는다 (#357 2차 리뷰)
       const relation =
         g.status === AMBIGUOUS
           ? ' (not confirmed whether this is the landlord)'
           : g.roles.includes('LANDLORD')
             ? ' (same person as the landlord)'
-            : landlordCompanies.length > 0 && (landlords ?? []).length === 0
-              ? ' (an individual, while the landlord is a company)'
-              : ' (a different person from the landlord)';
+            : !landlordKnown
+              ? ' (the landlord could not be read, so not compared)'
+              : landlordCompanies.length > 0 && (landlords ?? []).length === 0
+                ? ' (an individual, while the landlord is a company)'
+                : ' (a different person from the landlord)';
       lines.push(`Payment account holder: ${alias(g)}${relation}`);
     }
   }

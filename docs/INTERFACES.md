@@ -354,10 +354,10 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 ```
 
 - 개인 이름은 가명. 소유자·이전 소유자는 `personGroups` 가명, 개인 권리자는 `[Holder_1]`부터. 권리자 이름이 소유자와 같아도 생년월일이 없어 같은 가명을 주지 않고 `same name as [Owner_A], not confirmed to be the same person`으로 적는다.
-- 회사 이름은 `holderIsCompany === true`이고 회사 낱말(주식회사·은행·신탁·캐피탈 등)이 있을 때만 그대로, 아니면 가명.
-- 지금 소유자가 회사면 회사 이름(`ownerCompanies`)은 넣지 않고 `a company (name not sent)`로 적는다. 같은 회사가 권리자(신탁의 수탁자 등)로 나와도 `the current owner (a company, name not sent)`로 적는다.
+- 회사 이름은 `holderIsCompany === true`이고 회사 낱말(주식회사·은행·신탁·캐피탈, "특별시"·"구청" 같은 분명한 지자체 모양 등)이 있을 때만 그대로, 아니면 가명. 끝이 "구"인 사람 이름("김철구")은 회사로 보지 않는다.
+- 지금 소유자가 회사면 회사 이름(`ownerCompanies`)은 넣지 않고 `a company (name not sent)`로 적는다. 같은 회사가 권리자(신탁의 수탁자 등)로 나와도 `the current owner (a company, name not sent)`로 적는다. 이때 회사 형태 표기("(주)" ↔ "주식회사")를 빼고, 4자 이상이면 포함·한 글자 차이(OCR)도 같은 회사로 본다(느슨할수록 더 가린다). 짧은 이름("국")은 완전히 같을 때만.
 - 주소는 시·구까지. 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다(없으면 `not shown`).
-- 못 읽은 값, 날짜 모양이 아닌 날짜, 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 없거나 `null`이면 확인하지 못했다고 적는다.
+- 못 읽은 값, 날짜가 아닌 날짜(연 1900~2099·월 01~12·일 01~31 밖), 0 이하이거나 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 0 이상의 정수가 아니면(없음·`null`·`NaN`·음수) 확인하지 못했다고 적는다.
 - `edits`를 주면 사용자가 ④에서 더 가린 글자(`add`)도 요약에서 가린다.
 - 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 권리 줄은 종류와 말소 여부만 남기고(`details hidden`) 그 밖의 줄은 뺀다. 가린 줄 수가 `hiddenCount`다 (화면 알림용).
 
@@ -367,8 +367,11 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 - `document`(그 계약서 DocumentModel)를 주면 가린 글의 줄 수가 서류 줄 수와 같은지 확인한다. 다르면(쪽 표시가 먼저 들어간 글 등) 엉뚱한 줄을 바꾸지 않도록 바꾸지 않는다.
 - 첫 칸은 아래 요약으로, 나머지 칸(서명 칸 등)은 `contents hidden` 한 줄로 바꾼다. 범위가 없거나 줄 수가 안 맞으면 바꾸지 않는다(`replaced: false`).
 - 사기 점검은 가명과 관계, 조항·계약 설명은 역할만 적는다(이 두 목적은 이름을 `REDACT`해서 본문에도 가명이 없다).
-  - 확인 안 된 그룹(`AMBIGUOUS`)은 역할이 합쳐져 있어도 `not confirmed`로 적는다. 못 읽은 역할(예금주 포함)은 `Could not read`, 읽었는데 없으면 `none found`.
-  - 임대인·소유자 회사 이름(`landlordCompanies`, `ownerCompanies`)은 넣지 않는다. `registryFields`를 주면 회사 이름끼리 비교해 `the same company as the owner on the register` / `a different company …`를 적고, 없으면 `not confirmed …`로 적는다.
+  - 확인 안 된 그룹(`AMBIGUOUS`)은 역할이 합쳐져 있어도 `not confirmed`로 적는다.
+  - 임대인·임차인을 못 읽었거나 빈 목록이면 `Could not read`. 예금주만 못 읽음(`null`)은 `Could not read`, 읽었는데 없음(`[]`)은 `none found`로 나눠 적는다.
+  - 임대인을 못 읽었으면 예금주는 `the landlord could not be read, so not compared`로 적는다(다르다고 단정하지 않음).
+  - 임대인·소유자 회사 이름(`landlordCompanies`, `ownerCompanies`)은 넣지 않는다. `registryFields`를 주면 회사 형태 표기("(주)" ↔ "주식회사")를 뺀 이름이 완전히 같을 때만 `the same company as the owner on the register`, 다르면 단정하지 않고 `the company name does not match the owner on the register (check the original)`로 적는다. `registryFields`를 안 주면 `no register provided, so not compared`.
+  - 연결할 때는 `document`와 `registryFields`를 같이 넘긴다. 안 넘기면 줄 수 확인을 건너뛰고 회사 관계를 비교하지 못한다.
 - `lineBlocks`를 주면 바꾼 글의 줄 순서에 맞춘 것을 돌려준다(요약 줄은 `null`). `validateMaskedText`의 멈춘 줄 위치에 쓴다.
 - 한계: 사용자가 ④에서 칸 안의 값을 보이게(KEEP) 풀어도 그 칸은 요약으로 바뀐다. 확인 화면 미리보기는 요약이 반영된 글(`prepared.maskedText`)을 보여 줘야 한다.
 

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildRegistrySummary, getSendMode, SEND_MODE, validateMaskedText } from '../src/features/masking/index.js';
 import { cleanCause } from '../src/features/masking/registry-summary.js';
+import { normalizeCompany, isSameCompany, mayBeSameCompany } from '../src/features/masking/alias-utils.js';
 import { DOCUMENT_TYPE, MASKING_PURPOSE } from '../src/shared/document-model.js';
 
 const GROUPS = [
@@ -247,6 +248,63 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(r.data.text).toContain('1 item hidden (check the original register)');
   });
 
+  it('끝이 "구"인 사람 이름은 holderIsCompany가 true여도 회사로 보지 않는다 (#355 2차 리뷰)', () => {
+    for (const holder of ['김철구', '박영구', '이상구']) {
+      const { text } = summarize({
+        rights: [{ kind: 'MORTGAGE', maxClaimAmount: 10000000, cancelled: false, receivedAt: '2025-05-02', holder, holderIsCompany: true, cause: '설정계약' }],
+      });
+      expect(text, holder).not.toContain(holder);
+      expect(text, holder).toContain('holder [Holder_1] (an individual)');
+    }
+    // 분명한 지자체 모양은 기관으로 본다
+    const { text } = summarize({
+      rights: [{ kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '서울특별시중구', holderIsCompany: true, cause: '압류' }],
+    });
+    expect(text).toContain('holder 서울특별시중구, active');
+  });
+
+  it('소유자 회사와 권리자 회사는 회사 형태 표기·한 글자 차이를 무시하고 비교해 이름을 보내지 않는다 (#355 2차 리뷰)', () => {
+    for (const holder of ['(주)가상부동산신탁', '㈜ 가상부동산신탁', '가상부동산신닥주식회사']) {
+      const { text } = summarize({
+        owners: [],
+        ownerCompanies: ['가상부동산신탁주식회사'],
+        rights: [{ kind: 'TRUST', cancelled: false, receivedAt: '2024-09-23', holder, holderIsCompany: true, cause: '신탁' }],
+      });
+      expect(text, holder).not.toMatch(/가상부동산신[탁닥]/);
+      expect(text, holder).toContain('holder the current owner (a company, name not sent)');
+    }
+  });
+
+  it('짧은 권리자 이름("국")은 소유자 회사 이름에 들어 있어도 소유자로 보지 않는다 (#355 2차 리뷰)', () => {
+    const { text } = summarize({
+      owners: [],
+      ownerCompanies: ['한국자산관리공사'],
+      rights: [{ kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '국', holderIsCompany: true, cause: '압류' }],
+    });
+    expect(text).toContain('- Seizure (압류): received 2025-07-01, cause 압류, holder 국, active');
+    expect(text).not.toContain('holder the current owner');
+  });
+
+  it('unknownActiveCount가 NaN이거나 음수면 확인 못 했다고 적는다 (#355 2차 리뷰)', () => {
+    for (const unknownActiveCount of [Number.NaN, -1, 1.5]) {
+      expect(summarize({ unknownActiveCount }).text, String(unknownActiveCount)).toContain(
+        'Other register records: could not check, check the original register',
+      );
+    }
+  });
+
+  it('채권최고액이 0 이하면, 날짜가 없는 날짜(13월·0000년)면 "Could not read" (#355 2차 리뷰)', () => {
+    const { text } = summarize({
+      lastTransferDate: '0000-00-00',
+      rights: [{ kind: 'MORTGAGE', maxClaimAmount: 0, cancelled: false, receivedAt: '2025-13-45', holder: '주식회사가상은행', holderIsCompany: true, cause: '설정계약' }],
+    });
+    expect(text).toContain('Last ownership transfer: Could not read');
+    expect(text).toContain('- Mortgage (근저당권): received Could not read, cause 설정계약, max claim Could not read, holder 주식회사가상은행, active');
+    expect(summarize({ rights: [{ kind: 'MORTGAGE', maxClaimAmount: -5, cancelled: false, receivedAt: '2025-05-02', holder: '주식회사가상은행', holderIsCompany: true, cause: '설정계약' }] }).text).toContain(
+      'max claim Could not read',
+    );
+  });
+
   it('등기부 데이터가 없으면 실패한다', () => {
     expect(buildRegistrySummary(null, GROUPS, LEGEND).ok).toBe(false);
     expect(buildRegistrySummary(registry({ documentId: null }), GROUPS, LEGEND).ok).toBe(false);
@@ -293,5 +351,26 @@ describe('PART 4 등기원인 낱말 (cleanCause)', () => {
     expect(cleanCause('가상세무서 처분')).toBeNull();
     expect(cleanCause('')).toBeNull();
     expect(cleanCause(null)).toBeNull();
+  });
+});
+
+describe('PART 4 회사 이름 비교 (alias-utils, #355·#357 2차 리뷰)', () => {
+  it('회사 형태 표기·괄호·띄어쓰기를 빼고 비교한다', () => {
+    expect(normalizeCompany('(주) 가상부동산신탁')).toBe('가상부동산신탁');
+    expect(normalizeCompany('가상부동산신탁주식회사')).toBe('가상부동산신탁');
+    expect(normalizeCompany('㈜가상리츠')).toBe('가상리츠');
+  });
+
+  it('엄격한 비교(isSameCompany): 표기만 다른 같은 회사는 같고, 한쪽이 다른 쪽을 품는 다른 회사는 다르다', () => {
+    expect(isSameCompany('(주)가상부동산신탁', '가상부동산신탁주식회사')).toBe(true);
+    expect(isSameCompany('가상건설', '가상건설산업')).toBe(false);
+    expect(isSameCompany('', '')).toBe(false);
+  });
+
+  it('느슨한 비교(mayBeSameCompany): 4자 이상이면 포함·한 글자 차이도 같다고 보고, 짧은 이름은 완전히 같을 때만', () => {
+    expect(mayBeSameCompany('가상부동산신탁주식회사', '가상부동산신닥')).toBe(true);
+    expect(mayBeSameCompany('가상건설', '가상건설산업')).toBe(true);
+    expect(mayBeSameCompany('한국자산관리공사', '국')).toBe(false);
+    expect(mayBeSameCompany('국', '국')).toBe(true);
   });
 });

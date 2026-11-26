@@ -117,23 +117,39 @@ describe('PART 4 계약서 인적사항 칸 요약 (buildContractPartySummary)',
     expect(text).not.toContain('가상리츠');
   });
 
-  it('임대인·소유자가 둘 다 회사면 등기부 데이터로 같은 회사인지 다른 회사인지 적는다 (#357 리뷰)', () => {
+  it('임대인·소유자가 둘 다 회사면 등기부 데이터로 같은 회사인지 적는다. 같다는 말은 완전히 같을 때만 (#357 리뷰)', () => {
     const groups = [{ personId: 'P2', alias: '[Tenant_B]', roles: ['TENANT'], findingIds: ['PII_L02'], status: 'CONFIRMED' }];
-    /** @param {string[]} ownerCompanies */
-    const landlordLine = (ownerCompanies) => {
+    /** @param {string} landlordCompany @param {any} registryFields */
+    const landlordLine = (landlordCompany, registryFields) => {
       const r = buildContractPartySummary({
         maskedText: MASKED,
-        contractFields: contract({ landlords: [], landlordCompanies: ['주식회사 가상리츠'], accountHolders: [] }),
+        contractFields: contract({ landlords: [], landlordCompanies: [landlordCompany], accountHolders: [] }),
         personGroups: groups,
         purpose: FRAUD_CHECK,
-        registryFields: ownerCompanies ? { ownerCompanies } : undefined,
+        registryFields,
       });
       return r.ok ? r.data.text.split('\n').find((l) => l.startsWith('Landlord:')) : null;
     };
-    expect(landlordLine(['주식회사가상리츠'])).toBe('Landlord: a company (name not sent), the same company as the owner on the register');
-    expect(landlordLine(['가상부동산신탁주식회사'])).toBe('Landlord: a company (name not sent), a different company from the owner on the register');
-    // 등기부 데이터가 없으면 같은지 모른다고 적는다 (같다고 가정하지 않게)
-    expect(landlordLine(/** @type {any} */ (undefined))).toBe('Landlord: a company (name not sent), not confirmed whether this is the owner on the register');
+    const SAME = 'Landlord: a company (name not sent), the same company as the owner on the register';
+    const NO_MATCH = 'Landlord: a company (name not sent), the company name does not match the owner on the register (check the original)';
+    expect(landlordLine('주식회사 가상리츠', { ownerCompanies: ['주식회사가상리츠'] })).toBe(SAME);
+    // 회사 형태 표기만 다른 같은 회사 (#357 2차 리뷰)
+    expect(landlordLine('(주)가상부동산신탁', { ownerCompanies: ['가상부동산신탁주식회사'] })).toBe(SAME);
+    // 한쪽이 다른 쪽을 품는 다른 회사는 같다고 하지 않고, 다르다고 단정하지도 않는다 (#357 2차 리뷰)
+    expect(landlordLine('가상건설산업 주식회사', { ownerCompanies: ['가상건설주식회사'] })).toBe(NO_MATCH);
+    expect(landlordLine('주식회사 가상리츠', { ownerCompanies: ['가상부동산신탁주식회사'] })).toBe(NO_MATCH);
+    // 등기부를 안 줬으면 비교하지 않았다고, 등기부는 있는데 소유자 정보가 없으면 확인 안 됨이라고 적는다
+    expect(landlordLine('주식회사 가상리츠', undefined)).toBe('Landlord: a company (name not sent), no register provided, so not compared');
+    expect(landlordLine('주식회사 가상리츠', { ownerCompanies: [] })).toBe(
+      'Landlord: a company (name not sent), not confirmed whether this is the owner on the register',
+    );
+  });
+
+  it('임대인을 못 읽었으면 예금주를 "임대인과 다른 사람"이라고 하지 않는다 (#357 2차 리뷰)', () => {
+    const { text } = run({ landlords: null, landlordCompanies: [] });
+    expect(text).toContain('Landlord: Could not read');
+    expect(text).toContain('Payment account holder: [AccountHolder_C] (the landlord could not be read, so not compared)');
+    expect(text).not.toContain('a different person from the landlord');
   });
 
   it('사기 점검: 소유자가 회사이고 임대인이 개인이면 그 관계를 적는다 (소유자 그룹이 없어도 관계가 빠지지 않게, #357 리뷰)', () => {
@@ -268,6 +284,11 @@ describe('PART 4 인적사항 칸 요약: 평가 세트 계약서로 확인', ()
         lineBlocks: { ...masked.lineBlocks, [lease.documentId]: /** @type {string[]} */ (r.data.lineBlocks) },
       });
       expect(check.ok, purpose).toBe(true);
+      // 조항·계약 설명은 이름을 REDACT해서 본문에도 가명이 없다. 그래서 요약에 역할만 적어도 가명과 역할의 연결을 잃지 않는다.
+      // masking-policy.json이 바뀌면 이 테스트가 알려 준다 (#357 2차 리뷰)
+      if (purpose !== MASKING_PURPOSE.FRAUD_CHECK) {
+        expect(r.data.text, purpose).not.toMatch(/\[(?:Owner|Landlord|Tenant|AccountHolder|PrevOwner|Person)_[A-Z]\??\]/);
+      }
     }
   }, 120000);
 });

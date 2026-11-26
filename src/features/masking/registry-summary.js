@@ -27,7 +27,7 @@ import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
 import { coarsenAddress } from './create-masking-plan.js';
 import { findLeftoverNumber, findLookalikeNumber, findPhotoLeftover } from './masking-validator.js';
 import { validAdds } from './user-edits.js';
-import { aliasOf, squash, companyNames, sameCompany } from './alias-utils.js';
+import { aliasOf, squash, companyNames, mayBeSameCompany } from './alias-utils.js';
 
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
 /** @typedef {{ findingId?: string | null, name?: string | null }} RegistryPerson */
@@ -108,17 +108,18 @@ function peopleText(people, personGroups, legend, emptyText) {
   return parts.join(', ');
 }
 
-/** 날짜 칸: 이 모양이 아니면(번호가 섞여 읽힌 경우 등) 못 읽은 것으로 본다 */
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** 날짜 칸: 연 1900~2099, 월 01~12, 일 01~31 모양이 아니면(번호가 섞여 읽힌 경우 등) 못 읽은 것으로 본다 */
+const DATE = /^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
 /** @param {unknown} value */
 const dateText = (value) => (typeof value === 'string' && DATE.test(value) ? value : null);
 
 /**
  * 회사·기관 이름 낱말. PART 2의 holderIsCompany가 true여도 이 낱말이 없으면 개인으로 보고 가명을 준다.
- * "국"은 국가 기관(예: 압류 권리자 "국"), 끝이 시·군·구(청)이면 지방자치단체다.
+ * "국"은 국가 기관(예: 압류 권리자 "국"). 지방자치단체는 "특별시·광역시…"나 "시청·군청·구청"처럼 분명한 모양만 본다
+ * (끝이 "구"인 사람 이름 "김철구"가 걸리지 않게, #355 리뷰. "중구"처럼 남는 지자체는 가명으로 가려질 뿐이라 안전하다)
  */
 const COMPANY_WORD =
-  /주식회사|유한회사|유한책임회사|합자회사|합명회사|㈜|\(주\)|은행|신탁|캐피탈|금고|조합|보험|저축|증권|카드|대부|투자|리츠|공사|공단|법인|재단|협회|세무서|법원|대한민국|^국$|(?:특별시|광역시|특별자치시|특별자치도|시|군|구)청?$/;
+  /주식회사|유한회사|유한책임회사|합자회사|합명회사|㈜|\(주\)|은행|신탁|캐피탈|금고|조합|보험|저축|증권|카드|대부|투자|리츠|공사|공단|법인|재단|협회|세무서|법원|대한민국|^국$|특별시|광역시|특별자치시|특별자치도|(?:시|군|구|도)청$/;
 
 /**
  * 요약 한 줄이 보내도 되는지. 원래 이름이 남았거나, 보내기 전 검사가 멈추는 모양이면 false.
@@ -154,13 +155,17 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
   ];
   /** @type {RegistryRight[] | null} */
   const rights = Array.isArray(registryFields.rights) ? registryFields.rights : null;
-  /** @type {string[]} 지금 소유자 회사 이름 (띄어쓰기 뺀 것). 요약에 넣지 않는다 */
+  /** 지금 소유자 회사 이름. 요약에 넣지 않는다 */
   const ownerCompanies = companyNames(registryFields.ownerCompanies);
 
   /** @param {RegistryRight} r  회사로 보고 이름을 그대로 둘 권리자인가 */
   const isCompanyHolder = (r) => r.holderIsCompany === true && typeof r.holder === 'string' && COMPANY_WORD.test(squash(r.holder));
-  /** @param {string} holder  지금 소유자 회사와 같은 이름인가 */
-  const isOwnerCompany = (holder) => ownerCompanies.some((c) => sameCompany(c, holder));
+  /**
+   * 지금 소유자 회사일 수 있는 이름인가. 회사 형태 표기("(주)" ↔ "주식회사")를 빼고 비교하고, 한 글자 차이(OCR)도 같다고 본다.
+   * 맞을수록 회사 이름을 더 가리는 쪽이라 느슨하게 본다. 단 "국"처럼 짧은 이름은 완전히 같을 때만 (#355 리뷰)
+   * @param {string} holder
+   */
+  const isOwnerCompany = (holder) => ownerCompanies.some((c) => mayBeSameCompany(c, holder));
 
   // 개인 권리자 가명: [Holder_1]부터 (같은 이름은 같은 가명).
   // 소유자·이전 소유자와 이름이 같아도 같은 사람인지 모르므로 따로 가명을 주고 "같은 이름"이라고만 적는다.
@@ -229,7 +234,7 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
         typeof right.cause !== 'string' || right.cause.trim() === '' ? COULD_NOT_READ : (cleanCause(right.cause) ?? 'not shown');
       const amount =
         right.kind === 'MORTGAGE'
-          ? `, max claim ${Number.isFinite(right.maxClaimAmount) ? won(/** @type {number} */ (right.maxClaimAmount)) : COULD_NOT_READ}`
+          ? `, max claim ${Number.isFinite(right.maxClaimAmount) && /** @type {number} */ (right.maxClaimAmount) > 0 ? won(/** @type {number} */ (right.maxClaimAmount)) : COULD_NOT_READ}`
           : '';
       const holderName = typeof right.holder === 'string' ? right.holder.trim() : '';
       const holder =
@@ -249,11 +254,12 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
     }
   }
 
-  // 없음(undefined)도 못 읽음(null)처럼 본다: 필드가 없을 때 "알아보지 못한 줄 없음"으로 읽히지 않게
+  // 0 이상의 정수가 아니면(없음·null·NaN·음수) 못 읽음으로 본다: "알아보지 못한 줄 없음"으로 읽히지 않게
   const unknown = registryFields.unknownActiveCount;
-  if (typeof unknown === 'number' && unknown > 0) {
-    add(() => `Unconfirmed register records: ${unknown} (could not read what they are, check the original register)`);
-  } else if (typeof unknown !== 'number') {
+  const unknownCount = Number.isInteger(unknown) && unknown >= 0 ? /** @type {number} */ (unknown) : null;
+  if (unknownCount !== null && unknownCount > 0) {
+    add(() => `Unconfirmed register records: ${unknownCount} (could not read what they are, check the original register)`);
+  } else if (unknownCount === null) {
     add(() => 'Other register records: could not check, check the original register');
   }
 
