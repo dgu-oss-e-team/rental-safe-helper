@@ -184,7 +184,8 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     roadAddress,                    // 표제부 [도로명주소] (지번 등기부용, 없으면 null)
     owners: [{ findingId, name, birthDate, role: 'OWNER', confidence }],                  // 지금 소유자만
     previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER', confidence }], // 갑구의 예전 소유자 (이미 판 사람)
-    rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt }],
+    rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt, holder, holderIsCompany, cause }],
+    unknownActiveCount: 0,          // 갑구·을구에서 인식하지 못한 유효(미말소) 줄 수 (없으면 0, 못 읽으면 null)
     lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
     ownerCompanies: ['가상신탁주식회사']  // 지금 소유자 기록의 회사 이름 (신탁이면 수탁자). 화면 전용, 프롬프트에 넣지 않음. 없으면 [], 못 정하면 null
   },
@@ -193,6 +194,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     landlords: [{ findingId, name, birthDate, role: 'LANDLORD', confidence }],
     tenants: [...], accountHolders: [...],
     deposit, monthlyRent, specialTerms: ['...'],
+    personalInfoRanges: [{ startLine: 4, endLine: 19 }], // 인적사항·서명란 0-based 줄 범위 목록 (없으면 [], 계약서 없으면 null)
     contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
     landlordCompanies: ['주식회사가상리츠']  // "성명(법인명)" 칸의 회사 이름 (임대사업자). 화면 전용, 프롬프트에 넣지 않음. 계약서가 없으면 null
     sourceType: 'text_pdf' | 'image_pdf' | 'image'   // 계약서 문서의 sourceType. 사진·스캔 판별에 쓴다. (#341)
@@ -200,6 +202,16 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 }
 ```
 
+
+`rights[]`의 항목 필드:
+- `kind`: `'MORTGAGE'` | `'PROVISIONAL_SEIZURE'` | `'SEIZURE'` | `'TRUST'` | `'JEONSE'` | `'LEASEHOLD'` | `'PROVISIONAL_DISPOSITION'`(가처분) | `'PROVISIONAL_REGISTRATION'`(가등기) | `'AUCTION'`(경매개시결정)
+- `holder`: 권리자 이름 (`string | null`, 못 읽으면 `null`)
+- `holderIsCompany`: 권리자가 법인·은행·신탁·조합 등 회사이면 `true`, 개인이면 `false`, `holder`가 `null`이면 `null`
+- `cause`: 등기원인 (예: `'설정계약'`, `'매매'`, `'결정'`, 못 읽으면 `null`)
+
+`registry.unknownActiveCount`는 갑구·을구에서 알려진 권리·말소·안내 줄로 분류되지 않은 미말소 유효 줄 수 (`number | null`)다.
+
+`contract.personalInfoRanges`는 계약서 전체 줄 배열(`linesOf`) 기준 인적사항(임대인·임차인·중개사·서명란) 구간의 `{ startLine, endLine }` (0-based, 양끝 포함) 배열이다. 상단 당사자 표와 하단 서명란처럼 떨어져 있으면 각각 원소로 들어가며, 없으면 `[]`, 계약서가 없으면 `null`이다.
 `birthDate`는 동일 인물 판정에만 쓰고 AI로 보내지 않는다. 읽지 못한 값은 `null`로 두고 추측하지 않는다.
 `confidence`는 이름이 있는 줄의 OCR 신뢰도(0~1)다. 글자 PDF는 `null`. PART 3은 흐리게 읽힌 이름이면 "다른 사람(STOP)" 대신 확인 불가로 본다. (#277)
 
