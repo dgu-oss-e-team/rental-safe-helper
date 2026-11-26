@@ -1350,107 +1350,135 @@ function dateAfterTermsConfirm(lines) {
   return parseDate(rest.replace(/_/g, ' ')) ?? parseDate((lines[at + 1] ?? '').replace(/_/g, ' '));
 }
 
-/** 인적사항(당사자) 구간 제목 */
+/** 인적사항(당사자·공인중개사) 구간 제목 */
 const PERSONAL_INFO_HEADING =
-  /^\s*(?:(?:\d{1,2}|제\s*\d{1,2}\s*(?:장|조|절))\s*[.)]?\s*)?[[【(]?\s*(?:인\s*적\s*사\s*항|당\s*사\s*자\s*(?:표\s*시|인\s*적\s*사\s*항)?|계\s*약\s*당\s*사\s*자)\s*[\]】)]?\s*[:：]?\s*$/;
+  /^\s*(?:(?:\d{1,2}|제\s*\d{1,2}\s*(?:장|조|절))\s*[.)]?\s*)?[[【(]?\s*(?:인\s*적\s*사\s*항|당\s*사\s*자\s*(?:표\s*시|인\s*적\s*사\s*항)?|계\s*약\s*당\s*사\s*자|(?:개\s*업\s*)?공\s*인\s*중\s*개\s*사)\s*[\]】)]?\s*(?:[(（][^()（）]{1,40}[)）])?\s*[:：]?\s*$/;
 /** 계약서 맨 위 전문("임대인(김철수)과 임차인(이영희)은 아래 표시 부동산에 관하여...")은 인적사항 칸이 아니다 */
 const CONTRACT_PREAMBLE =
   /임\s*대\s*인.*임\s*차\s*인.*(?:부\s*동\s*산|계\s*약|아래)|(?:이\s*하|약\s*칭)\s*["'「]?\s*(?:갑|을|임\s*대\s*인|임\s*차\s*인)/;
-/** 인적사항 칸을 끝내는 다음 구역 제목 */
-const PERSONAL_INFO_END_SECTION =
-  /^\s*(?:■|◈|[[【]\s*[^\]】\n]{1,40}?특\s*약|제\s*\d{1,2}\s*조\s*[(（]|\d{1,2}\s*[.)]\s*(?:특\s*약|개\s*인\s*정\s*보|확\s*인)|본\s*계\s*약\s*을\s*증\s*명)/;
+/** 인적사항 칸을 끝내는 다음 구역/조항 제목 */
+const PERSONAL_INFO_NEXT_SECTION =
+  /^\s*(?:■|◈|[[【]\s*[^\]】\n]{1,40}\s*[\]】]|제\s*\d{1,2}\s*조\s*[(（]|\d{1,2}\s*[.)]\s*\S+|(?:본|이|위)\s*계\s*약\s*을\s*증\s*명)/;
 
 /**
- * 계약서 전체 줄 배열(linesOf) 기준 인적사항(임대인·임차인·중개사) 칸의 0-based 줄 범위(포함)를 찾는다.
- * 못 찾으면 null.
+ * 계약서 전체 줄 배열(linesOf) 기준 인적사항(임대인·임차인·중개사·서명란) 구간의
+ * 0-based 줄 범위(포함) 목록을 찾는다.
+ * 상단 당사자 표와 하단 서명란처럼 떨어져 있으면 각각 범위로 반환한다. 없으면 [].
  * @param {string[]} lines
- * @returns {{ startLine: number, endLine: number } | null}
+ * @returns {Array<{ startLine: number, endLine: number }>}
  */
-export function findPersonalInfoRange(lines) {
-  if (!Array.isArray(lines) || lines.length === 0) return null;
+export function findPersonalInfoRanges(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
   const termLineSet = new Set(findSpecialTermLines(lines));
 
-  const s = "\\s*";
-  const reqS = "\\s+";
+  const s = '\\s*';
+  const reqS = '\\s+';
   const rolePrefix =
-    "(?:임" + s + "대" + s + "(?:사" + s + "업" + s + ")?자|임" + s + "대" + s + "인|임" + s + "차" + s + "인|(?:개" + s + "업" + s + ")?공" + s + "인" + s + "중" + s + "개" + s + "사|중" + s + "개" + s + "보" + s + "조" + s + "원)";
+    '(?:임' + s + '대' + s + '(?:사' + s + '업' + s + ')?자|임' + s + '대' + s + '인|임' + s + '차' + s + '인|(?:개' + s + '업' + s + ')?공' + s + '인' + s + '중' + s + '개' + s + '사|중' + s + '개' + s + '보' + s + '조' + s + '원|대' + s + '리' + s + '인)';
   const fieldLabel =
-    "(?:성" + s + "명|주" + s + "소|주" + s + "민" + s + "(?:등" + s + "록" + s + ")?번" + s + "호|생" + s + "년" + s + "월" + s + "일|전" + s + "화|연" + s + "락" + s + "처|휴" + s + "대" + s + "전" + s + "화|법" + s + "인" + s + "명|사" + s + "무" + s + "소|등" + s + "록" + s + "번" + s + "호|대" + s + "표" + s + "자?)";
+    '(?:성' + s + '명|주' + s + '소|소' + s + '재' + s + '지|주' + s + '민' + s + '(?:등' + s + '록' + s + ')?번' + s + '호|생' + s + '년' + s + '월' + s + '일|전' + s + '화(?:번' + s + '호)?|연' + s + '락' + s + '처|휴' + s + '대' + s + '전' + s + '화|이' + s + '메' + s + '일|법' + s + '인' + s + '명|사' + s + '무' + s + '소|등' + s + '록' + s + '번' + s + '호|사' + s + '업' + s + '자' + s + '등' + s + '록' + s + '번' + s + '호|대' + s + '표' + s + '자?)';
 
   const partyRowRegex = new RegExp(
     [
-      "^" + s + rolePrefix + "(?:" + s + "(?:" + fieldLabel + "|[:：]|[(（])|" + s + "$|" + reqS + "[가-힣A-Za-z])",
-      "^" + s + fieldLabel + s + "(?:[:：|ㅣ⎸│]|" + reqS + "|$)",
-      "[(（]" + s + "(?:서" + s + "명|날" + s + "인|인)(?:" + s + "(?:또는|및|·|/)" + s + "(?:서" + s + "명|날" + s + "인|인))?" + s + "[)）]",
-      "^" + s + "(?:서" + s + "명|날" + s + "인)(?:" + s + "(?:및|·|/)" + s + "(?:서" + s + "명|날" + s + "인))?" + s + "(?:란|[:：]|$)",
-    ].join("|"),
+      '^' + s + rolePrefix + '(?:' + s + '(?:' + fieldLabel + '|[:：]|[(（])|' + s + '$|' + reqS + '[가-힣A-Za-z])',
+      '^' + s + '[(（]?' + s + fieldLabel + s + '[)）]?' + s + '(?:[:：|ㅣ⎸│]|' + reqS + '|$)',
+      '[(（]' + s + '(?:서' + s + '명|날' + s + '인|인)(?:' + s + '(?:또는|및|·|/)' + s + '(?:서' + s + '명|날' + s + '인|인))?' + s + '[)）]',
+      '^' + s + '(?:서' + s + '명|날' + s + '인)(?:' + s + '(?:및|·|/)' + s + '(?:서' + s + '명|날' + s + '인))?' + s + '(?:란|[:：]|$)',
+    ].join('|'),
   );
   const partyStartRegex = new RegExp(
-    "^" + s + rolePrefix + "(?:" + s + "(?:" + fieldLabel + "|[:：]|[(（])|" + s + "$|" + reqS + "[가-힣A-Za-z])",
+    '^' + s + rolePrefix + '(?:' + s + '(?:' + fieldLabel + '|[:：]|[(（])|' + s + '$|' + reqS + '[가-힣A-Za-z])',
   );
-  const standaloneRoleRegex = new RegExp("^" + s + rolePrefix + s + "$");
+  const standaloneRoleRegex = new RegExp('^' + s + rolePrefix + s + '$');
+  const looksLikeFieldValue =
+    /^\s*(?:\d{2,4}-\d{3,4}-\d{4}|\d{6}-[\d*]{1,7}|\d{4}-[가-힣\d-]+|\d{1,4}(?:-\d{1,4})?(?:동|호|층)?|[가-힣]{2,6}(?:\s*[(（].*[)）])?|[A-Z][A-Za-z\s'-]{1,25})\s*$/;
 
-  let startLine = -1;
-  let hasExplicitHeading = false;
+  /** @type {Array<{ startLine: number, endLine: number }>} */
+  const ranges = [];
 
   for (let i = 0; i < lines.length; i += 1) {
     if (termLineSet.has(i)) continue;
-    if (PERSONAL_INFO_HEADING.test(lines[i])) {
-      startLine = i;
-      hasExplicitHeading = true;
-      break;
-    }
-  }
+    const line = lines[i];
+    if (!line.trim() || CONTRACT_PREAMBLE.test(line)) continue;
 
-  if (startLine === -1) {
-    for (let i = 0; i < lines.length; i += 1) {
-      if (termLineSet.has(i)) continue;
-      const line = lines[i];
-      if (!line.trim() || CONTRACT_PREAMBLE.test(line)) continue;
-      if (partyStartRegex.test(line)) {
-        if (standaloneRoleRegex.test(line)) {
-          const nextNonEmpty = lines.slice(i + 1, i + 4).find((l) => l.trim() !== "");
-          if (!nextNonEmpty || !partyRowRegex.test(nextNonEmpty)) continue;
+    if (PERSONAL_INFO_HEADING.test(line)) {
+      const startLine = i;
+      let endLine = i;
+      let seenPartyRow = false;
+      let blankStreak = 0;
+
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const cur = lines[j];
+        if (
+          termLineSet.has(j) ||
+          PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          isSpecialTermsHeading(cur) ||
+          CONTRACT_PREAMBLE.test(cur)
+        ) {
+          break;
         }
-        startLine = i;
+        if (!cur.trim()) {
+          blankStreak += 1;
+          if (blankStreak > 2) break;
+          continue;
+        }
+        blankStreak = 0;
+        if (PAGE_MARK_LINE.test(cur)) continue;
+
+        if (partyRowRegex.test(cur)) seenPartyRow = true;
+        endLine = j;
+      }
+
+      if (seenPartyRow) {
+        ranges.push({ startLine, endLine });
+        i = endLine;
+      }
+      continue;
+    }
+
+    if (partyStartRegex.test(line)) {
+      if (standaloneRoleRegex.test(line)) {
+        const nextNonEmpty = lines.slice(i + 1, i + 4).find((l) => l.trim() !== '');
+        if (!nextNonEmpty || !partyRowRegex.test(nextNonEmpty)) continue;
+      }
+
+      const startLine = i;
+      let endLine = i;
+      let blankStreak = 0;
+
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const cur = lines[j];
+        if (
+          termLineSet.has(j) ||
+          PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          isSpecialTermsHeading(cur) ||
+          CONTRACT_PREAMBLE.test(cur)
+        ) {
+          break;
+        }
+        if (!cur.trim()) {
+          blankStreak += 1;
+          if (blankStreak > 1) break;
+          continue;
+        }
+        blankStreak = 0;
+        if (PAGE_MARK_LINE.test(cur)) continue;
+
+        if (partyRowRegex.test(cur)) {
+          endLine = j;
+          continue;
+        }
+        if (looksLikeFieldValue.test(cur) && j - endLine <= 2) {
+          endLine = j;
+          continue;
+        }
         break;
       }
+
+      ranges.push({ startLine, endLine });
+      i = endLine;
     }
   }
 
-  if (startLine === -1) return null;
-
-  let endLine = startLine;
-  let seenPartyRow = !hasExplicitHeading;
-  let blankStreak = 0;
-
-  for (let i = startLine + 1; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (termLineSet.has(i) || PERSONAL_INFO_END_SECTION.test(line) || isSpecialTermsHeading(line)) break;
-    if (!line.trim()) {
-      blankStreak += 1;
-      if (blankStreak > 1) break;
-      continue;
-    }
-    blankStreak = 0;
-    if (PAGE_MARK_LINE.test(line)) continue;
-
-    if (partyRowRegex.test(line)) {
-      seenPartyRow = true;
-      endLine = i;
-      continue;
-    }
-
-    const looksLikeFieldValue =
-      /^\s*(?:\d{2,4}-\d{3,4}-\d{4}|\d{6}-[\d*]{1,7}|\d{1,4}(?:-\d{1,4})?(?:동|호|층)?|[가-힣]{2,4}(?:\s*[(（].*[)）])?|[A-Z][A-Za-z\s'-]{1,25})\s*$/.test(line);
-    if (seenPartyRow && looksLikeFieldValue && i - endLine <= 2) {
-      endLine = i;
-      continue;
-    }
-
-    break;
-  }
-
-  if (!seenPartyRow) return null;
-  return { startLine, endLine };
+  return ranges;
 }

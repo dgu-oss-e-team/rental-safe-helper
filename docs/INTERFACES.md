@@ -193,6 +193,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     landlords: [{ findingId, name, birthDate, role: 'LANDLORD', confidence }],
     tenants: [...], accountHolders: [...],
     deposit, monthlyRent, specialTerms: ['...'],
+    personalInfoRanges: [{ startLine: 4, endLine: 19 }], // 인적사항·서명란 0-based 줄 범위 목록 (없으면 [], 계약서 없으면 null)
     contractDate: '2025-03-05'      // 계약일 ("계약일" 라벨 또는 서명일)
     landlordCompanies: ['주식회사가상리츠']  // "성명(법인명)" 칸의 회사 이름 (임대사업자). 화면 전용, 프롬프트에 넣지 않음. 계약서가 없으면 null
   }
