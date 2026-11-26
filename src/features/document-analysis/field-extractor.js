@@ -268,16 +268,23 @@ const SPECIAL_TERMS_HEADING = new RegExp(
  * "(인)"도 줄 끝에 있을 때만 서명 칸이다. ("도장(인) 지참"은 특약, PR #237 리뷰)
  * (줄 어디에서나 멈추면 그 뒤 특약이 모두 사라져 거짓 [](없음)이 된다)
  */
+const PARTY_ROLE_PREFIX =
+  '(?:임\s*대\s*(?:사\s*업\s*)?자|임\s*대\s*인|임\s*차\s*인|(?:개\s*업\s*)?공\s*인\s*중\s*개\s*사|중\s*개\s*보\s*조\s*원)';
 const SIGNATURE_FIELD =
-  '(?:성\\s*명|주\\s*소|주\\s*민\\s*(?:등\\s*록\\s*)?번\\s*호|전\\s*화|연\\s*락\\s*처|휴\\s*대\\s*전\\s*화)(?![가-힣])' +
+  '(?:성\\s*명|주\\s*소|주\\s*민\\s*(?:등\\s*록\\s*)?번\\s*호|생\\s*년\\s*월\\s*일|전\\s*화|연\\s*락\\s*처|휴\\s*대\\s*전\\s*화|법\\s*인\\s*명)(?![가-힣])' +
   '|주\\s*민\\s*등\\s*록|사\\s*무\\s*소|등\\s*록\\s*번\\s*호|대\\s*표\\s*자?(?![가-힣])';
+const SEAL_SUFFIX =
+  '(?:[(（]\\s*(?:서\\s*명|날\\s*인|인)(?:\\s*(?:또는|및|·|/)\\s*(?:서\\s*명|날\\s*인|인))?\\s*[)）]|서\\s*명|날\\s*인)\\s*$';
 const SPECIAL_TERMS_STOP = new RegExp(
   [
     '(?:본|이|위)\\s*계약을\\s*증명',
     '[(（]\\s*(?:서\\s*명|날\\s*인)\\s*(?:또는|및|·|/)\\s*(?:서\\s*명|날\\s*인|인)\\s*[)）]',
     '[(（]\\s*인\\s*[)）]\\s*$',
-    '^\\s*(?:서\\s*명|날\\s*인)\\s*(?:란|[:：]|$)',
-    `^\\s*(?:임\\s*대\\s*인|임\\s*차\\s*인|개업\\s*공인\\s*중개사)\\s*(?:${SIGNATURE_FIELD})`,
+    '^\\s*(?:서\\s*명|날\\s*인)(?:\\s*(?:및|·|/)\\s*(?:서\\s*명|날\\s*인))?\\s*(?:란|[:：]|$)',
+    '^\\s*(?:임\\s*대\\s*인|임\\s*차\\s*인|(?:개\\s*업\\s*)?공\\s*인\\s*중\\s*개\\s*사|중\\s*개\\s*보\\s*조\\s*원)\\s*(?:' + SIGNATURE_FIELD + ')',
+    '^\\s*' + PARTY_ROLE_PREFIX + '\\s*[:：]',
+    '^\\s*' + PARTY_ROLE_PREFIX + '(?:\\s+[가-힣A-Za-z\\s]{1,25})?\\s*' + SEAL_SUFFIX,
+    '^\\s*[[【]?\\s*인\\s*적\\s*사\\s*항\\s*[\\]】]?\\s*[:：]?\\s*$',
   ].join('|'),
 );
 
@@ -428,7 +435,7 @@ function readSpecialTermSection(lines, start) {
     if (skipNotice(line)) continue;
     if (annex) {
       if (ANNEX_STOP.test(line)) break;
-      if (ANNEX_CONFIRM_LINE.test(line) || PAGE_MARK_LINE.test(line)) continue;
+      if (ANNEX_CONFIRM_LINE.test(line) || SPECIAL_TERMS_STOP.test(line) || PAGE_MARK_LINE.test(line)) continue;
       body.push(i);
       continue;
     }
@@ -1341,4 +1348,137 @@ function dateAfterTermsConfirm(lines) {
   const m = TERMS_CONFIRM_SENTENCE.exec(lines[at]);
   const rest = lines[at].slice((m?.index ?? 0) + (m?.[0].length ?? 0));
   return parseDate(rest.replace(/_/g, ' ')) ?? parseDate((lines[at + 1] ?? '').replace(/_/g, ' '));
+}
+
+/** 인적사항(당사자·공인중개사) 구간 제목 */
+const PERSONAL_INFO_HEADING =
+  /^\s*(?:(?:\d{1,2}|제\s*\d{1,2}\s*(?:장|조|절))\s*[.)]?\s*)?[[【(]?\s*(?:인\s*적\s*사\s*항|당\s*사\s*자\s*(?:표\s*시|인\s*적\s*사\s*항)?|계\s*약\s*당\s*사\s*자|(?:개\s*업\s*)?공\s*인\s*중\s*개\s*사)\s*[\]】)]?\s*(?:[(（][^()（）]{1,40}[)）])?\s*[:：]?\s*$/;
+/** 계약서 맨 위 전문("임대인(김철수)과 임차인(이영희)은 아래 표시 부동산에 관하여...")은 인적사항 칸이 아니다 */
+const CONTRACT_PREAMBLE =
+  /임\s*대\s*인.*임\s*차\s*인.*(?:부\s*동\s*산|계\s*약|아래)|(?:이\s*하|약\s*칭)\s*["'「]?\s*(?:갑|을|임\s*대\s*인|임\s*차\s*인)/;
+/** 인적사항 칸을 끝내는 다음 구역/조항 제목 */
+const PERSONAL_INFO_NEXT_SECTION =
+  /^\s*(?:■|◈|[[【]\s*[^\]】\n]{1,40}\s*[\]】]|제\s*\d{1,2}\s*조\s*[(（]|\d{1,2}\s*[.)]\s*\S+|(?:본|이|위)\s*계\s*약\s*을\s*증\s*명)/;
+
+/**
+ * 계약서 전체 줄 배열(linesOf) 기준 인적사항(임대인·임차인·중개사·서명란) 구간의
+ * 0-based 줄 범위(포함) 목록을 찾는다.
+ * 상단 당사자 표와 하단 서명란처럼 떨어져 있으면 각각 범위로 반환한다. 없으면 [].
+ * @param {string[]} lines
+ * @returns {Array<{ startLine: number, endLine: number }>}
+ */
+export function findPersonalInfoRanges(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+  const termLineSet = new Set(findSpecialTermLines(lines));
+
+  const s = '\\s*';
+  const reqS = '\\s+';
+  const rolePrefix =
+    '(?:임' + s + '대' + s + '(?:사' + s + '업' + s + ')?자|임' + s + '대' + s + '인|임' + s + '차' + s + '인|(?:개' + s + '업' + s + ')?공' + s + '인' + s + '중' + s + '개' + s + '사|중' + s + '개' + s + '보' + s + '조' + s + '원|대' + s + '리' + s + '인)';
+  const fieldLabel =
+    '(?:성' + s + '명|주' + s + '소|소' + s + '재' + s + '지|주' + s + '민' + s + '(?:등' + s + '록' + s + ')?번' + s + '호|생' + s + '년' + s + '월' + s + '일|전' + s + '화(?:번' + s + '호)?|연' + s + '락' + s + '처|휴' + s + '대' + s + '전' + s + '화|이' + s + '메' + s + '일|법' + s + '인' + s + '명|사' + s + '무' + s + '소|등' + s + '록' + s + '번' + s + '호|사' + s + '업' + s + '자' + s + '등' + s + '록' + s + '번' + s + '호|대' + s + '표' + s + '자?)';
+
+  const partyRowRegex = new RegExp(
+    [
+      '^' + s + rolePrefix + '(?:' + s + '(?:' + fieldLabel + '|[:：]|[(（])|' + s + '$|' + reqS + '[가-힣A-Za-z])',
+      '^' + s + '[(（]?' + s + fieldLabel + s + '[)）]?' + s + '(?:[:：|ㅣ⎸│]|' + reqS + '|$)',
+      '[(（]' + s + '(?:서' + s + '명|날' + s + '인|인)(?:' + s + '(?:또는|및|·|/)' + s + '(?:서' + s + '명|날' + s + '인|인))?' + s + '[)）]',
+      '^' + s + '(?:서' + s + '명|날' + s + '인)(?:' + s + '(?:및|·|/)' + s + '(?:서' + s + '명|날' + s + '인))?' + s + '(?:란|[:：]|$)',
+    ].join('|'),
+  );
+  const partyStartRegex = new RegExp(
+    '^' + s + rolePrefix + '(?:' + s + '(?:' + fieldLabel + '|[:：]|[(（])|' + s + '$|' + reqS + '[가-힣A-Za-z])',
+  );
+  const standaloneRoleRegex = new RegExp('^' + s + rolePrefix + s + '$');
+  const looksLikeFieldValue =
+    /^\s*(?:\d{2,4}-\d{3,4}-\d{4}|\d{6}-[\d*]{1,7}|\d{4}-[가-힣\d-]+|\d{1,4}(?:-\d{1,4})?(?:동|호|층)?|[가-힣]{2,6}(?:\s*[(（].*[)）])?|[A-Z][A-Za-z\s'-]{1,25})\s*$/;
+
+  /** @type {Array<{ startLine: number, endLine: number }>} */
+  const ranges = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (termLineSet.has(i)) continue;
+    const line = lines[i];
+    if (!line.trim() || CONTRACT_PREAMBLE.test(line)) continue;
+
+    if (PERSONAL_INFO_HEADING.test(line)) {
+      const startLine = i;
+      let endLine = i;
+      let seenPartyRow = false;
+      let blankStreak = 0;
+
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const cur = lines[j];
+        if (
+          termLineSet.has(j) ||
+          PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          isSpecialTermsHeading(cur) ||
+          CONTRACT_PREAMBLE.test(cur)
+        ) {
+          break;
+        }
+        if (!cur.trim()) {
+          blankStreak += 1;
+          if (blankStreak > 2) break;
+          continue;
+        }
+        blankStreak = 0;
+        if (PAGE_MARK_LINE.test(cur)) continue;
+
+        if (partyRowRegex.test(cur)) seenPartyRow = true;
+        endLine = j;
+      }
+
+      if (seenPartyRow) {
+        ranges.push({ startLine, endLine });
+        i = endLine;
+      }
+      continue;
+    }
+
+    if (partyStartRegex.test(line)) {
+      if (standaloneRoleRegex.test(line)) {
+        const nextNonEmpty = lines.slice(i + 1, i + 4).find((l) => l.trim() !== '');
+        if (!nextNonEmpty || !partyRowRegex.test(nextNonEmpty)) continue;
+      }
+
+      const startLine = i;
+      let endLine = i;
+      let blankStreak = 0;
+
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const cur = lines[j];
+        if (
+          termLineSet.has(j) ||
+          PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          isSpecialTermsHeading(cur) ||
+          CONTRACT_PREAMBLE.test(cur)
+        ) {
+          break;
+        }
+        if (!cur.trim()) {
+          blankStreak += 1;
+          if (blankStreak > 1) break;
+          continue;
+        }
+        blankStreak = 0;
+        if (PAGE_MARK_LINE.test(cur)) continue;
+
+        if (partyRowRegex.test(cur)) {
+          endLine = j;
+          continue;
+        }
+        if (looksLikeFieldValue.test(cur) && j - endLine <= 2) {
+          endLine = j;
+          continue;
+        }
+        break;
+      }
+
+      ranges.push({ startLine, endLine });
+      i = endLine;
+    }
+  }
+
+  return ranges;
 }
