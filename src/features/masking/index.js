@@ -8,8 +8,10 @@
  *   createMaskingPlan(findings, personGroups, purpose, edits?)   → Result<MaskingPlan>          (create-masking-plan.js)
  *   applyMaskingPlan(documents, plan, findings, personGroups, edits?) → Result<{ maskedText, legend }>   (apply-masking-plan.js, PART 3 프롬프트용)
  *   validateMaskedText(maskedText, findings, plan, edits?)       → Result<{ checked: number }>     (masking-validator.js, 외부 전달 전 검사)
- *   getSendMode(purpose, documentType)                           → 'SUMMARY' | 'MASKED_TEXT' | 'OMIT'  (send-mode.js)
+ *   getSendMode(purpose, documentType)                           → 'SUMMARY' | 'PARTY_SUMMARY' | 'MASKED_TEXT' | 'OMIT'  (send-mode.js)
  *   buildRegistrySummary(registryFields, personGroups, legend?, edits?) → Result<{ documentId, text, hiddenCount }>  (registry-summary.js)
+ *   buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks?, registryFields?, document? })
+ *                                                                → Result<{ documentId, text, replaced, lineBlocks? }>  (contract-party-summary.js)
  *   applyPersonAnswers(personGroups, personAnswers)              → Result<PersonGroup[]>  (person-answers.js)
  *   renderPersonQuestions({ analysis, personGroups, personAnswers, onChange }) → HTMLElement | null  (② "같은 사람인가요?")
  *   renderMaskingReview({ analysis, prepared, edits, onChange }) → HTMLElement  (④ 확인 화면)
@@ -25,6 +27,7 @@
  *   apply-masking-plan.js    계획을 글에 적용, 가명 범례
  *   masking-validator.js     외부 전달 전 검사
  *   send-mode.js, registry-summary.js   목적별로 보낼 방식, 등기부 요약 (원문 대신 뽑은 항목)
+ *   contract-party-summary.js   계약서 인적사항 칸만 요약으로 바꾸기
  *   alias-utils.js           요약에서 같이 쓰는 가명 고르기·회사 이름 비교
  *   user-edits.js, review-model.js, masking-review-ui.js   ④ 확인 화면과 사용자 수정
  */
@@ -43,6 +46,7 @@ export { validateMaskedText } from './masking-validator.js';
 // 목적별로 보낼 방식(요약·가린 원문·안 보냄)과 등기부 요약 (지도 교수님 피드백 11/24)
 export { getSendMode, SEND_MODE } from './send-mode.js';
 export { buildRegistrySummary } from './registry-summary.js';
+export { buildContractPartySummary } from './contract-party-summary.js';
 
 // ④ 확인 화면 (PART 5 slots.js의 maskingReview 자리)
 export { renderMaskingReview } from './masking-review-ui.js';
