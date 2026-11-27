@@ -168,32 +168,48 @@ export function notSentAsWritten(analysis, prepared) {
   const modeOf = new Map((prepared.sending ?? []).map((s) => [s.documentId, s.mode]));
   if (modeOf.size === 0) return out;
 
-  // 인적사항 칸을 요약으로 바꾼 계약서: 칸 범위 안 줄에 있는 block (줄 번호는 PART 2 linesOf와 같은 기준)
-  /** @type {Set<string>} documentId::blockId */
-  const partyBlocks = new Set();
+  // 인적사항 칸을 요약으로 바꾼 계약서: block마다 시작 줄과 줄 글자 (줄 번호는 PART 2 linesOf와 같은 기준)
+  /** @type {Map<string, { start: number, lines: string[], ranges: import('./contract-party-summary.js').LineRange[] }>} documentId::blockId */
+  const partyBlocks = new Map();
   for (const doc of analysis.documents) {
     if (modeOf.get(doc.documentId) !== 'PARTY_SUMMARY') continue;
     const contract = analysis.fields?.contract;
     if (contract?.documentId !== doc.documentId) continue;
     let line = 0;
-    const blockLines = doc.pages.flatMap((/** @type {any} */ p) =>
-      p.blocks.map((/** @type {any} */ b) => {
-        const start = line;
-        line += String(b.text ?? '').split('\n').length;
-        return { blockId: b.blockId, start, end: line - 1 };
-      }),
-    );
-    const ranges = normalizeRanges(contract, line);
-    for (const b of blockLines) {
-      if (ranges.some((r) => b.start <= r.endLine && r.startLine <= b.end)) partyBlocks.add(`${doc.documentId}::${b.blockId}`);
+    /** @type {{ key: string, start: number, lines: string[] }[]} */
+    const blocks = [];
+    for (const p of doc.pages) {
+      for (const b of p.blocks) {
+        const lines = String(b.text ?? '').split('\n');
+        blocks.push({ key: `${doc.documentId}::${b.blockId}`, start: line, lines });
+        line += lines.length;
+      }
     }
+    const ranges = normalizeRanges(contract, line);
+    for (const b of blocks) partyBlocks.set(b.key, { start: b.start, lines: b.lines, ranges });
   }
+  /**
+   * 이 항목이 요약으로 바뀐 인적사항 칸 안에 있나. 줄 단위로 본다 (#383 리뷰):
+   * block 하나에 여러 줄이 있으면 값이 든 줄을 찾아 그 줄이 칸 안인지 본다.
+   * 값이 든 줄을 못 찾으면 block의 모든 줄이 칸 안일 때만 칸 안으로 본다.
+   * (틀리면 "PDF만 바뀐다"고 했는데 실제로는 AI에 가는 쪽이라, 애매하면 칸 밖으로 본다)
+   * @param {any} f
+   */
+  const inPartySection = (f) => {
+    const b = partyBlocks.get(`${f.documentId}::${f.blockId}`);
+    if (!b) return false;
+    const inRange = (/** @type {number} */ n) => b.ranges.some((r) => r.startLine <= n && n <= r.endLine);
+    const value = String(f.value ?? '');
+    const at = value === '' ? -1 : b.lines.findIndex((l) => l.includes(value));
+    if (at >= 0) return inRange(b.start + at);
+    return b.lines.every((_, i) => inRange(b.start + i));
+  };
 
   for (const f of analysis.findings) {
     const mode = modeOf.get(f.documentId);
     if (mode === 'OMIT') out.set(f.id, 'OMIT');
     else if (mode === 'SUMMARY') out.set(f.id, 'SUMMARY');
-    else if (mode === 'PARTY_SUMMARY' && partyBlocks.has(`${f.documentId}::${f.blockId}`)) out.set(f.id, 'SUMMARY');
+    else if (mode === 'PARTY_SUMMARY' && inPartySection(f)) out.set(f.id, 'SUMMARY');
   }
   return out;
 }

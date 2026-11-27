@@ -244,6 +244,26 @@ describe('PART 4 화면 ④ 요약으로 보내는 곳의 "Show" 안내 (#359)',
     expect(render(undefined).querySelectorAll('.mr-show-note')).toHaveLength(0);
   });
 
+  it('notSentAsWritten: 한 block에 여러 줄이 있으면 값이 든 줄로 칸 안인지 본다 (#383 리뷰)', () => {
+    // block l1 = 줄 0~2. 인적사항 칸은 줄 1~2만
+    const documents = [{ documentId: 'L', pages: [{ blocks: [{ blockId: 'l1', text: '보증금 계좌 예금주 가상일\n임대인 가상이\n임차인 가상삼' }] }] }];
+    const findings = [
+      { id: 'OUT', documentId: 'L', blockId: 'l1', value: '가상일' },
+      { id: 'IN', documentId: 'L', blockId: 'l1', value: '가상삼' },
+      { id: 'UNKNOWN', documentId: 'L', blockId: 'l1', value: '어디에도없음' },
+    ];
+    const fields = { contract: { documentId: 'L', personalInfoRanges: [{ startLine: 1, endLine: 2 }] } };
+    const m = notSentAsWritten({ documents, findings, fields }, { sending: [{ documentId: 'L', mode: 'PARTY_SUMMARY' }] });
+    // 칸 밖 줄의 값은 AI에 그대로 가므로 표시하지 않는다. 값이 든 줄을 못 찾으면 block이 모두 칸 안일 때만 표시
+    expect([...m]).toEqual([['IN', 'SUMMARY']]);
+
+    const allIn = notSentAsWritten(
+      { documents, findings, fields: { contract: { documentId: 'L', personalInfoRanges: [{ startLine: 0, endLine: 2 }] } } },
+      { sending: [{ documentId: 'L', mode: 'PARTY_SUMMARY' }] },
+    );
+    expect([...allIn.keys()]).toEqual(['OUT', 'IN', 'UNKNOWN']);
+  });
+
   it('notSentAsWritten: 한 사람이 요약으로 가는 곳과 그대로 가는 곳에 다 있으면 일부만 표시된다', () => {
     const findings = [
       { id: 'A', documentId: 'R', blockId: 'r1' },
