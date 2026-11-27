@@ -8,6 +8,7 @@ import {
   groupRiskResults,
   validFilter,
   getConclusion,
+  shouldShowHelp,
 } from '../src/features/risk-check/risk-result-model.js';
 
 const make = (ruleId, status) => ({ ruleId, status, title: ruleId, explanation: 'e', action: 'a' });
@@ -96,5 +97,34 @@ describe('PART 3 결론 배너 (#377)', () => {
   it('결과가 없거나 전부 확인 불가면 "경고 없음"이라고 하지 않는다', () => {
     expect(getConclusion([]).level).toBe('unverifiable');
     expect(getConclusion([make('A', RISK_STATUS.UNVERIFIABLE)]).level).toBe('unverifiable');
+  });
+
+  it('STOP 개수에 맞게 단수·복수 문구가 나온다', () => {
+    const one = getConclusion([make('A', RISK_STATUS.STOP)]);
+    expect(one.message).toContain('a serious warning');
+    expect(one.message).toContain('Solve it first');
+    const two = getConclusion([make('A', RISK_STATUS.STOP), make('B', RISK_STATUS.STOP)]);
+    expect(two.message).toContain('2 serious warnings');
+    expect(two.message).toContain('Solve them first');
+  });
+
+  it('결과가 없거나 전부 확인 불가면 "these documents"로 안내한다', () => {
+    expect(getConclusion([]).message).toContain('these documents');
+    expect(getConclusion([make('A', RISK_STATUS.UNVERIFIABLE)]).message).toContain('these documents');
+  });
+});
+
+describe('PART 3 도움받을 곳 표시 조건 (#377)', () => {
+  it('STOP 또는 CHECK가 있으면 보여 준다', () => {
+    expect(shouldShowHelp([make('A', RISK_STATUS.STOP)])).toBe(true);
+    expect(shouldShowHelp([make('A', RISK_STATUS.CHECK)])).toBe(true);
+    expect(shouldShowHelp([make('A', RISK_STATUS.NO_FLAG), make('B', RISK_STATUS.CHECK)])).toBe(true);
+  });
+
+  it('NO_FLAG·UNVERIFIABLE만 있거나 결과가 없으면 보여 주지 않는다', () => {
+    expect(shouldShowHelp([make('A', RISK_STATUS.NO_FLAG)])).toBe(false);
+    expect(shouldShowHelp([make('A', RISK_STATUS.UNVERIFIABLE)])).toBe(false);
+    expect(shouldShowHelp([])).toBe(false);
+    expect(shouldShowHelp(null)).toBe(false);
   });
 });

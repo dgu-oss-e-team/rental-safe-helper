@@ -2,7 +2,7 @@
 /**
  * PART 3. 결과 카드의 "도움받을 곳" 연락처 (#377)
  * 연락처는 이 파일에서만 바꾼다. 코드(risk-result-ui.js 등)에 번호를 직접 쓰지 않는다.
- * STOP·CHECK 카드에만 보여 준다.
+ * STOP 또는 CHECK가 있을 때 결론 배너 아래에 한 번만 보여 준다.
  *
  * 공식 사이트 확인일: 2026-11-27
  *  - 1345: 법무부 출입국·외국인정책본부 안내 페이지 (20개 언어, 평일 09:00~22:00, 18시 이후는 한국어·영어·중국어)
@@ -23,7 +23,7 @@ export const HELP_CONTACTS = [
     id: 'klac-132',
     name: 'Korea Legal Aid Corporation (132)',
     phone: '132',
-    note: 'Free legal advice by phone, in Korean. Weekdays about 09:00–17:50.',
+    note: 'Free legal advice by phone, in Korean.',
   },
   {
     id: 'school-international-office',

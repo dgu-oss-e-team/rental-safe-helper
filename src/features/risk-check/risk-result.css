@@ -109,10 +109,11 @@ button.risk-chip[aria-pressed='true'] {
 .risk-banner-unverifiable { background: var(--unverifiable-bg); }
 .risk-banner-no_flag { background: var(--ok-bg); border-color: var(--ok); }
 .risk-banner-no_flag h3 { color: var(--ok); }
-.risk-banner .risk-banner-unverifiable { font-weight: 700; color: var(--unverifiable); background: none; }
+.risk-banner-note { font-weight: 700; color: var(--unverifiable); }
+.risk-banner-wrap { display: flex; flex-direction: column; gap: 8px; }
 
-/* 도움받을 곳 (STOP·CHECK 카드) */
-.help-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 14px; }
+/* 도움받을 곳 (결론 배너 아래, 한 번만) */
+.help-box { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
 .help-box p { margin: 0 0 4px; }
 .help-box ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 

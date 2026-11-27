@@ -75,11 +75,12 @@ export function getConclusion(riskResults) {
   const unverifiable = groups[RISK_STATUS.UNVERIFIABLE].length;
   const unverifiableNote = unverifiable > 0 ? 'Some items could not be checked. Treat them as not confirmed.' : null;
 
+  const stopText = stop === 1 ? 'a serious warning' : `${stop} serious warnings`;
   if (stop > 0) {
     return {
       level: 'stop',
       title: 'Do not sign yet',
-      message: 'We found a serious warning. Solve it first, before you sign or send any money.',
+      message: `We found ${stopText}. Solve ${stop === 1 ? 'it' : 'them'} first, before you sign or send any money.`,
       unverifiableNote,
     };
   }
@@ -96,7 +97,7 @@ export function getConclusion(riskResults) {
     return {
       level: 'unverifiable',
       title: 'We could not check this yet',
-      message: 'We could not read enough to check this contract. Please check the documents yourself.',
+      message: 'We could not read enough to check these documents. Please check them yourself.',
       unverifiableNote: null,
     };
   }
@@ -106,4 +107,10 @@ export function getConclusion(riskResults) {
     message: 'This does not mean the home is safe. Please still read the contract and the registry yourself.',
     unverifiableNote,
   };
+}
+
+/** STOP 또는 CHECK가 하나라도 있으면 도움받을 곳을 보여 준다 (#377) */
+export function shouldShowHelp(riskResults) {
+  const g = groupRiskResults(riskResults);
+  return g[RISK_STATUS.STOP].length + g[RISK_STATUS.CHECK].length > 0;
 }

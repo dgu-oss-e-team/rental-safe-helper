@@ -21,7 +21,7 @@ import { el } from '../../app/ui.js';
 import { MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
 // index.js가 아니라 이 파일을 직접 불러와 첫 화면을 가볍게 둔다 (index.js는 YAML 규칙 파일까지 불러온다)
 import { getRecommendedQuestions } from './recommended-questions.js';
-import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, normalizeStatus, groupRiskResults, validFilter, getConclusion } from './risk-result-model.js';
+import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, normalizeStatus, groupRiskResults, validFilter, getConclusion, shouldShowHelp } from './risk-result-model.js';
 import { HELP_CONTACTS } from '../../config/help-contacts.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
@@ -58,9 +58,6 @@ export function resetRiskResultsView() {
   view.open.clear();
 }
 
-/** 도움받을 곳을 보여 주는 상태 (STOP·CHECK만) */
-const HELP_STATUSES = [RISK_STATUS.STOP, RISK_STATUS.CHECK];
-
 /** 중개사만 믿지 않도록, 중개사와 관계없는 도움받을 곳 (연락처는 config/help-contacts.js 한 곳에서만 관리) */
 function helpBox() {
   return el('div', { class: 'help-box' }, [
@@ -81,11 +78,13 @@ function helpBox() {
  */
 export function renderConclusionBanner(riskResults) {
   const c = getConclusion(riskResults);
-  return el('div', { class: `risk-banner risk-banner-${c.level}`, role: 'status', id: 'risk-banner' }, [
+  const banner = el('div', { class: `risk-banner risk-banner-${c.level}`, role: 'status', id: 'risk-banner' }, [
     el('h3', {}, [c.title]),
     el('p', {}, [c.message]),
-    c.unverifiableNote ? el('p', { class: 'risk-banner-unverifiable' }, [c.unverifiableNote]) : null,
+    c.unverifiableNote ? el('p', { class: 'risk-banner-note' }, [c.unverifiableNote]) : null,
   ]);
+  // 배너 바로 아래에 도움받을 곳을 한 번만 붙인다 (STOP 또는 CHECK가 있을 때)
+  return el('div', { class: 'risk-banner-wrap' }, [banner, shouldShowHelp(riskResults) ? helpBox() : null]);
 }
 
 /**
@@ -123,8 +122,6 @@ function riskCard(r) {
           ]),
         ])
       : null,
-    // 도움받을 곳: STOP·CHECK 카드에만 (#377)
-    HELP_STATUSES.includes(status) ? helpBox() : null,
   ]);
 }
 
