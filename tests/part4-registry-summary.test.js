@@ -311,6 +311,38 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     );
   });
 
+  it('전세권은 전세금, 임차권은 임차보증금을 넣는다 (#358)', () => {
+    const { text } = summarize({
+      rights: [
+        { kind: 'JEONSE', maxClaimAmount: null, depositAmount: 300000000, cancelled: false, receivedAt: '2024-01-02', holder: '주식회사가상리츠', holderIsCompany: true, cause: '설정계약' },
+        { kind: 'LEASEHOLD', maxClaimAmount: null, depositAmount: 100000000, cancelled: false, receivedAt: '2024-03-04', holder: '이가상', holderIsCompany: false, cause: '임대차계약' },
+      ],
+    });
+    expect(text).toContain(
+      '- Jeonse right (전세권): received 2024-01-02, cause 설정계약, jeonse deposit (전세금) 300,000,000 KRW, holder 주식회사가상리츠, active',
+    );
+    expect(text).toContain(
+      '- Leasehold right (임차권): received 2024-03-04, cause 임대차계약, lease deposit (임차보증금) 100,000,000 KRW, holder [Holder_1] (an individual), active',
+    );
+  });
+
+  it('전세금·임차보증금을 못 읽었거나(null·필드 없음) 0 이하면 "Could not read", 다른 권리에는 금액을 넣지 않는다 (#358)', () => {
+    const { text } = summarize({
+      rights: [
+        { kind: 'JEONSE', depositAmount: null, cancelled: false, receivedAt: '2024-01-02', holder: '주식회사가상리츠', holderIsCompany: true, cause: '설정계약' },
+        // PART 2 #369 머지 전에는 depositAmount 필드가 없다
+        { kind: 'LEASEHOLD', cancelled: false, receivedAt: '2024-03-04', holder: '주식회사가상리츠', holderIsCompany: true, cause: '임대차계약' },
+        { kind: 'JEONSE', depositAmount: 0, cancelled: false, receivedAt: '2024-05-06', holder: '주식회사가상리츠', holderIsCompany: true, cause: '설정계약' },
+        { kind: 'TRUST', depositAmount: 500000000, cancelled: false, receivedAt: '2024-09-23', holder: '가상부동산신탁주식회사', holderIsCompany: true, cause: '신탁' },
+      ],
+    });
+    expect(text).toContain('received 2024-01-02, cause 설정계약, jeonse deposit (전세금) Could not read');
+    expect(text).toContain('received 2024-03-04, cause 임대차계약, lease deposit (임차보증금) Could not read');
+    expect(text).toContain('received 2024-05-06, cause 설정계약, jeonse deposit (전세금) Could not read');
+    expect(text).toContain('- Trust (신탁): received 2024-09-23, cause 신탁, holder 가상부동산신탁주식회사, active');
+    expect(text).not.toContain('500,000,000');
+  });
+
   it('등기부 데이터가 없으면 실패한다', () => {
     expect(buildRegistrySummary(null, GROUPS, LEGEND).ok).toBe(false);
     expect(buildRegistrySummary(registry({ documentId: null }), GROUPS, LEGEND).ok).toBe(false);
