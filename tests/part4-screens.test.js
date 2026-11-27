@@ -9,6 +9,7 @@ import {
   applyMaskingPlan,
 } from '../src/features/masking/index.js';
 import { buildPersonQuestions } from '../src/features/masking/person-answers.js';
+import { notSentAsWritten } from '../src/features/masking/masking-review-ui.js';
 import {
   mockRegistryDocument,
   mockLeaseDocument,
@@ -168,6 +169,117 @@ describe('PART 4 화면 ④ 한국어 원문 접기·요약 보기 (개선 목�
     expect(notes).toContain('The AI does not get this document for this purpose. This text is used only for the masked PDF.');
     expect(node.querySelector('.mr-summaries')).toBeNull();
     expect(render().querySelectorAll('.mr-preview .mr-note')).toHaveLength(0);
+  });
+});
+
+describe('PART 4 화면 ④ 요약으로 보내는 곳의 "Show" 안내 (#359)', () => {
+  // mock 계약서 줄: 3 = "임대인 김철수 …"(L_004), 4 = "임차인 NGUYEN VAN A …"(L_005), 6 = "입금 계좌 … 예금주 김철수"(L_007)
+  /** @param {any} sending @param {any} [ranges] */
+  const render = (sending, ranges) => {
+    const edits = { remove: [], add: [] };
+    const fields = { ...analysis.fields, contract: { ...analysis.fields.contract, ...(ranges ? { personalInfoRanges: ranges } : {}) } };
+    const withFields = { ...analysis, fields };
+    const plan = createMaskingPlan(analysis.findings, analysis.personGroups, MASKING_PURPOSE.FRAUD_CHECK, edits).data;
+    const masked = applyMaskingPlan(analysis.documents, plan, analysis.findings, analysis.personGroups, edits).data;
+    const node = renderMaskingReview({
+      analysis: withFields,
+      prepared: { maskingPlan: plan, maskedText: masked.maskedText, legend: masked.legend, sending },
+      edits,
+      onChange: vi.fn(),
+    });
+    document.body.replaceChildren(node);
+    return node;
+  };
+  /** 표에서 원래 값이 value인 줄들 */
+  const rowsWith = (node, value) => [...node.querySelectorAll('tbody tr')].filter((tr) => tr.querySelector('.mr-original')?.textContent === value);
+  const noteOf = (tr) => tr.querySelector('.mr-show-note')?.textContent ?? null;
+  const REG = mockRegistryDocument.documentId;
+  const LEASE = mockLeaseDocument.documentId;
+
+  afterEach(() => document.body.replaceChildren());
+
+  it('요약으로 보내는 등기부의 항목은 "Show가 PDF만 바꾼다"고 알린다. 🔒 항목에는 안내가 없다', () => {
+    const node = render([
+      { documentId: REG, mode: 'SUMMARY' },
+      { documentId: LEASE, mode: 'MASKED_TEXT' },
+    ]);
+    const SUMMARY_NOTE = 'This part is sent to the AI as a summary with role names only, so ticking Show only changes the masked PDF.';
+    // 등기부에만 있는 값: 등기 고유번호, 소유자 김철수
+    expect(noteOf(rowsWith(node, '0000-0000-000000')[0])).toBe(SUMMARY_NOTE);
+    expect(rowsWith(node, '김철수').map(noteOf).filter((n) => n === SUMMARY_NOTE)).toHaveLength(1);
+    // 등기부·계약서 둘 다에 나오는 주소는 "일부만" 안내
+    expect(noteOf(rowsWith(node, '서울특별시 중구 필동로 00, 101호')[0])).toMatch(/^In some places this is not sent to the AI as written/);
+    // 항상 가리는 항목(🔒)은 Show가 없으니 안내도 없다
+    expect(noteOf(rowsWith(node, '800101-1******')[0])).toBeNull();
+    // 계약서는 가린 원문 그대로 가므로 안내가 없다
+    expect(noteOf(rowsWith(node, 'NGUYEN VAN A')[0])).toBeNull();
+  });
+
+  it('인적사항 칸을 요약으로 바꾼 계약서는 칸 안의 항목만 알린다 (칸 밖의 예금주·주소는 그대로)', () => {
+    const node = render(
+      [
+        { documentId: REG, mode: 'MASKED_TEXT' },
+        { documentId: LEASE, mode: 'PARTY_SUMMARY' },
+      ],
+      [{ startLine: 3, endLine: 4 }],
+    );
+    expect(noteOf(rowsWith(node, 'NGUYEN VAN A')[0])).toBe(
+      'This part is sent to the AI as a summary with role names only, so ticking Show only changes the masked PDF.',
+    );
+    // 김철수 세 줄(소유자·임대인·예금주) 중 칸 안의 임대인 줄만 안내가 붙는다
+    const kims = rowsWith(node, '김철수').map(noteOf);
+    expect(kims.filter(Boolean)).toHaveLength(1);
+    expect(noteOf(rowsWith(node, '서울특별시 중구 필동로 00, 101호')[0])).toBeNull();
+  });
+
+  it('보내지 않는 서류의 항목은 "이 목적에는 안 보낸다"고 알리고, sending이 없으면(예전 결과) 안내가 없다', () => {
+    const node = render([
+      { documentId: REG, mode: 'OMIT' },
+      { documentId: LEASE, mode: 'MASKED_TEXT' },
+    ]);
+    const notes = [...node.querySelectorAll('.mr-show-note')].map((n) => n.textContent);
+    expect(notes).toContain('This document is not sent to the AI for this purpose, so ticking Show only changes the masked PDF.');
+    // 등기부·계약서 둘 다에 나오는 값은 일부만 해당된다는 안내
+    for (const n of notes) expect(n).toMatch(/^(This document is not sent to the AI|In some places this is not sent to the AI as written)/);
+    expect(render(undefined).querySelectorAll('.mr-show-note')).toHaveLength(0);
+  });
+
+  it('notSentAsWritten: 한 block에 여러 줄이 있으면 값이 든 줄로 칸 안인지 본다 (#383 리뷰)', () => {
+    // block l1 = 줄 0~2. 인적사항 칸은 줄 1~2만
+    const documents = [{ documentId: 'L', pages: [{ blocks: [{ blockId: 'l1', text: '보증금 계좌 예금주 가상일\n임대인 가상이\n임차인 가상삼' }] }] }];
+    const findings = [
+      { id: 'OUT', documentId: 'L', blockId: 'l1', value: '가상일' },
+      { id: 'IN', documentId: 'L', blockId: 'l1', value: '가상삼' },
+      { id: 'UNKNOWN', documentId: 'L', blockId: 'l1', value: '어디에도없음' },
+    ];
+    const fields = { contract: { documentId: 'L', personalInfoRanges: [{ startLine: 1, endLine: 2 }] } };
+    const m = notSentAsWritten({ documents, findings, fields }, { sending: [{ documentId: 'L', mode: 'PARTY_SUMMARY' }] });
+    // 칸 밖 줄의 값은 AI에 그대로 가므로 표시하지 않는다. 값이 든 줄을 못 찾으면 block이 모두 칸 안일 때만 표시
+    expect([...m]).toEqual([['IN', 'SUMMARY']]);
+
+    const allIn = notSentAsWritten(
+      { documents, findings, fields: { contract: { documentId: 'L', personalInfoRanges: [{ startLine: 0, endLine: 2 }] } } },
+      { sending: [{ documentId: 'L', mode: 'PARTY_SUMMARY' }] },
+    );
+    expect([...allIn.keys()]).toEqual(['OUT', 'IN', 'UNKNOWN']);
+  });
+
+  it('notSentAsWritten: 한 사람이 요약으로 가는 곳과 그대로 가는 곳에 다 있으면 일부만 표시된다', () => {
+    const findings = [
+      { id: 'A', documentId: 'R', blockId: 'r1' },
+      { id: 'B', documentId: 'L', blockId: 'l1' },
+      { id: 'C', documentId: 'L', blockId: 'l2' },
+    ];
+    const documents = [
+      { documentId: 'R', pages: [{ blocks: [{ blockId: 'r1', text: 'x' }] }] },
+      { documentId: 'L', pages: [{ blocks: [{ blockId: 'l1', text: 'a\nb' }, { blockId: 'l2', text: 'c' }] }] },
+    ];
+    const fields = { contract: { documentId: 'L', personalInfoRanges: [{ startLine: 2, endLine: 2 }] } };
+    const m = notSentAsWritten({ documents, findings, fields }, { sending: [{ documentId: 'R', mode: 'SUMMARY' }, { documentId: 'L', mode: 'PARTY_SUMMARY' }] });
+    expect([...m]).toEqual([
+      ['A', 'SUMMARY'],
+      ['C', 'SUMMARY'],
+    ]);
   });
 });
 

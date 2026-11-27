@@ -392,7 +392,10 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
   - 임대인·소유자 회사 이름(`landlordCompanies`, `ownerCompanies`)은 넣지 않는다. `registryFields`를 주면 회사 형태 표기("(주)" ↔ "주식회사")를 뺀 이름이 완전히 같을 때만 `the same company as the owner on the register`, 다르면 단정하지 않고 `the company name does not match the owner on the register (check the original)`로 적는다. `registryFields`를 안 주면 `no register provided, so not compared`.
   - 연결할 때는 `document`와 `registryFields`를 같이 넘긴다. 안 넘기면 줄 수 확인을 건너뛰고 회사 관계를 비교하지 못한다.
 - `lineBlocks`를 주면 바꾼 글의 줄 순서에 맞춘 것을 돌려준다(요약 줄은 `null`). `validateMaskedText`의 멈춘 줄 위치에 쓴다.
-- 한계: 사용자가 ④에서 칸 안의 값을 보이게(KEEP) 풀어도 그 칸은 요약으로 바뀐다. 확인 화면 미리보기는 요약이 반영된 글(`prepared.maskedText`)을 보여 줘야 한다.
+- 사용자가 ④에서 칸 안의 값을 보이게(KEEP) 풀어도 그 칸은 요약으로 바뀐다(요약에는 가명·역할만 들어간다). 가리기 계산은 바꾸지 않고, ④ 확인 화면이 알려 준다 (#359):
+  - 개인정보 표에서 AI 글에 그대로 들어가지 않는 항목(요약으로 보내는 등기부, 요약으로 바꾼 인적사항 칸, 이 목적에 보내지 않는 서류)의 "Show" 옆에 "Show는 마스킹 PDF만 바꾼다"는 안내를 붙인다. 한 줄에 묶인 항목 중 일부만 해당하면 "일부만" 안내. 🔒 항목은 안내 없음.
+  - 요약으로 보내는 등기부는 실제로 보내는 요약 글(`prepared.sentText`)을 "Sent to the AI" 카드로 보여 주고, 서류마다 AI에 어떻게 가는지(`prepared.sending`) 적는다 (#373).
+  - 판단 함수: PART 4 `masking-review-ui.js`의 `notSentAsWritten(analysis, prepared)` → findingId별 `'SUMMARY' | 'OMIT'`
 
 ```text
 Personal information section of the contract: extracted items (the original lines are not sent).
