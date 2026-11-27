@@ -375,6 +375,7 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 - 회사 이름은 `holderIsCompany === true`이고 회사 낱말(주식회사·은행·신탁·캐피탈, "특별시"·"구청" 같은 분명한 지자체 모양 등)이 있을 때만 그대로, 아니면 가명. 끝이 "구"인 사람 이름("김철구")은 회사로 보지 않는다.
 - 지금 소유자가 회사면 회사 이름(`ownerCompanies`)은 넣지 않고 `a company (name not sent)`로 적는다. 같은 회사가 권리자(신탁의 수탁자 등)로 나와도 `the current owner (a company, name not sent)`로 적는다. 이때 회사 형태 표기("(주)" ↔ "주식회사")를 빼고, 4자 이상이면 포함·한 글자 차이(OCR)도 같은 회사로 본다(느슨할수록 더 가린다). 짧은 이름("국")은 완전히 같을 때만.
 - 주소는 시·구까지. 사건번호·접수번호는 넣지 않고, 등기원인은 정해진 낱말 목록(설정계약, 매매, 가압류결정 등)에 있는 것만 넣는다(없으면 `not shown`).
+- 금액은 근저당의 채권최고액(`max claim`), 전세권의 전세금(`jeonse deposit`), 임차권의 임차보증금(`lease deposit`, `depositAmount`, #358)만 넣는다.
 - 못 읽은 값, 날짜가 아닌 날짜(연 1900~2099·월 01~12·일 01~31 밖), 0 이하이거나 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 0 이상의 정수가 아니면(없음·`null`·`NaN`·음수) 확인하지 못했다고 적는다.
 - `edits`를 주면 사용자가 ④에서 더 가린 글자(`add`)도 요약에서 가린다.
 - 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 권리 줄은 종류와 말소 여부만 남기고(`details hidden`) 그 밖의 줄은 뺀다. 가린 줄 수가 `hiddenCount`다 (화면 알림용).

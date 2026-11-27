@@ -13,7 +13,8 @@
  *    같은 회사가 권리자(신탁의 수탁자 등)로 나와도 이름 대신 "지금 소유자(회사)"로 적는다.
  *  - 주소는 시·구까지만 (coarsenAddress, 사기 점검 목적의 주소 규칙과 같음).
  *  - 사건번호·접수번호는 넣지 않는다. 등기원인은 아래 목록에 있는 낱말만 넣고, 없으면 "not shown"이라고 적는다.
- *  - 날짜는 YYYY-MM-DD 모양일 때만, 금액은 숫자일 때만 넣는다. 아니면 "Could not read".
+ *  - 날짜는 YYYY-MM-DD 모양일 때만, 금액은 0보다 큰 숫자일 때만 넣는다. 아니면 "Could not read".
+ *    금액은 근저당의 채권최고액, 전세권의 전세금, 임차권의 임차보증금(depositAmount, #358)이다.
  *  - 못 읽은 값(null)은 "Could not read". 말없이 빼지 않는다.
  *  - 알아보지 못한 유효한 등기 줄이 있으면 개수와 "원본 확인 필요"를, 그 값이 없으면(null·없음) "확인 못 함"을 적는다.
  *  - 사용자가 확인 화면에서 더 가린 글자(edits.add)도 요약에 남지 않게 한다.
@@ -32,7 +33,7 @@ import { aliasOf, squash, companyNames, mayBeSameCompany } from './alias-utils.j
 /** @typedef {{ personId: string, alias: string, roles: string[], findingIds: string[], status: string }} PersonGroup */
 /** @typedef {{ findingId?: string | null, name?: string | null }} RegistryPerson */
 /**
- * @typedef {{ kind: string, maxClaimAmount?: number | null, cancelled?: boolean | null, receivedAt?: string | null,
+ * @typedef {{ kind: string, maxClaimAmount?: number | null, depositAmount?: number | null, cancelled?: boolean | null, receivedAt?: string | null,
  *   holder?: string | null, holderIsCompany?: boolean | null, cause?: string | null }} RegistryRight
  */
 
@@ -84,6 +85,20 @@ export function cleanCause(cause) {
 
 /** @param {number} amount */
 const won = (amount) => `${amount.toLocaleString('en-US')} KRW`;
+
+/** 0보다 큰 숫자면 "168,000,000 KRW", 아니면 못 읽음 */
+const moneyText = (/** @type {unknown} */ value) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? won(value) : COULD_NOT_READ;
+
+/**
+ * 권리 종류별 금액 칸 이름 (괄호 안 한국어는 등기부 칸 이름). 여기 없는 권리는 금액을 넣지 않는다.
+ * 근저당 = 채권최고액(maxClaimAmount), 전세권 = 전세금·임차권 = 임차보증금(depositAmount, #358)
+ */
+const AMOUNT_LABEL = {
+  MORTGAGE: 'max claim',
+  JEONSE: 'jeonse deposit (전세금)',
+  LEASEHOLD: 'lease deposit (임차보증금)',
+};
 
 /** @param {boolean | null | undefined} cancelled */
 const cancelledText = (cancelled) =>
@@ -232,10 +247,10 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
       const received = dateText(right.receivedAt) ?? COULD_NOT_READ;
       const cause =
         typeof right.cause !== 'string' || right.cause.trim() === '' ? COULD_NOT_READ : (cleanCause(right.cause) ?? 'not shown');
-      const amount =
-        right.kind === 'MORTGAGE'
-          ? `, max claim ${Number.isFinite(right.maxClaimAmount) && /** @type {number} */ (right.maxClaimAmount) > 0 ? won(/** @type {number} */ (right.maxClaimAmount)) : COULD_NOT_READ}`
-          : '';
+      // 금액: 근저당은 채권최고액, 전세권은 전세금, 임차권은 임차보증금 (#358). 0보다 큰 숫자일 때만 넣는다
+      const amountLabel = AMOUNT_LABEL[/** @type {keyof typeof AMOUNT_LABEL} */ (right.kind)];
+      const amountValue = right.kind === 'MORTGAGE' ? right.maxClaimAmount : right.depositAmount;
+      const amount = amountLabel ? `, ${amountLabel} ${moneyText(amountValue)}` : '';
       const holderName = typeof right.holder === 'string' ? right.holder.trim() : '';
       const holder =
         holderName === ''
