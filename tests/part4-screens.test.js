@@ -97,6 +97,65 @@ describe('PART 4 화면 ② "같은 사람인가요?" (renderPersonQuestions)', 
   });
 });
 
+describe('PART 4 화면 ④ 한국어 원문 접기·요약 보기 (개선 목록 11·12번, #359)', () => {
+  // 이 묶음은 "가리기"보다 먼저 돈다: 접힌 칸을 연 상태는 화면을 새로 그려도 기억되기 때문
+  /** @param {any} [extra]  prepared에 더 넣을 값 (sending, sentText) */
+  const render = (extra = {}) => {
+    const edits = { remove: [], add: [] };
+    const plan = createMaskingPlan(analysis.findings, analysis.personGroups, MASKING_PURPOSE.FRAUD_CHECK, edits).data;
+    const masked = applyMaskingPlan(analysis.documents, plan, analysis.findings, analysis.personGroups, edits).data;
+    const node = renderMaskingReview({
+      analysis,
+      prepared: { maskingPlan: plan, maskedText: masked.maskedText, legend: masked.legend, ...extra },
+      edits,
+      onChange: vi.fn(),
+    });
+    document.body.replaceChildren(node);
+    return node;
+  };
+
+  afterEach(() => document.body.replaceChildren());
+
+  it('한국어 가린 원문과 "Hide selected text"는 접힌 칸 안에 있고, 개인정보 표는 칸 밖에 있다', () => {
+    const node = render();
+    const korean = /** @type {HTMLDetailsElement} */ (node.querySelector('details.mr-korean'));
+    expect(korean).not.toBeNull();
+    expect(korean.open).toBe(false);
+    expect(korean.querySelector('summary')?.textContent).toContain('For someone who reads Korean');
+    expect(korean.querySelector('.mr-preview')).not.toBeNull();
+    expect([...korean.querySelectorAll('button')].some((b) => b.textContent === 'Hide selected text')).toBe(true);
+    expect(node.querySelector('.mr-table')?.closest('details')).toBeNull();
+    expect(node.querySelector('.mr-count')?.textContent).toMatch(/^We hid or replaced \d+ of \d+ item\(s\)/);
+  });
+
+  it('요약으로 보내는 등기부는 요약 글을 칸 밖에 보여 주고, 서류마다 AI에 무엇이 가는지 적는다', () => {
+    const registryId = mockRegistryDocument.documentId;
+    const leaseId = mockLeaseDocument.documentId;
+    const summary = 'Extracted items from the property register (the original register text is not sent).\nCurrent owner: [Owner_A]';
+    const node = render({
+      sentText: { [registryId]: summary, [leaseId]: 'masked lease' },
+      sending: [
+        { documentId: registryId, documentType: 'REGISTRY', mode: 'SUMMARY', hiddenCount: 0 },
+        { documentId: leaseId, documentType: 'LEASE_CONTRACT', mode: 'PARTY_SUMMARY' },
+      ],
+    });
+    const block = node.querySelector('.mr-summaries');
+    expect(block?.closest('details')).toBeNull();
+    expect(block?.querySelector('.mr-summary')?.textContent).toBe(summary);
+    const notes = [...node.querySelectorAll('.mr-korean .mr-preview .mr-note')].map((p) => p.textContent);
+    expect(notes).toContain('The AI gets only the short summary shown above, not this text. This text is used for the masked PDF.');
+    expect(notes).toContain("The AI gets this text, but the section with the parties' personal details is replaced by a short list of roles.");
+  });
+
+  it('보내지 않는 서류는 "AI에 안 감, 마스킹 PDF에만 쓰임"이라고 적고, sending이 없으면(예전 결과) 안내 없이 그린다', () => {
+    const node = render({ sending: [{ documentId: mockRegistryDocument.documentId, documentType: 'REGISTRY', mode: 'OMIT', reason: 'PURPOSE' }] });
+    const notes = [...node.querySelectorAll('.mr-preview .mr-note')].map((p) => p.textContent);
+    expect(notes).toContain('The AI does not get this document for this purpose. This text is used only for the masked PDF.');
+    expect(node.querySelector('.mr-summaries')).toBeNull();
+    expect(render().querySelectorAll('.mr-preview .mr-note')).toHaveLength(0);
+  });
+});
+
 describe('PART 4 화면 ④ 보내기 전 확인 (renderMaskingReview)', () => {
   /** PART 5처럼 계획을 만들고 화면을 그린다 */
   const render = (edits = { remove: [], add: [] }, purpose = MASKING_PURPOSE.FRAUD_CHECK, onChange = vi.fn()) => {

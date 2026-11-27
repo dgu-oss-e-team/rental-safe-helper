@@ -138,3 +138,32 @@
   .mr-table td:nth-child(4) { grid-column: 2; grid-row: 1; align-self: start; }
   .mr-result { white-space: normal; }
 }
+
+/* 한국어 가린 원문 접힌 칸 (개선 목록 11번) */
+.mr-korean {
+  border: 1px solid #e3e0d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.mr-korean > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mr-korean[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mr-korean[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* 요약으로 보내는 서류의 요약 글 (#359) */
+.mr-summary {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
