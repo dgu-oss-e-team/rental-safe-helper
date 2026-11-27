@@ -50,11 +50,11 @@ describe('PART 3 프롬프트: 등기부 요약 이름표·규칙 (#361)', () =>
     expect(r.data).not.toContain(`### ${REGISTRY_TITLE}\n`);
   });
 
-  it('규칙 문구에 표시 6개와 "사용자 언어로 원본 확인 안내"가 모두 있다', () => {
+  it('규칙 문구에 표시 6개와 "원본 확인 안내"가 모두 있다', () => {
     for (const mark of ['Could not read', 'could not check', 'Unconfirmed register records', 'details hidden', 'cancellation unclear', 'check the original']) {
       expect(REGISTRY_SUMMARY_RULE).toContain(`"${mark}"`);
     }
-    expect(REGISTRY_SUMMARY_RULE).toContain("in the user's language");
+    expect(REGISTRY_SUMMARY_RULE).toContain('check the original registry');
   });
 
   it('계약 조건 설명: 등기부가 없으면 이름표도 규칙도 없다', () => {

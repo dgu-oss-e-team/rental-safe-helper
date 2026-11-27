@@ -82,7 +82,7 @@
 | `riskResults` | `assessRisks()`의 `data`. 없거나 `[]`여도 오류가 아니다. 이때는 "Automatic check results" 칸만 빠지고 다른 칸은 그대로 만든다 |
 | `registry` | (선택) `{ summaryTitle?, unavailable? }`. `summaryTitle`은 `maskedText` 중 등기부 요약(PART 4 `buildRegistrySummary`)인 글의 키로, 있으면 제목이 `### Registry (extracted)`로 나가고 안전 단정 금지 규칙이 붙는다. `unavailable: true`는 요약을 못 만들어 등기부를 뺐다는 뜻으로, **사기 위험 확인일 때만** "Registry: not provided (summary unavailable)..." 한 줄이 들어간다. 안 넘기면 기존과 똑같다 |
 
-프롬프트 칸 순서: 안내 문장 → `## Role legend`(사기 위험 확인 + 범례 있을 때) → `## Automatic check results`(사기 위험 확인 + 결과 있을 때) → `## Registry summary rules`(등기부 요약이 있을 때) → `## Documents (masked)` → `## Questions` → `Please answer in English.`
+프롬프트 칸 순서: 안내 문장 → `## Registry summary rules`(등기부 요약이 있을 때) → `## Role legend`(사기 위험 확인 + 범례 있을 때) → `## Automatic check results`(사기 위험 확인 + 결과 있을 때) → `## Documents (masked)` → `## Questions` → `Please answer in English.`
 
 - **등기부 요약 규칙(#361):** 요약에 `Could not read`, `could not check`, `Unconfirmed register records`, `details hidden`, `cancellation unclear`, `check the original` 중 하나라도 있으면 AI가 "안전하다"고 답하지 않고 원본 등기부 확인을 안내하도록 한다. 이 표시 문구는 PART 4 `registry-summary.js`가 만드는 영어 문구와 같아야 하므로, 한쪽을 바꾸면 다른 쪽도 같이 바꾼다.
 

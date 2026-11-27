@@ -387,7 +387,6 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
   // 마스킹 PDF는 그대로 만들 수 있어야 하므로 멈추지 않는다. 완료 화면이 sending으로 까닭을 알려 준다.
   let promptData = '';
   if (Object.keys(promptText).length > 0) {
-    // import { promptDocumentTitles, titledMaskedText } from './document-names.js';  ← promptDocumentTitles 추가
     const titles = promptDocumentTitles(documents);
     const registrySent = selected.sending.find((s) => s.mode === SEND_MODE.SUMMARY);
     const registryFailed = selected.sending.some((s) => s.mode === SEND_MODE.OMIT && s.reason === 'SUMMARY_FAILED');
@@ -399,8 +398,8 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
       legend: masked.data.legend,
       monthlyRent: analysis.fields?.contract?.monthlyRent,
       registry: {
-      summaryTitle: registrySent ? titles.get(registrySent.documentId) : null,
-      unavailable: registryFailed,
+        summaryTitle: registrySent ? titles.get(registrySent.documentId) : null,
+        unavailable: registryFailed,
       },
     });
     if (!prompt.ok) return stoppedAt('buildPrompt', prompt);

@@ -54,7 +54,7 @@ export const ANSWER_RULES = [
 export const REGISTRY_SUMMARY_LABEL = 'Registry (extracted)';
 
 export const REGISTRY_SUMMARY_RULE =
-  'If the registry summary contains "Could not read", "could not check", "Unconfirmed register records", "details hidden", "cancellation unclear", or "check the original", do not state that the property or its registry is safe or free of problems. Tell the user, in the user\'s language, to check the original registry for those items.';
+  'If the registry summary contains "Could not read", "could not check", "Unconfirmed register records", "details hidden", "cancellation unclear", or "check the original", do not state that the property or its registry is safe or free of problems. Tell the user to check the original registry for those items.';
 
 /** 등기부 요약을 만들지 못해 등기부를 뺀 경우(사기 위험 확인만) 대신 넣는 한 줄 */
 export const REGISTRY_NOT_PROVIDED_LINE =
