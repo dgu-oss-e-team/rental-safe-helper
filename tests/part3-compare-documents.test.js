@@ -1001,3 +1001,27 @@ describe('PART 3 사진 서류의 주소 숫자 차이는 STOP 대신 CHECK (#31
     });
   });
 });
+
+describe('PART 3 등기부를 안 넣은 경우', () => {
+  it('등기부 점검 카드는 "not added" 문구, 읽지 못한 경우와 구분된다', () => {
+    const f = structuredClone(mockExtractedFields);
+    f.registry = {
+      documentId: null, address: null, roadAddress: null, owners: null, previousOwners: null,
+      rights: null, unknownActiveCount: null, lastTransferDate: null, ownerCompanies: null,
+    };
+    const r = assessRisks(f, structuredClone(mockPersonGroups));
+    const owner = r.data.find((x) => x.ruleId === 'OWNER_MISMATCH');
+    expect(owner.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(owner.explanation).toContain('was not added');
+    const holder = r.data.find((x) => x.ruleId === 'ACCOUNT_HOLDER_MISMATCH');
+    expect(holder.explanation).not.toContain('was not added');
+  });
+
+  it('등기부는 있는데 못 읽은 경우는 기존 문구 그대로', () => {
+    const f = structuredClone(mockExtractedFields);
+    f.registry.owners = null;
+    const r = assessRisks(f, structuredClone(mockPersonGroups));
+    const owner = r.data.find((x) => x.ruleId === 'OWNER_MISMATCH');
+    expect(owner.explanation).not.toContain('was not added');
+  });
+});
