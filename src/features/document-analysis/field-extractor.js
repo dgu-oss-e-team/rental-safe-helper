@@ -568,6 +568,7 @@ const RIGHT_KINDS = [
  * @typedef {object} RegistryRight
  * @property {string} kind
  * @property {number | null} maxClaimAmount 채권최고액 (근저당만, 못 읽으면 null)
+ * @property {number | null} depositAmount 전세금(전세권) 또는 임차보증금(임차권). 다른 권리이거나 못 읽으면 null (#358)
  * @property {boolean | null} cancelled 말소 여부. 말소 줄이 어느 권리를 가리키는지 모르면 null(확인 필요)
  * @property {string | null} receivedAt 접수일 'YYYY-MM-DD' (못 읽으면 null)
  * @property {string | null} holder 권리자 이름 (못 읽으면 null)
@@ -727,6 +728,21 @@ const CANCEL_TARGET = /(\d{1,3})\s*번[^\n]*?말\s*소/;
 const CONTINUATION_LINE =
   /^\s*(?:근\s*저\s*당\s*권\s*자|채\s*권\s*자|채\s*무\s*자|수\s*탁\s*자|위\s*탁\s*자|권\s*리\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|신\s*탁\s*원\s*부)/;
 const MAX_CLAIM_LABEL = /채\s*권\s*최\s*고\s*액/;
+/** 전세권의 "전세금", 임차권등기의 "임차보증금" 칸 이름 (#358) */
+const DEPOSIT_LABEL = /전\s*세\s*금|임\s*차\s*보\s*증\s*금/;
+/** depositAmount를 읽는 권리: 전세권·임차권 */
+const DEPOSIT_KINDS = new Set(['JEONSE', 'LEASEHOLD']);
+
+/**
+ * 줄에서 칸 이름(label) 뒤의 금액을 읽는다. 칸 이름이 없으면 null.
+ * @param {string} line
+ * @param {RegExp} label
+ * @returns {number | null}
+ */
+function amountAfterLabel(line, label) {
+  const m = label.exec(line);
+  return m ? parseAmount(line.slice(m.index + m[0].length)) : null;
+}
 /**
  * 등기원인 칸의 글자: "서울중앙지방법원의 가압류결정(2021카단…)", "압류(세무과-1234)".
  * 좁은 칸에서 다음 줄로 넘어가 순위번호 없는 줄이 되면, 등기목적("가압류")처럼 보여도 새 권리가 아니다.
@@ -790,6 +806,8 @@ function joinWrappedRow(lines, i) {
  * - 갑구·을구 제목을 둘 다 찾았을 때만 결과를 준다. 하나라도 못 찾으면 null(못 읽음).
  *   (한쪽만 읽고 []를 주면 "압류 없음"처럼 보이기 때문)
  * - 근저당은 "채권최고액" 뒤 금액을 maxClaimAmount로 읽는다. 다음 줄에 있어도 읽는다.
+ * - 전세권은 "전세금", 임차권은 "임차보증금" 뒤 금액을 depositAmount로 읽는다. 다음 줄에 있어도 읽는다. (#358)
+ *   변경 부기등기("1-1 전세권변경 … 전세금 금3억원")의 바뀐 금액은 읽지 않고 처음 설정한 금액을 둔다.
  * - 말소는 별도 줄("3번가압류등기말소")로 적히므로, 그 줄이 가리키는 순위번호의 권리를 cancelled: true로 바꾼다.
  *   어느 권리인지 모르는 말소 줄이 있으면 그 구에서 말소 표시가 없는 권리는 cancelled: null(확인 필요).
  *   (말소된 칸에 그어진 빨간 줄은 글자로 읽히지 않는다)
@@ -913,6 +931,9 @@ export function findRegistryRights(lines) {
         if (maxClaim && activeRight.kind === 'MORTGAGE' && activeRight.maxClaimAmount === null) {
           activeRight.maxClaimAmount = parseAmount(line.slice(maxClaim.index + maxClaim[0].length));
         }
+        if (DEPOSIT_KINDS.has(activeRight.kind) && activeRight.depositAmount === null) {
+          activeRight.depositAmount = amountAfterLabel(line, DEPOSIT_LABEL);
+        }
         if (activeRight.holder === null) {
           const h = parseRightHolder(line);
           if (h !== null) {
@@ -939,6 +960,7 @@ export function findRegistryRights(lines) {
       kind: found.kind,
       maxClaimAmount:
         found.kind === 'MORTGAGE' && maxClaim ? parseAmount(line.slice(maxClaim.index + maxClaim[0].length)) : null,
+      depositAmount: DEPOSIT_KINDS.has(found.kind) ? amountAfterLabel(line, DEPOSIT_LABEL) : null,
       cancelled: false,
       // 순위번호가 있는 권리 줄만 접수일을 읽는다 (줄의 첫 날짜 = 접수 칸)
       receivedAt: rank !== null ? parseDate(line) : null,

@@ -20,6 +20,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
       {
         kind: 'PROVISIONAL_DISPOSITION',
         maxClaimAmount: null,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2024-03-01',
         holder: '박가상',
@@ -29,6 +30,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
       {
         kind: 'PROVISIONAL_REGISTRATION',
         maxClaimAmount: null,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2024-05-10',
         holder: '주식회사가상개발',
@@ -38,6 +40,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
       {
         kind: 'AUCTION',
         maxClaimAmount: null,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2024-08-20',
         holder: '가상저축은행',
@@ -62,6 +65,7 @@ describe('PART 2 등기부 확장 권리 종류 및 권리자·원인 (#348)', (
       {
         kind: 'MORTGAGE',
         maxClaimAmount: 150000000,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2023-04-12',
         holder: '김개인',
@@ -146,6 +150,7 @@ describe('PART 2 등기부 미인식 유효 행 수 (unknownActiveCount, #348)',
       {
         kind: 'MORTGAGE',
         maxClaimAmount: 120000000,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2023-03-03',
         holder: '주식회사한국은행',
@@ -167,6 +172,7 @@ describe('PART 2 등기부 미인식 유효 행 수 (unknownActiveCount, #348)',
       {
         kind: 'SEIZURE',
         maxClaimAmount: null,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2024-02-01',
         holder: '국',
@@ -176,6 +182,7 @@ describe('PART 2 등기부 미인식 유효 행 수 (unknownActiveCount, #348)',
       {
         kind: 'PROVISIONAL_REGISTRATION',
         maxClaimAmount: null,
+        depositAmount: null,
         cancelled: false,
         receivedAt: '2024-04-01',
         holder: '이가등',

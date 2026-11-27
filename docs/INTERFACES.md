@@ -187,7 +187,7 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
     roadAddress,                    // 표제부 [도로명주소] (지번 등기부용, 없으면 null)
     owners: [{ findingId, name, birthDate, role: 'OWNER', confidence }],                  // 지금 소유자만
     previousOwners: [{ findingId, name, birthDate, role: 'PREVIOUS_OWNER', confidence }], // 갑구의 예전 소유자 (이미 판 사람)
-    rights: [{ kind: 'MORTGAGE', maxClaimAmount, cancelled, receivedAt, holder, holderIsCompany, cause }],
+    rights: [{ kind: 'MORTGAGE', maxClaimAmount, depositAmount, cancelled, receivedAt, holder, holderIsCompany, cause }],
     unknownActiveCount: 0,          // 갑구·을구에서 인식하지 못한 유효(미말소) 줄 수 (없으면 0, 못 읽으면 null)
     lastTransferDate: '2024-05-10'  // 갑구 마지막 소유권이전 접수일 (신탁 포함, 소유권보존만 있으면 null)
     ownerCompanies: ['가상신탁주식회사']  // 지금 소유자 기록의 회사 이름 (신탁이면 수탁자). 화면 전용, 프롬프트에 넣지 않음. 없으면 [], 못 정하면 null
@@ -208,6 +208,8 @@ assessRisks()의 입력("비교용 추출 데이터")과 matchPeople()의 입력
 
 `rights[]`의 항목 필드:
 - `kind`: `'MORTGAGE'` | `'PROVISIONAL_SEIZURE'` | `'SEIZURE'` | `'TRUST'` | `'JEONSE'` | `'LEASEHOLD'` | `'PROVISIONAL_DISPOSITION'`(가처분) | `'PROVISIONAL_REGISTRATION'`(가등기) | `'AUCTION'`(경매개시결정)
+- `maxClaimAmount`: 채권최고액 (원, `number | null`). 근저당만 읽고, 다른 권리이거나 못 읽으면 `null`
+- `depositAmount`: 전세권의 전세금, 임차권(임차권등기)의 임차보증금 (원, `number | null`). 다른 권리이거나 못 읽으면 `null`. 변경 부기등기(`1-1 전세권변경`)로 바뀐 금액은 읽지 않고 처음 설정한 금액이다. (#358)
 - `holder`: 권리자 이름 (`string | null`, 못 읽으면 `null`)
 - `holderIsCompany`: 권리자가 법인·은행·신탁·조합 등 회사이면 `true`, 개인이면 `false`, `holder`가 `null`이면 `null`
 - `cause`: 등기원인 (예: `'설정계약'`, `'매매'`, `'결정'`, 못 읽으면 `null`)
