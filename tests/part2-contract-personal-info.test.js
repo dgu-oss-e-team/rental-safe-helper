@@ -108,4 +108,27 @@ describe('Issue #349: contract.personalInfoRanges 및 특약 서명·날인 줄 
 
     expect(findSpecialTerms(lines)).toEqual(['1. 월세는 매월 25일에 지급한다.']);
   });
+
+  it('샘플 표준계약서의 외국인등록번호·여권번호와 줄바꿈된 날인)·(서명 또는 날인) 줄까지 하나의 범위로 묶는다', () => {
+    const lines = [
+      '본 계약을 증명하기 위하여 계약 당사자가 이의 없음을 확인하고 각각 서명·날인 후 각각 1통씩 보관한다.',
+      '계약일 2026년 11월 1일',
+      '임대인 주소 서울특별시 중구 필동로 00, 101호',
+      '주민등록번호 750315-1****** 전화 010-0000-1357 성명 김철수 (서명 또는',
+      '날인)',
+      '임차인 주소 서울특별시 중구 퇴계로 99, 202호',
+      '외국인등록번호 990505-5****** 전화 010-0000-2468 성명 NGUYEN VAN A',
+      '(서명 또는 날인)',
+      '이 문서는 테스트용 가상 문서입니다. 실제 계약서가 아닙니다.',
+    ];
+
+    expect(findPersonalInfoRanges(lines)).toEqual([{ startLine: 2, endLine: 7 }]);
+
+    const passportLines = [
+      '임차인 주소 서울특별시 마포구 월드컵북로 10',
+      '여권번호 M12345678 연락처 010-1111-2222 성명 JANE DOE',
+      '(서명 또는 날인)',
+    ];
+    expect(findPersonalInfoRanges(passportLines)).toEqual([{ startLine: 0, endLine: 2 }]);
+  });
 });
