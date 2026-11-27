@@ -131,7 +131,12 @@ describe('PART 4 화면 ④ 한국어 원문 접기·요약 보기 (개선 목�
   it('요약으로 보내는 등기부는 요약 글을 칸 밖에 보여 주고, 서류마다 AI에 무엇이 가는지 적는다', () => {
     const registryId = mockRegistryDocument.documentId;
     const leaseId = mockLeaseDocument.documentId;
-    const summary = 'Extracted items from the property register (the original register text is not sent).\nCurrent owner: [Owner_A]';
+    const summary = [
+      'Extracted items from the property register (the original register text is not sent).',
+      'Current owner: [Owner_A]',
+      'Rights and restrictions:',
+      '- Mortgage (근저당권): received 2019-02-01, cause 설정계약, active',
+    ].join('\n');
     const node = render({
       sentText: { [registryId]: summary, [leaseId]: 'masked lease' },
       sending: [
@@ -141,7 +146,17 @@ describe('PART 4 화면 ④ 한국어 원문 접기·요약 보기 (개선 목�
     });
     const block = node.querySelector('.mr-summaries');
     expect(block?.closest('details')).toBeNull();
-    expect(block?.querySelector('.mr-summary')?.textContent).toBe(summary);
+    // 아래 한국어 가린 원문과 달라 보이게: "Sent to the AI" 표시, 영어 제목, 글 목록 (#373 리뷰)
+    const sent = block?.querySelector('.mr-sent');
+    expect(sent?.querySelector('.mr-sent-badge')?.textContent).toBe('Sent to the AI');
+    expect(sent?.querySelector('h3')?.textContent).toBe('Property register: a short summary, not the full text');
+    expect([...(sent?.querySelectorAll('.mr-sent-list li') ?? [])].map((li) => li.textContent)).toEqual([
+      'Current owner: [Owner_A]',
+      'Rights and restrictions:',
+      'Mortgage (근저당권): received 2019-02-01, cause 설정계약, active',
+    ]);
+    expect(sent?.querySelector('.mr-sent-sub')?.textContent).toContain('Mortgage');
+    expect(sent?.querySelector('.mr-doc, pre')).toBeNull();
     const notes = [...node.querySelectorAll('.mr-korean .mr-preview .mr-note')].map((p) => p.textContent);
     expect(notes).toContain('The AI gets only the short summary shown above, not this text. This text is used for the masked PDF.');
     expect(notes).toContain("The AI gets this text, but the section with the parties' personal details is replaced by a short list of roles.");

@@ -110,22 +110,45 @@ function sendNote(sent) {
 /**
  * 요약으로 보내는 서류(등기부)의 요약 글. 영어라서 한국어를 못 읽어도 확인할 수 있어 접힌 칸 밖에 둔다 (#359)
  * @param {{ documents: any[] }} analysis
- * @param {{ sentText?: Record<string, string>, sending?: { documentId: string, mode: string }[] }} prepared
+ * @param {{ sentText?: Record<string, string>, sending?: { documentId: string, documentType?: string, mode: string }[] }} prepared
  */
 function summaryBlocks(analysis, prepared) {
   const summaries = (prepared.sending ?? []).filter((s) => s.mode === 'SUMMARY' && typeof prepared.sentText?.[s.documentId] === 'string');
   if (summaries.length === 0) return null;
   const typeOf = new Map(analysis.documents.map((d) => [d.documentId, d.documentType]));
-  return el('div', { class: 'mr-summaries' }, [
-    el('h3', {}, ['Summary the AI gets instead of the full text']),
-    ...summaries.map((s) =>
-      el('div', {}, [
-        el('h4', {}, [DOC_TITLE[typeOf.get(s.documentId)] ?? 'Document']),
-        el('pre', { class: 'masked mr-summary' }, [/** @type {Record<string, string>} */ (prepared.sentText)[s.documentId]]),
-      ]),
-    ),
-  ]);
+  // 아래 한국어 가린 원문(회색 고정폭 상자)과 헷갈리지 않게, "AI에 가는 것" 표시를 붙인 글 목록으로 보여 준다
+  return el(
+    'div',
+    { class: 'mr-summaries' },
+    summaries.map((s) => {
+      const lines = /** @type {Record<string, string>} */ (prepared.sentText)[s.documentId].split('\n');
+      // 첫 줄("Extracted items from the property register …")은 제목·설명과 같은 말이라 뺀다
+      const items = lines.filter((line, i) => !(i === 0 && /^Extracted items/.test(line)) && line.trim() !== '');
+      return el('section', { class: 'mr-sent' }, [
+        el('span', { class: 'mr-sent-badge' }, ['Sent to the AI']),
+        el('h3', {}, [`${DOC_SHORT_TITLE[s.documentType ?? typeOf.get(s.documentId)] ?? 'Document'}: a short summary, not the full text`]),
+        el('p', { class: 'mr-note' }, [
+          'This list is all the AI gets from this document. Names are role names, and the address is only the city and district.',
+        ]),
+        el(
+          'ul',
+          { class: 'mr-sent-list' },
+          items.map((line) =>
+            // "- Mortgage (근저당권): …" 같은 권리 줄은 한 칸 들여 쓴다
+            line.startsWith('- ') ? el('li', { class: 'mr-sent-sub' }, [line.slice(2)]) : el('li', {}, [line]),
+          ),
+        ),
+      ]);
+    }),
+  );
 }
+
+/** 요약 제목용 서류 이름 (영어만) */
+const DOC_SHORT_TITLE = {
+  [DOCUMENT_TYPE.REGISTRY]: 'Property register',
+  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract',
+  [DOCUMENT_TYPE.UNKNOWN]: 'Document',
+};
 
 /**
  * 서류의 block마다 가린 글을 만든다. (미리보기에서 어느 block을 골랐는지 알기 위해)
