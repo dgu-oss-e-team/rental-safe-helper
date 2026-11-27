@@ -5,6 +5,7 @@ import { el, button, card, actions } from '../ui.js';
 import { resumeStep } from '../step-history.js';
 import { addPicked, removePhoto, isPdf } from '../photo-pages.js';
 import { uploadTypeNotices } from '../upload-check.js';
+import { PURPOSES, NEED_LABEL, purposeInfo, missingDocNotices } from '../purposes.js';
 
 /** @param {number} n @param {string} word */
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -40,9 +41,47 @@ function resumeCard(state, act) {
   );
 }
 
+/**
+ * 목적 고르기 (#380): 맨 위에서 먼저 고르면 아래 서류 칸 표시가 그 목적에 맞게 바뀐다.
+ * 카드마다 예시 질문 2개와 필요한 서류를 보여 준다. 기본 선택은 사기 위험 확인.
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @param {import('../main.js').Actions} act
+ */
+function purposeCard(state, act) {
+  return card(
+    'What do you want to do?',
+    [
+      el(
+        'div',
+        { class: 'purpose-cards', role: 'radiogroup', 'aria-label': 'What do you want to do?' },
+        PURPOSES.map((p) => {
+          const id = `start-purpose-${p.value.toLowerCase()}`;
+          const input = /** @type {HTMLInputElement} */ (
+            el('input', { type: 'radio', name: 'start-purpose', id, value: p.value, checked: state.purpose === p.value })
+          );
+          input.addEventListener('change', () => act.setPurpose(p.value));
+          return el('label', { class: 'purpose-card', for: id }, [
+            input,
+            el('span', { class: 'purpose-card-body' }, [
+              el('span', { class: 'purpose-card-title' }, [
+                el('strong', {}, [p.title]),
+                p.recommended ? el('span', { class: 'chip chip-recommended' }, ['Recommended']) : null,
+              ]),
+              el('ul', { class: 'purpose-questions' }, p.questions.map((q) => el('li', {}, [`“${q}”`]))),
+              el('span', { class: 'hint' }, [p.needsText]),
+            ]),
+          ]);
+        }),
+      ),
+    ],
+    'purpose-card-section',
+  );
+}
+
 function photoTipsBox() {
-  return el('div', { class: 'photo-tips' }, [
-    el('strong', {}, ['Tips for taking a clear photo']),
+  // 촬영 팁은 기본으로 접는다 (#380). 사진으로 올리는 사람만 펼쳐 본다.
+  return el('details', { class: 'photo-tips' }, [
+    el('summary', {}, [el('strong', {}, ['Tips for taking a clear photo'])]),
     el('ul', {}, [
       el('li', {}, ['Place the paper flat without folds or creases.']),
       el('li', {}, ['Shoot straight-on from the front so the page is not tilted.']),
@@ -134,11 +173,15 @@ function photoViewer() {
  *   typeNotices: string[],
  *   onChange: (value: import('../photo-pages.js').SlotValue, notice?: string | null) => void,
  *   viewer: ReturnType<typeof photoViewer>,
+ *   need: import('../purposes.js').DocNeed,
+ *   extra?: string | null,
  * }} opts
  *   docName: 화면 낭독기용 서류 이름 ("property register")
  *   typeNotices: 넣은 파일이 다른 서류로 보일 때 칸 아래 안내 (#365)
+ *   need: 고른 목적에서 이 서류가 필요한 정도 (#380). 칸 이름 옆에 표시
+ *   extra: 목적에 따라 칸에 덧붙이는 한 줄 (예: 계약 조건 설명에서 등기부 추천)
  */
-function filePicker({ id, label, hint, docName, current, notice, typeNotices, onChange, viewer }) {
+function filePicker({ id, label, hint, docName, current, notice, typeNotices, onChange, viewer, need, extra = null }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
   const typeWarningId = `${id}-type-warning`;
@@ -195,9 +238,13 @@ function filePicker({ id, label, hint, docName, current, notice, typeNotices, on
   const buttonText = photosOnly ? 'Add another page' : current ? 'Add another file' : 'Choose file';
   const statusText = list ? listStatus(list) : pdf ? pdf.name : 'No file chosen';
 
-  return el('div', { class: 'picker' }, [
-    el('label', { for: id }, [label]),
+  return el('div', { class: 'picker', 'data-need': need }, [
+    el('div', { class: 'picker-head' }, [
+      el('label', { for: id }, [label]),
+      el('span', { class: `chip chip-need chip-${need}`, id: `${id}-need` }, [NEED_LABEL[need]]),
+    ]),
     el('p', { class: 'hint', id: hintId }, [hint]),
+    extra ? el('p', { class: 'picker-extra', id: `${id}-extra` }, [extra]) : null,
     el('div', { class: 'file-row' }, [
       input,
       // 누르면 파일 고르기 창이 열린다 (label for)
@@ -279,11 +326,18 @@ export function uploadScreen(state, act) {
   // 칸에서 빠진 파일의 미리 보기 주소 정리
   releaseUnused(new Set([registry, lease].flat().filter((f) => f instanceof File)));
   const viewer = photoViewer();
+  const info = purposeInfo(state.purpose);
+  // 고른 목적에 필요한 서류가 빠졌을 때의 안내 (#380). 막지 않고 알려 주기만 한다.
+  const missing = missingDocNotices(state.purpose, state.files);
   return el('div', {}, [
     resumeCard(state, act),
+    purposeCard(state, act),
     card('Upload your documents', [
       el('p', {}, [
-        'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
+        // 조항·용어 설명은 서류 하나만으로도 된다
+        info.needs.registry === 'optional' && info.needs.lease === 'optional'
+          ? 'Add the document you want explained. One is enough, or add both. PDF files and photos (JPG, PNG) both work.'
+          : 'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
       ]),
       photoTipsBox(),
       filePicker({
@@ -292,13 +346,21 @@ export function uploadScreen(state, act) {
         // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
         hint:
           'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
-          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page").',
+          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
+          // 받는 곳 (#380): 외국인 유학생은 등기부를 어디서 받는지 모르는 경우가 많다
+          'Where to get it: ask the agent for a copy issued today, or get one at iros.go.kr. PDF recommended.',
         docName: 'property register',
         current: registry,
         notice: notice?.slot === 'registry' ? notice.text : null,
         typeNotices: uploadTypeNotices('registry', typesOf(registry)),
         onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
         viewer,
+        need: info.needs.registry,
+        // 계약 조건 설명: 등기부는 점검에만 쓰고 AI로는 보내지 않는다 (send-mode.json)
+        extra:
+          info.needs.registry === 'recommended'
+            ? 'Also check for fraud warning signs? Add the register too (recommended). For this purpose it is used only for the checks on this website and is not sent to AI.'
+            : null,
       }),
       filePicker({
         id: 'lease-file',
@@ -314,7 +376,11 @@ export function uploadScreen(state, act) {
         typeNotices: uploadTypeNotices('lease', typesOf(lease)),
         onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
         viewer,
+        need: info.needs.lease,
       }),
+      missing.length > 0
+        ? el('div', { class: 'warning upload-missing', id: 'upload-missing', role: 'status' }, missing.map((t) => el('p', {}, [t])))
+        : null,
       actions([
         button('Check my documents', () => act.analyze(), { id: 'run', disabled: !hasFile }),
         button('Try with sample data', () => act.analyzeSample(), { id: 'run-sample', variant: 'secondary' }),

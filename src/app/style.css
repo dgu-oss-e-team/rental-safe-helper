@@ -596,6 +596,111 @@ textarea:focus-visible {
   gap: 2px;
 }
 
+/* ① 목적 먼저 고르기 (#380). 색·모양은 디자인 정리(#382)에서 다시 맞춘다 */
+.purpose-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.purpose-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  font-weight: 400;
+  min-height: 44px;
+}
+
+.purpose-card:has(input:checked) {
+  border: 2px solid var(--accent);
+  padding: 11px;
+  background: #eef3fb;
+}
+
+.purpose-card input {
+  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.purpose-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.purpose-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.purpose-questions {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.chip-recommended {
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 12px;
+}
+
+/* 서류 칸 옆 Required / Optional / Recommended (#380) */
+.picker-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip-need {
+  font-size: 12px;
+}
+
+.chip-required {
+  background: var(--stop-bg);
+  color: var(--stop);
+}
+
+.chip-optional {
+  background: var(--unverifiable-bg);
+  color: var(--unverifiable);
+}
+
+.picker-extra {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ok);
+}
+
+.upload-missing p {
+  margin: 0;
+}
+
+.upload-missing p + p {
+  margin-top: 4px;
+}
+
+/* 촬영 팁은 접어 둔다 (#380) */
+.photo-tips summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.photo-tips summary strong {
+  display: inline;
+  margin: 0;
+}
+
 /* 보내기 전 확인 */
 .review {
   display: flex;
