@@ -3,6 +3,7 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { DOCUMENT_TEXT } from '../slots.js';
+import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 import { errorHelp } from '../error-help.js';
 import { CHECK_STATUS, PII_TYPE_TEXT, partlyCheckedText } from '../double-check.js';
 import { hasPhotoDocuments } from '../text-review.js';
@@ -214,12 +215,20 @@ export function doneScreen(state, act) {
 /**
  * 서류마다 프롬프트에 어떻게 들어갔는지 안내 (#360). 가린 원문 그대로 넣은 서류는 따로 말하지 않는다.
  * @param {import('../pipeline.js').SentDocument[] | undefined} sending
+ * @param {{ documentType: string }[] | null} [documents]  올린 서류 (주면 올리지 않은 등기부·계약서를 "not added"로 알린다)
  * @returns {string[]}
  */
-export function sendingNotes(sending) {
+export function sendingNotes(sending, documents = null) {
   if (!Array.isArray(sending)) return [];
   /** @type {string[]} */
   const notes = [];
+  // 올리지 않은 서류도 알려 준다 (정연님 의견): 계약 조건 설명처럼 등기부 없이 진행할 수 있어서, 빠진 건지 안 보낸 건지 헷갈리지 않게
+  if (Array.isArray(documents)) {
+    const types = new Set(documents.map((d) => d.documentType));
+    for (const t of [DOCUMENT_TYPE.REGISTRY, DOCUMENT_TYPE.LEASE_CONTRACT]) {
+      if (!types.has(t)) notes.push(`${DOCUMENT_TEXT[t]}: not added. The checks that need it show "Could not check".`);
+    }
+  }
   for (const s of sending) {
     const name = DOCUMENT_TEXT[s.documentType] ?? 'Document';
     if (s.mode === 'SUMMARY') {
@@ -256,7 +265,7 @@ function askAi(state, prepared, box, status) {
       el('p', { class: 'hint', id: 'prompt-wait' }, [hold]),
     ];
   }
-  const notes = sendingNotes(prepared.sending);
+  const notes = sendingNotes(prepared.sending, state.analysis?.documents ?? null);
   // 이 목적에 보낼 서류가 없으면 프롬프트를 만들지 않는다 (#360, 예: 등기부만 올리고 계약 조건 설명)
   if (!prepared.prompt) {
     return [

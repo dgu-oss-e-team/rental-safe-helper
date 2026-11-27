@@ -83,10 +83,9 @@ export function missingDocNotices(purpose, files) {
   for (const slot of /** @type {DocSlot[]} */ (['registry', 'lease'])) {
     if (has[slot]) continue;
     const need = info.needs[slot];
+    // Recommended(계약 조건 설명의 등기부)는 칸 자리의 "Also check for fraud warning signs?" 상자가 대신 알려 준다
     if (need === 'required') {
       out.push(`${info.title} works best with the ${DOC_NAME[slot]}. Without it, some checks will show "Could not check". You can add it now, or continue anyway.`);
-    } else if (need === 'recommended' && slot === 'registry') {
-      out.push('Without the property register, we cannot check that the landlord is the owner. You can add it now, or continue anyway.');
     }
   }
   return out;

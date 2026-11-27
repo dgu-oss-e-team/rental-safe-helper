@@ -67,12 +67,62 @@ describe('PART 5 ① 목적에 맞는 서류 칸 (#380)', () => {
     expect(node.textContent).toContain('One is enough');
   });
 
-  it('계약 조건 설명: 계약서 Required, 등기부 Recommended + "점검에만 쓰고 AI로 안 보냄" 한 줄', () => {
+  it('계약 조건 설명: 처음엔 계약서 칸(Required)만, 등기부는 "같이 확인할까요?" 상자로 (성연님 의견)', () => {
     const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    expect(node.querySelector('#lease-file-need')?.textContent).toBe('Required');
+    expect(node.querySelector('#registry-file')).toBeNull();
+    const box = node.querySelector('#registry-optin');
+    expect(box?.textContent).toContain('(recommended)');
+    expect(box?.textContent).toContain('not sent to AI');
+    // 계약서가 주인공이라 계약서 칸이 먼저
+    const lease = /** @type {Node} */ (node.querySelector('#lease-file')?.closest('.picker'));
+    expect(lease.compareDocumentPosition(/** @type {Node} */ (box)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('계약 조건 설명: "Add property register"를 누르면 그 자리에 등기부 칸(Recommended)이 나오고 파일 고르기로 초점이 간다', () => {
+    const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    document.body.append(node);
+    /** @type {HTMLButtonElement} */ (node.querySelector('#add-registry')).click();
+    expect(node.querySelector('#registry-optin')).toBeNull();
+    expect(node.querySelector('#registry-file-need')?.textContent).toBe('Recommended');
+    expect(node.querySelector('#registry-file-extra')?.textContent).toContain('not sent to AI');
+    expect(document.activeElement?.id).toBe('registry-file');
+    // 다시 그려도(계약서를 넣는 등) 열린 칸은 그대로
+    const again = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    expect(again.querySelector('#registry-file')).not.toBeNull();
+    node.remove();
+    // 다른 목적으로 바꾸면 처음으로 돌아간다
+    uploadScreen(stateWith({ purpose: MASKING_PURPOSE.FRAUD_CHECK }), fakeAct());
+    expect(uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct()).querySelector('#registry-optin')).not.toBeNull();
+  });
+
+  it('"같이 확인할까요?" 상자에 목적은 그대로라는 한 줄이 있다 (정연님 의견)', () => {
+    const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    expect(node.querySelector('#registry-optin-purpose')?.textContent).toBe('Your purpose stays "Explain contract conditions".');
+  });
+
+  it('연 등기부 칸은 "Don\'t add the register"로 다시 닫을 수 있다 (파일이 없을 때만)', () => {
+    const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    document.body.append(node);
+    /** @type {HTMLButtonElement} */ (node.querySelector('#add-registry')).click();
+    const close = /** @type {HTMLButtonElement} */ (node.querySelector('#close-registry'));
+    expect(close?.textContent).toBe("Don't add the register");
+    close.click();
+    expect(node.querySelector('#registry-file')).toBeNull();
+    expect(node.querySelector('#registry-optin')).not.toBeNull();
+    expect(document.activeElement?.id).toBe('add-registry');
+    // 닫은 상태가 다시 그려도 유지된다
+    expect(uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct()).querySelector('#registry-optin')).not.toBeNull();
+    node.remove();
+    // 파일을 넣었으면 닫기 버튼 대신 Remove로 뺀다
+    const withFile = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION, files: { registry: pdf('r.pdf'), lease: null } }), fakeAct());
+    expect(withFile.querySelector('#close-registry')).toBeNull();
+  });
+
+  it('계약 조건 설명인데 이미 등기부를 넣었으면 상자 없이 등기부 칸을 그대로 보여 준다', () => {
+    const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION, files: { registry: pdf('r.pdf'), lease: null } }), fakeAct());
+    expect(node.querySelector('#registry-optin')).toBeNull();
     expect(needs(node)).toEqual(['Recommended', 'Required']);
-    const extra = node.querySelector('#registry-file-extra')?.textContent ?? '';
-    expect(extra).toContain('recommended');
-    expect(extra).toContain('not sent to AI');
   });
 
   it('등기부 칸에 받는 곳과 PDF 추천', () => {
@@ -107,10 +157,9 @@ describe('PART 5 ① 필요한 서류가 없어도 막지 않는다 (#380)', () 
     expect(missingDocNotices(MASKING_PURPOSE.CLAUSE_EXPLANATION, { registry: null, lease: pdf('l.pdf') })).toEqual([]);
   });
 
-  it('계약 조건 설명에서 등기부가 없으면 "소유자 확인을 못 한다" 안내, 계약서가 없으면 Required 안내', () => {
+  it('계약 조건 설명: 등기부가 없으면 아래 안내 대신 "같이 확인할까요?" 상자가 알려 주고, 계약서가 없으면 Required 안내', () => {
     const noReg = missingDocNotices(MASKING_PURPOSE.CONTRACT_EXPLANATION, { registry: null, lease: pdf('l.pdf') });
-    expect(noReg).toHaveLength(1);
-    expect(noReg[0]).toContain('landlord is the owner');
+    expect(noReg).toEqual([]);
     const noLease = missingDocNotices(MASKING_PURPOSE.CONTRACT_EXPLANATION, { registry: pdf('r.pdf'), lease: null });
     expect(noLease).toHaveLength(1);
     expect(noLease[0]).toContain('lease contract');

@@ -107,6 +107,12 @@ function photoTipsBox() {
 /** @type {Map<File, string>} */
 const previewUrls = new Map();
 
+/**
+ * 계약 조건 설명에서 사용자가 "Add property register"를 눌러 등기부 칸을 연 상태 (#380, 성연님 의견).
+ * 화면을 다시 그려도(계약서를 넣는 등) 열린 칸이 닫히지 않게 기억한다. 다른 목적으로 바꾸면 처음으로 돌린다.
+ */
+let registryOptIn = false;
+
 /** @param {File} file */
 function urlOf(file) {
   let url = previewUrls.get(file);
@@ -329,6 +335,79 @@ export function uploadScreen(state, act) {
   const info = purposeInfo(state.purpose);
   // 고른 목적에 필요한 서류가 빠졌을 때의 안내 (#380). 막지 않고 알려 주기만 한다.
   const missing = missingDocNotices(state.purpose, state.files);
+  // 계약 조건 설명(등기부 Recommended): 처음엔 계약서 칸만 보이고, 등기부는 "Add property register"를 눌러야 칸이 나온다.
+  // 다른 목적과 확실히 달라 보이게 한다 (성연님 v2 의견). 이미 등기부를 넣었으면 칸을 그대로 보여 준다.
+  const registryOptional = info.needs.registry === 'recommended';
+  if (!registryOptional) registryOptIn = false;
+  const registryPicker = filePicker({
+    id: 'registry-file',
+    label: 'Property register (등기부등본)',
+    // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
+    hint:
+      'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
+      'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
+      // 받는 곳 (#380): 외국인 유학생은 등기부를 어디서 받는지 모르는 경우가 많다
+      'Where to get it: ask the agent for a copy issued today, or get one at iros.go.kr. PDF recommended.',
+    docName: 'property register',
+    current: registry,
+    notice: notice?.slot === 'registry' ? notice.text : null,
+    typeNotices: uploadTypeNotices('registry', typesOf(registry)),
+    onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
+    viewer,
+    need: info.needs.registry,
+    // 계약 조건 설명: 등기부는 점검에만 쓰고 AI로는 보내지 않는다 (send-mode.json)
+    extra: registryOptional
+      ? 'For this purpose the property register is used only for the checks on this website. It is not sent to AI.'
+      : null,
+  });
+  const leasePicker = filePicker({
+    id: 'lease-file',
+    label: 'Lease contract (임대차계약서)',
+    // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
+    hint:
+      'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
+      'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
+      'If the special terms page is a separate PDF or photo, add it here too with "Add another file".',
+    docName: 'lease contract',
+    current: lease,
+    notice: notice?.slot === 'lease' ? notice.text : null,
+    typeNotices: uploadTypeNotices('lease', typesOf(lease)),
+    onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
+    viewer,
+    need: info.needs.lease,
+  });
+  /** @type {HTMLElement} */
+  let registryArea = registryPicker;
+  if (registryOptional && !registry) {
+    // 화면 전체를 다시 그리지 않고 이 자리만 바꾼다. 바꾼 뒤에는 키보드 사용자를 위해 초점을 옮긴다.
+    /** @param {HTMLElement} next @param {string} focusSelector */
+    const swap = (next, focusSelector) => {
+      registryArea.replaceWith(next);
+      registryArea = next;
+      /** @type {HTMLElement | null} */ (next.querySelector(focusSelector))?.focus();
+    };
+    const addButton = button('Add property register', () => {
+      registryOptIn = true;
+      swap(openArea, '#registry-file');
+    }, { id: 'add-registry', variant: 'secondary' });
+    // 연 칸 닫기 (정연님 의견). 파일을 넣은 뒤에는 "Remove"로 빼야 하므로 파일이 없을 때만 있다.
+    const closeButton = button("Don't add the register", () => {
+      registryOptIn = false;
+      swap(box, '#add-registry');
+    }, { id: 'close-registry' });
+    closeButton.className = 'link-button';
+    const box = el('div', { class: 'registry-optin', id: 'registry-optin' }, [
+      el('div', { class: 'registry-optin-text' }, [
+        el('strong', {}, ['Also check for fraud warning signs? (recommended)']),
+        el('p', {}, ['Add the property register too. We use it only for the checks on this website. It is not sent to AI for this purpose.']),
+        // 목적이 바뀌는 것으로 오해하지 않게 (정연님 의견)
+        el('p', { class: 'hint', id: 'registry-optin-purpose' }, [`Your purpose stays "${info.title}".`]),
+      ]),
+      addButton,
+    ]);
+    const openArea = el('div', { class: 'registry-open', id: 'registry-open' }, [registryPicker, closeButton]);
+    registryArea = registryOptIn ? openArea : box;
+  }
   return el('div', {}, [
     resumeCard(state, act),
     purposeCard(state, act),
@@ -337,47 +416,13 @@ export function uploadScreen(state, act) {
         // 조항·용어 설명은 서류 하나만으로도 된다
         info.needs.registry === 'optional' && info.needs.lease === 'optional'
           ? 'Add the document you want explained. One is enough, or add both. PDF files and photos (JPG, PNG) both work.'
-          : 'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
+          : registryOptional
+            ? 'Upload the lease contract you are about to sign. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.'
+            : 'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
       ]),
       photoTipsBox(),
-      filePicker({
-        id: 'registry-file',
-        label: 'Property register (등기부등본)',
-        // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
-        hint:
-          'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
-          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
-          // 받는 곳 (#380): 외국인 유학생은 등기부를 어디서 받는지 모르는 경우가 많다
-          'Where to get it: ask the agent for a copy issued today, or get one at iros.go.kr. PDF recommended.',
-        docName: 'property register',
-        current: registry,
-        notice: notice?.slot === 'registry' ? notice.text : null,
-        typeNotices: uploadTypeNotices('registry', typesOf(registry)),
-        onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
-        viewer,
-        need: info.needs.registry,
-        // 계약 조건 설명: 등기부는 점검에만 쓰고 AI로는 보내지 않는다 (send-mode.json)
-        extra:
-          info.needs.registry === 'recommended'
-            ? 'Also check for fraud warning signs? Add the register too (recommended). For this purpose it is used only for the checks on this website and is not sent to AI.'
-            : null,
-      }),
-      filePicker({
-        id: 'lease-file',
-        label: 'Lease contract (임대차계약서)',
-        // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
-        hint:
-          'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
-          'Upload one PDF with all pages, or take a photo of each page (after the first photo, use "Add another page"). ' +
-          'If the special terms page is a separate PDF or photo, add it here too with "Add another file".',
-        docName: 'lease contract',
-        current: lease,
-        notice: notice?.slot === 'lease' ? notice.text : null,
-        typeNotices: uploadTypeNotices('lease', typesOf(lease)),
-        onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
-        viewer,
-        need: info.needs.lease,
-      }),
+      // 계약 조건 설명은 계약서가 주인공이라 계약서 칸을 먼저 둔다
+      ...(registryOptional ? [leasePicker, registryArea] : [registryPicker, leasePicker]),
       missing.length > 0
         ? el('div', { class: 'warning upload-missing', id: 'upload-missing', role: 'status' }, missing.map((t) => el('p', {}, [t])))
         : null,

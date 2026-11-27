@@ -682,6 +682,30 @@ textarea:focus-visible {
   color: var(--ok);
 }
 
+/* 계약 조건 설명: 등기부 칸 대신 보이는 "같이 확인할까요?" 상자 (#380) */
+.registry-optin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ok-bg);
+  padding: 12px 14px;
+}
+
+.registry-optin-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.registry-optin-text p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+
 .upload-missing p {
   margin: 0;
 }

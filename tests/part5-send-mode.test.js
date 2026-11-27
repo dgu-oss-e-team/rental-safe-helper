@@ -229,6 +229,16 @@ describe('PART 5 sendingNotes(): 완료 화면 안내 (#360)', () => {
     expect(notes).toEqual([`${LEASE}: the section with the parties' personal details is replaced by a short list of roles. The rest is the masked text.`]);
   });
 
+  it('올리지 않은 서류는 "not added"로 알린다 (계약서만 올린 계약 조건 설명 등, 정연님 의견)', () => {
+    const leaseOnly = [{ documentType: DOCUMENT_TYPE.LEASE_CONTRACT }];
+    const notes = sendingNotes([{ documentId: 'A', documentType: DOCUMENT_TYPE.LEASE_CONTRACT, mode: 'MASKED_TEXT' }], leaseOnly);
+    expect(notes).toEqual([`${DOCUMENT_TEXT[DOCUMENT_TYPE.REGISTRY]}: not added. The checks that need it show "Could not check".`]);
+    // 둘 다 올렸으면 "not added" 없음, 서류 목록을 안 주면(예전 호출) 지금과 같다
+    const both = [{ documentType: DOCUMENT_TYPE.REGISTRY }, { documentType: DOCUMENT_TYPE.LEASE_CONTRACT }];
+    expect(sendingNotes([], both)).toEqual([]);
+    expect(sendingNotes([])).toEqual([]);
+  });
+
   it('가린 원문 그대로인 서류는 따로 말하지 않는다', () => {
     expect(sendingNotes([{ documentId: 'A', documentType: DOCUMENT_TYPE.LEASE_CONTRACT, mode: 'MASKED_TEXT' }])).toEqual([]);
     expect(sendingNotes(undefined)).toEqual([]);
