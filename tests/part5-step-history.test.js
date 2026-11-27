@@ -36,11 +36,18 @@ describe('PART 5 브라우저 기록: 결과가 없는 단계로는 못 간다',
     for (const step of STEP_ORDER) expect(reachableStep(none, step)).toBe('upload');
   });
 
-  it('분석만 했으면 ②·③까지, ④·⑤는 ③으로', () => {
+  it('분석만 했으면 ② 결과까지, 그 뒤 단계는 ②로 (목적 화면 없음, #381)', () => {
     expect(reachableStep(analyzed, 'results')).toBe('results');
-    expect(reachableStep(analyzed, 'purpose')).toBe('purpose');
-    expect(reachableStep(analyzed, 'review')).toBe('purpose');
-    expect(reachableStep(analyzed, 'done')).toBe('purpose');
+    expect(reachableStep(analyzed, 'review')).toBe('results');
+    expect(reachableStep(analyzed, 'done')).toBe('results');
+  });
+
+  it('단계는 4개 + 사진일 때 글자 확인 (목적 단계 없음, #381)', () => {
+    expect([...STEP_ORDER]).toEqual(['upload', 'confirm', 'results', 'review', 'done']);
+  });
+
+  it('예전 목적 화면 주소(#purpose)는 목적을 바꾸는 ② 결과로', () => {
+    expect(stepFromHash('#purpose')).toBe('results');
   });
 
   it('보내기 전 확인까지 했으면 ④까지, ⑤는 ④로', () => {
@@ -68,8 +75,8 @@ describe('PART 5 브라우저 기록: 기록을 남기는 방법', () => {
 
   it('단계가 바뀌면 새 기록 (앞으로든 뒤로든)', () => {
     expect(historyAction('upload', 'results')).toBe('push');
-    expect(historyAction('results', 'purpose')).toBe('push');
-    expect(historyAction('review', 'purpose')).toBe('push');
+    expect(historyAction('results', 'review')).toBe('push');
+    expect(historyAction('review', 'results')).toBe('push');
     expect(historyAction('done', 'upload')).toBe('push');
   });
 

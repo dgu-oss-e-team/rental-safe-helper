@@ -43,7 +43,6 @@ export function button(label, onClick, opts = {}) {
 export const STEPS = [
   { id: 'upload', label: 'Upload' },
   { id: 'results', label: 'Check' },
-  { id: 'purpose', label: 'Purpose' },
   { id: 'review', label: 'Review' },
   { id: 'done', label: 'Done' },
 ];

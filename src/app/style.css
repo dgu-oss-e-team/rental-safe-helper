@@ -725,6 +725,34 @@ textarea:focus-visible {
   margin: 0;
 }
 
+/* ② 결과 맨 아래 "Next: ask AI": 고른 목적과 바꾸기 (#381) */
+.chosen-purpose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.chosen-purpose-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.purpose-choices {
+  margin-top: 4px;
+}
+
+.switch-purpose p {
+  margin: 0 0 8px;
+}
+
 /* 보내기 전 확인 */
 .review {
   display: flex;

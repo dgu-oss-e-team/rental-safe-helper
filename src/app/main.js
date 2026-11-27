@@ -20,7 +20,6 @@ import { diffRiskResults } from './result-changes.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
-import { purposeScreen } from './screens/purpose.js';
 import { reviewScreen } from './screens/review.js';
 import { doneScreen } from './screens/done.js';
 import { confirmScreen } from './screens/confirm.js';
@@ -54,7 +53,7 @@ const STEP_TEXT = {
  *   칸 값을 바꾼다. notice는 그 칸 아래 안내 (#268)
  * @property {() => Promise<void>} analyze
  * @property {() => Promise<void>} analyzeSample
- * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
+ * @property {(step: 'upload' | 'results' | 'review' | 'done') => void} goTo
  * @property {() => void} dismissError
  * @property {() => any[]} getOcrDraft  "Confirm text": 지금까지 고친 사진·스캔 서류
  * @property {(docs: any[]) => number} setOcrDraft  PART 1 OCR 수정 화면의 onChange. 남은 흐린 줄 수를 돌려준다
@@ -533,7 +532,6 @@ const SCREENS = {
   upload: uploadScreen,
   confirm: confirmScreen,
   results: resultsScreen,
-  purpose: purposeScreen,
   review: reviewScreen,
   done: doneScreen,
 };

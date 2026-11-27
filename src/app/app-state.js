@@ -43,7 +43,7 @@ export function createStore(initial) {
 /** 처음 상태 (다시 시작할 때도 이 값으로 되돌린다) */
 export function initialState() {
   return {
-    /** @type {'upload' | 'confirm' | 'results' | 'purpose' | 'review' | 'done'} */
+    /** @type {'upload' | 'confirm' | 'results' | 'review' | 'done'} */
     step: 'upload',
     /** 처리 중이면 안내 문구, 아니면 null */
     /** @type {string | null} */
