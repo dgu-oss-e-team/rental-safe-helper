@@ -3,7 +3,7 @@
 // 가상 데이터만 사용한다.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { diffRiskResults, changeText } from '../src/app/result-changes.js';
-import { resultsScreen } from '../src/app/screens/results.js';
+import { resultsScreen, showChangedCards } from '../src/app/screens/results.js';
 import { initialState } from '../src/app/app-state.js';
 import { RISK_STATUS } from '../src/shared/document-model.js';
 import { matchPeople } from '../src/features/masking/index.js';
@@ -65,8 +65,7 @@ describe('② 결과 화면: "Results updated"와 "See what changed"', () => {
     expect(node.querySelector('#see-changes')).toBeNull();
   });
 
-  it('바뀐 결과를 나열하고, "See what changed"를 누르면 바뀐 카드를 잠깐 강조한다 (접힌 칸이면 펼침)', () => {
-    vi.useFakeTimers();
+  it('위쪽 안내는 바뀐 목록만 보여 주고 버튼은 없다 (같은 동작이 두 번 나오지 않게)', () => {
     const riskResults = [result('OWNER_MISMATCH', STOP, 'Owner and landlord check'), result('ACCOUNT_HOLDER', NO_FLAG, 'Account holder check')];
     const changes = [
       { ruleId: 'OWNER_MISMATCH', title: 'Owner and landlord check', from: CHECK, to: STOP },
@@ -79,12 +78,20 @@ describe('② 결과 화면: "Results updated"와 "See what changed"', () => {
       'Owner and landlord check: Check → Stop',
       'Account holder check: Could not check → No warning found',
     ]);
+    expect(notice?.querySelector('button')).toBeNull();
+    // 화면 낭독기가 두 번 읽지 않게 위쪽 안내는 status가 아니다
+    expect(notice?.getAttribute('role')).toBeNull();
+  });
 
+  it('바뀐 카드 보여 주기(showChangedCards): 잠깐 강조하고, 접힌 칸이면 펼치고, 첫 카드 제목에 포커스', () => {
+    vi.useFakeTimers();
+    const riskResults = [result('OWNER_MISMATCH', STOP, 'Owner and landlord check'), result('ACCOUNT_HOLDER', NO_FLAG, 'Account holder check')];
+    const node = screenFor([], riskResults);
     const stopCard = node.querySelector('.risk[data-rule="OWNER_MISMATCH"]');
     const noFlagCard = node.querySelector('.risk[data-rule="ACCOUNT_HOLDER"]');
     expect(/** @type {HTMLDetailsElement} */ (noFlagCard?.closest('details')).open).toBe(false);
 
-    /** @type {HTMLButtonElement} */ (node.querySelector('#see-changes')).click();
+    showChangedCards(['OWNER_MISMATCH', 'ACCOUNT_HOLDER']);
     expect(stopCard?.classList.contains('risk-changed')).toBe(true);
     expect(noFlagCard?.classList.contains('risk-changed')).toBe(true);
     expect(/** @type {HTMLDetailsElement} */ (noFlagCard?.closest('details')).open).toBe(true);
@@ -130,16 +137,25 @@ describe('② 결과 화면: 답한 자리 안내와 마지막 답 뒤 자동 �
     document.body.replaceChildren();
   });
 
-  it('답한 질문 바로 아래에도 같은 안내와 "See what changed"가 있다 (위쪽 안내는 화면 낭독기가 두 번 읽지 않게 status가 아님)', () => {
+  it('질문이 남았으면 답한 질문 바로 아래에 안내와 "See what changed" 버튼이 있다 (버튼은 여기 한 곳만)', () => {
     vi.useFakeTimers();
     const changes = [{ ruleId, title: 'T', from: 'NO_FLAG', to: 'STOP' }];
     const node = screenFor({}, changes);
     const here = node.querySelector('#results-updated-here');
     expect(here?.closest('section, .card')?.textContent).toContain('Help us check who is who');
     expect(here?.getAttribute('role')).toBe('status');
-    expect(node.querySelector('#results-updated')?.getAttribute('role')).toBeNull();
-    /** @type {HTMLButtonElement} */ (node.querySelector('#see-changes-here')).click();
+    expect(node.querySelectorAll('button#see-changes')).toHaveLength(1);
+    expect(here?.querySelector('#see-changes')).not.toBeNull();
+    /** @type {HTMLButtonElement} */ (node.querySelector('#see-changes')).click();
     expect(card()?.classList.contains('risk-changed')).toBe(true);
+  });
+
+  it('마지막 질문에 답해 자동으로 올라갈 때는 답한 자리 안내와 버튼을 그리지 않는다 (위쪽 목록만)', () => {
+    vi.useFakeTimers();
+    const node = screenFor({ [landlordId]: null }, [{ ruleId, title: 'T', from: 'NO_FLAG', to: 'STOP' }]);
+    expect(node.querySelector('#results-updated-here')).toBeNull();
+    expect(node.querySelector('#see-changes')).toBeNull();
+    expect(node.querySelector('#results-updated')?.textContent).toContain('T: No warning found → Stop');
   });
 
   it('아직 답할 질문이 남았으면 자동으로 움직이지 않는다', () => {

@@ -51,43 +51,56 @@ export function showChangedCards(ruleIds) {
 let autoShownFor = null;
 
 /**
+ * 답한 뒤에도 화면에 있는 바뀐 결과의 규칙 id (사라진 결과는 찾아갈 카드가 없다)
+ * @param {import('../result-changes.js').ResultChange[]} changes
+ */
+const visibleRuleIds = (changes) => changes.filter((c) => c.to !== null).map((c) => c.ruleId);
+
+/**
+ * 자동으로 바뀐 카드로 올라가는 경우인가: 마지막 질문까지 답했고, 찾아갈 바뀐 카드가 있을 때.
+ * 아직 답할 질문이 남았으면 움직이지 않는다 (답할 때마다 위로 튀면 다음 질문에 답하기 어렵다).
+ * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
+ * @param {boolean} allAnswered
+ */
+const movesAutomatically = (changes, allAnswered) => Array.isArray(changes) && allAnswered && visibleRuleIds(changes).length > 0;
+
+/**
  * "같은 사람인가요?"에 답한 뒤 결과가 바뀌었다는 안내 (개선 목록 5번). 답한 적이 없으면 null.
- * 결과 위쪽(where: 'top')과 답한 질문 바로 아래(where: 'here') 두 곳에 같은 내용을 둔다.
- * 질문은 결과 아래에 있어서, 답한 자리에서 바로 알 수 있게 한다.
+ * 같은 동작이 두 번 나오지 않게 나눈다:
+ *  - 위쪽(where: 'top'): 바뀐 목록만 (버튼 없음). 나중에 화면을 다시 볼 때 무엇이 바뀌었는지 보는 요약
+ *  - 답한 질문 바로 아래(where: 'here'): 화면이 자동으로 움직이지 않을 때만. 바뀐 카드가 있으면 "See what changed" 버튼
+ *    (자동으로 올라가는 경우에는 화면이 이미 바뀐 카드로 가므로 그리지 않는다)
  * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
  * @param {'top' | 'here'} where
+ * @param {boolean} autoMove  자동으로 바뀐 카드로 올라가는 경우인가
  */
-function resultsUpdatedNotice(changes, where) {
+function resultsUpdatedNotice(changes, where, autoMove) {
   if (!Array.isArray(changes)) return null;
-  const suffix = where === 'here' ? '-here' : '';
-  // 화면 낭독기는 사용자가 있는 곳(답한 질문 아래)의 안내만 읽게 한다 (두 번 읽지 않게)
-  const attrs = { class: `results-updated results-updated-${where}`, id: `results-updated${suffix}`, role: where === 'here' ? 'status' : undefined };
+  if (where === 'here' && autoMove) return null;
+  const here = where === 'here';
+  // 화면 낭독기는 사용자가 있는 곳(답한 질문 아래)의 안내만 읽게 한다. 자동으로 올라갈 때는 카드 제목으로 포커스가 간다.
+  const attrs = { class: `results-updated results-updated-${where}`, id: here ? 'results-updated-here' : 'results-updated', role: here ? 'status' : undefined };
   if (changes.length === 0) {
     return el('div', attrs, [el('p', {}, ['Results updated. Your answer did not change any result.'])]);
   }
-  const visible = changes.filter((c) => c.to !== null).map((c) => c.ruleId);
+  const visible = visibleRuleIds(changes);
   return el('div', attrs, [
     el('p', {}, [el('strong', {}, ['Results updated. ']), `Your answer changed ${changes.length === 1 ? '1 result' : `${changes.length} results`}:`]),
     el('ul', {}, changes.map((c) => el('li', {}, [changeText(c)]))),
-    visible.length > 0
-      ? button('See what changed', () => showChangedCards(visible), { variant: 'secondary', id: `see-changes${suffix}` })
-      : null,
+    here && visible.length > 0 ? button('See what changed', () => showChangedCards(visible), { variant: 'secondary', id: 'see-changes' }) : null,
   ]);
 }
 
 /**
  * 마지막 질문까지 답했으면 바뀐 카드로 자동으로 올라간다 (개선 목록 5번, 섞는 방식).
- *  - 아직 답할 질문이 남았으면 움직이지 않는다 (답할 때마다 위로 튀면 다음 질문에 답하기 어렵다)
- *  - 바뀐 게 없거나 사라진 결과만 바뀌었으면 움직이지 않는다
  * 화면을 다 그린 뒤 움직여야 해서 다음 차례로 미룬다.
  * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
- * @param {boolean} allAnswered
+ * @param {boolean} autoMove
  */
-function autoShowChanges(changes, allAnswered) {
-  if (!Array.isArray(changes) || changes === autoShownFor || !allAnswered) return;
-  const visible = changes.filter((c) => c.to !== null).map((c) => c.ruleId);
-  if (visible.length === 0) return;
+function autoShowChanges(changes, autoMove) {
+  if (!autoMove || !Array.isArray(changes) || changes === autoShownFor) return;
   autoShownFor = changes;
+  const visible = visibleRuleIds(changes);
   setTimeout(() => showChangedCards(visible), 0);
 }
 
@@ -119,6 +132,11 @@ export function resultsScreen(state, act) {
   // 질문 카드는 결과 목록 아래에 있어서 휴대폰에서는 화면 몇 개 아래로 밀린다.
   // 그래서 결과 요약 바로 아래에 안내와 "바로 가기" 버튼을 둔다. (#91)
   // (주소 #...로 이동하지 않고 스크롤만 한다. 주소의 # 부분은 단계 이동(#90)에 쓸 예정)
+  // 물어보는 사람 = 화면에 보이는 질문 카드 (같은 두 사람은 한 번만, #171)
+  // 화면 구조(fieldset 개수)에 기대지 않고 질문 목록으로 센다
+  const { asked, answered } = questions ? countPersonQuestions(allQuestions, state.personAnswers) : { asked: 0, answered: 0 };
+  // 마지막 질문까지 답했고 바뀐 카드가 있으면 그 카드로 자동으로 올라간다 (개선 목록 5번)
+  const autoMove = movesAutomatically(state.resultChanges, asked > 0 && answered >= asked);
   const questionCard = questions
     ? card('Help us check who is who', [
         el('p', { class: 'hint' }, [
@@ -126,12 +144,9 @@ export function resultsScreen(state, act) {
         ]),
         questions,
         // 답한 자리에서 바로 무엇이 바뀌었는지 보이게 한다 (개선 목록 5번)
-        resultsUpdatedNotice(state.resultChanges, 'here'),
+        resultsUpdatedNotice(state.resultChanges, 'here', autoMove),
       ])
     : null;
-  // 물어보는 사람 = 화면에 보이는 질문 카드 (같은 두 사람은 한 번만, #171)
-  // 화면 구조(fieldset 개수)에 기대지 않고 질문 목록으로 센다
-  const { asked, answered } = questions ? countPersonQuestions(allQuestions, state.personAnswers) : { asked: 0, answered: 0 };
   const goToQuestions = () => {
     if (!questionCard) return;
     questionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -153,8 +168,8 @@ export function resultsScreen(state, act) {
       ])
     : null;
 
-  const changesNotice = resultsUpdatedNotice(state.resultChanges, 'top');
-  autoShowChanges(state.resultChanges, asked > 0 && answered >= asked);
+  const changesNotice = resultsUpdatedNotice(state.resultChanges, 'top', autoMove);
+  autoShowChanges(state.resultChanges, autoMove);
 
   return el('div', {}, [
     card('Documents', [
