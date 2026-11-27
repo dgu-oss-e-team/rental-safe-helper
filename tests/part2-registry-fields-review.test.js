@@ -72,6 +72,23 @@ describe('PART 2 못 알아본 등기 기록 수 (사진 OCR 잡글자)', () => 
     const lines = [...GAP, '2 예고등기 2023년1월2일 제1호', EUL, '기록사항 없음'];
     expect(findUnknownActiveCount(lines)).toBe(1);
   });
+
+  // #362 리뷰: 사진에서 순위번호와 등기목적 사이에 칸 선이 붙은 진짜 기록을 놓치면 요약의 "원본 확인 필요"가 사라진다
+  it.each([
+    ['2 ⎸ 예고등기 ⎸ 2024년1월1일'],
+    ['2 | 예고등기 2024년1월1일'],
+    ['2 │ 예고등기 2024년1월1일'],
+    ['2 ㅣ 예고등기 2024년1월1일'],
+    ['2 | | 예고등기 2024년1월1일'],
+  ])('순위번호 뒤 칸 선을 건너뛰고 본다: "%s" → 1건', (row) => {
+    const lines = [...GAP, row, EUL, '기록사항 없음'];
+    expect(findUnknownActiveCount(lines)).toBe(1);
+  });
+
+  it('칸 선 뒤에 한글 등기목적이 없으면 여전히 세지 않는다', () => {
+    const lines = [...GAP, '3 | — —', '4 ⎸ 2019년4월2일', EUL, '기록사항 없음'];
+    expect(findUnknownActiveCount(lines)).toBe(0);
+  });
 });
 
 describe('PART 2 계약서 인적사항 칸 범위 (사진 OCR)', () => {
