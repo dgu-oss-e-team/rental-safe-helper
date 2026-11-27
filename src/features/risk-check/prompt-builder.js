@@ -46,6 +46,20 @@ export const ANSWER_RULES = [
   'When you mention a law, name it and say the date it came into effect if you know it. If you are not sure the law still applies or what the current rule is, say so instead of guessing.',
 ];
 
+/**
+ * 등기부 요약(Registry (extracted))이 들어갈 때만 넣는 규칙 (#361)
+ *  - 요약의 "읽지 못함 / 확인 필요" 표시가 하나라도 있으면 AI가 안전하다고 답하지 못하게 한다.
+ *  - 표시 문구는 PART 4 buildRegistrySummary()가 영어로 만든 것과 같아야 한다 (registry-summary.js).
+ */
+export const REGISTRY_SUMMARY_LABEL = 'Registry (extracted)';
+
+export const REGISTRY_SUMMARY_RULE =
+  'If the registry summary contains "Could not read", "could not check", "Unconfirmed register records", "details hidden", "cancellation unclear", or "check the original", do not state that the property or its registry is safe or free of problems. Tell the user, in the user\'s language, to check the original registry for those items.';
+
+/** 등기부 요약을 만들지 못해 등기부를 뺀 경우(사기 위험 확인만) 대신 넣는 한 줄 */
+export const REGISTRY_NOT_PROVIDED_LINE =
+  'Registry: not provided (summary unavailable). Do not make any statement about registry-based safety; tell the user to check the original registry.';
+
 /** "[Landlord_B]" 같은 역할 가명 */
 const ALIAS_PATTERN = /\[([A-Za-z]+)_[A-Z]\]/g;
 
@@ -71,9 +85,12 @@ export function replaceUnlistedAliases(text, legend) {
 /**
  * AI 상담용 프롬프트를 만든다.
  * @param {{ purpose: string, riskResults: RiskResult[], maskedText: Record<string, string>,
- *           legend: Record<string, string>, monthlyRent?: number | null }} input
+ *           legend: Record<string, string>, monthlyRent?: number | null,
+ *           registry?: { summaryTitle?: string | null, unavailable?: boolean } }} input
+ *   registry.summaryTitle: maskedText 중 "등기부 요약"인 글의 키. 있으면 이름표와 규칙을 붙인다 (#361)
+ *   registry.unavailable: 등기부 요약을 못 만들어 뺐다는 뜻. 사기 위험 확인일 때만 "등기부 정보 없음" 한 줄을 넣는다
  */
-export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent }) {
+export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent, registry }) {
   const questions = getRecommendedQuestions(purpose, riskResults, { monthlyRent });
   if (!questions) {
     return fail(ERROR_CODE.INVALID_INPUT, 'Unknown purpose.');
@@ -83,6 +100,8 @@ export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyR
   }
 
   const isFraudCheck = purpose === MASKING_PURPOSE.FRAUD_CHECK;
+  const summaryTitle = registry?.summaryTitle && registry.summaryTitle in maskedText ? registry.summaryTitle : null;
+  const registryMissing = isFraudCheck && registry?.unavailable === true && summaryTitle === null;
   const lines = [
     'I am an international student in Korea checking housing documents before signing a lease.',
     'Personal information has been removed or replaced with role names.',
@@ -91,6 +110,10 @@ export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyR
     ...ANSWER_RULES.map((rule) => `- ${rule}`),
     '',
   ];
+
+  if (summaryTitle !== null) {
+    lines.push('## Registry summary rules', `- ${REGISTRY_SUMMARY_RULE}`, '');
+  }
 
   if (isFraudCheck && legend && Object.keys(legend).length > 0) {
     lines.push('## Role legend');
@@ -111,9 +134,13 @@ export function buildPrompt({ purpose, riskResults, maskedText, legend, monthlyR
   }
 
   lines.push('## Documents (masked)');
-  for (const [documentId, text] of Object.entries(maskedText)) {
-    lines.push(`### ${documentId}`, text, '');
+  if (summaryTitle !== null) {
+    lines.push(`Note: "${REGISTRY_SUMMARY_LABEL}" is a summary of items extracted from the register, not the original text. The other documents are masked text.`, '');
   }
+  for (const [documentId, text] of Object.entries(maskedText)) {
+    lines.push(`### ${documentId === summaryTitle ? REGISTRY_SUMMARY_LABEL : documentId}`, text, '');
+  }
+  if (registryMissing) lines.push(REGISTRY_NOT_PROVIDED_LINE, '');
 
   lines.push('## Questions');
   for (const q of questions) lines.push(`- ${q}`);
