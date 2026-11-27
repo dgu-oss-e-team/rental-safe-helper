@@ -10,6 +10,7 @@ import { DOCUMENT_TYPE, MASKING_PURPOSE } from '../src/shared/document-model.js'
 const REGISTRY = DOCUMENT_TEXT[DOCUMENT_TYPE.REGISTRY];
 const LEASE = DOCUMENT_TEXT[DOCUMENT_TYPE.LEASE_CONTRACT];
 const SUMMARY_HEAD = 'Extracted items from the property register';
+const REGISTRY_LABEL = 'Registry (extracted)';
 
 const samplePdf = (name) =>
   new File([readFileSync(new URL(`../public/samples/${name}.pdf`, import.meta.url))], `${name}.pdf`, { type: 'application/pdf' });
@@ -40,7 +41,7 @@ describe('PART 5 prepareForAi(): 목적별로 보낼 서류 (#360)', () => {
   it('사기 위험 확인: 등기부는 요약만, 가린 원문 줄은 프롬프트에 없다. 계약서는 가린 원문', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
     expect(r.ok).toBe(true);
-    const reg = section(r.data.prompt, REGISTRY);
+    const reg = section(r.data.prompt, REGISTRY_LABEL);
     expect(reg).toContain(SUMMARY_HEAD);
     for (const line of longLines(r.data.maskedText[registry.documentId])) expect(reg).not.toContain(line);
     expect(r.data.sending.find((s) => s.documentId === registry.documentId)).toMatchObject({ mode: 'SUMMARY', hiddenCount: 0 });
@@ -50,7 +51,7 @@ describe('PART 5 prepareForAi(): 목적별로 보낼 서류 (#360)', () => {
 
   it('요약한 등기부에는 쪽 표시를 넣지 않고, 가린 원문 서류에는 지금처럼 넣는다', () => {
     const r = prepareForAi(analysis, MASKING_PURPOSE.FRAUD_CHECK);
-    expect(section(r.data.prompt, REGISTRY)).not.toContain('--- page');
+    expect(section(r.data.prompt, REGISTRY_LABEL)).not.toContain('--- page');
     expect(section(r.data.prompt, LEASE)).toContain('--- page 1 ---');
   });
 
