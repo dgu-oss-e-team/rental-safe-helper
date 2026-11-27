@@ -268,8 +268,9 @@ const SPECIAL_TERMS_HEADING = new RegExp(
  * "(인)"도 줄 끝에 있을 때만 서명 칸이다. ("도장(인) 지참"은 특약, PR #237 리뷰)
  * (줄 어디에서나 멈추면 그 뒤 특약이 모두 사라져 거짓 [](없음)이 된다)
  */
+// 문자열 안이라 \s는 \\s로 쓴다 ('\s'는 그냥 "s"가 되어 "임 대 인"처럼 띄어 읽힌 줄을 못 잡는다)
 const PARTY_ROLE_PREFIX =
-  '(?:임\s*대\s*(?:사\s*업\s*)?자|임\s*대\s*인|임\s*차\s*인|(?:개\s*업\s*)?공\s*인\s*중\s*개\s*사|중\s*개\s*보\s*조\s*원)';
+  '(?:임\\s*대\\s*(?:사\\s*업\\s*)?자|임\\s*대\\s*인|임\\s*차\\s*인|(?:개\\s*업\\s*)?공\\s*인\\s*중\\s*개\\s*사|중\\s*개\\s*보\\s*조\\s*원)';
 const SIGNATURE_FIELD =
   '(?:성\\s*명|주\\s*소|주\\s*민\\s*(?:등\\s*록\\s*)?번\\s*호|생\\s*년\\s*월\\s*일|전\\s*화|연\\s*락\\s*처|휴\\s*대\\s*전\\s*화|법\\s*인\\s*명)(?![가-힣])' +
   '|주\\s*민\\s*등\\s*록|사\\s*무\\s*소|등\\s*록\\s*번\\s*호|대\\s*표\\s*자?(?![가-힣])';
@@ -605,7 +606,8 @@ function parseRightHolder(line) {
     /\s+(?:\d{6}-[\d*]{1,7}|채\s*무\s*자|위\s*탁\s*자|대\s*상\s*소\s*유\s*자|(?:서울|부산|대구|인천|광주|대전|울산|세종)(?:특별자치시|특별시|광역시|시)|경기도|강원(?:특별자치도|도)?|충청[남북]도|전라[남북]도|전북특별자치도|경상[남북]도|제주(?:특별자치도|도)?|[가-힣]{2,4}(?:시|군|구)(?=\s+[가-힣0-9]+(?:구|읍|면|동|로|길)))/,
   )[0];
   rest = rest.replace(/[,.;:]+$/, '').trim();
-  if (!rest || /^\d/.test(rest)) return null;
+  // 표 머리줄 "권리자 및 기타사항"의 "및 기타사항"은 이름이 아니다
+  if (!rest || /^\d/.test(rest) || /^및(?![가-힣])/.test(rest)) return null;
   return rest;
 }
 
@@ -630,6 +632,26 @@ function parseRightCause(line) {
     if (m) return m[0].replace(/\s+/g, '');
   }
   return null;
+}
+
+/** 등기원인 칸 뒤에 오는 사람·회사 칸 라벨: 여기부터는 이름이라 원인을 찾지 않는다 */
+const PARTY_LABEL_CUT =
+  /근\s*저\s*당\s*권\s*자|채\s*권\s*자|채\s*무\s*자|수\s*탁\s*자|위\s*탁\s*자|권\s*리\s*자|전\s*세\s*권\s*자|임\s*차\s*권\s*자|소\s*유\s*자|공\s*유\s*자/;
+/** 회사 이름 모양 ("신탁" 한 낱말은 등기원인이기도 해서 넣지 않는다) */
+const COMPANY_NAME_WORD = /주\s*식\s*회\s*사|유\s*한\s*회\s*사|㈜|\(주\)|은\s*행|캐\s*피\s*탈|금\s*고|조\s*합|보\s*험|공\s*사|공\s*단/;
+
+/**
+ * 등기원인을 사람·회사 칸 앞에서만 찾는다. (PR #351 후속 점검)
+ * - "제17346호 설정계약 채무자 가상리빙주식회사" → "설정계약" (채무자 칸 앞)
+ * - 회사 이름만 넘어온 줄 "가상신탁주식회사 110111-…"의 "신탁"은 원인이 아니다 → null
+ * @param {string} line
+ * @returns {string | null}
+ */
+function causeBeforeParties(line) {
+  const cut = PARTY_LABEL_CUT.exec(line);
+  const head = cut ? line.slice(0, cut.index) : line;
+  if (COMPANY_NAME_WORD.test(head)) return null;
+  return parseRightCause(head);
 }
 
 /**
@@ -674,6 +696,13 @@ const SUMMARY_HEADING = /주\s*요\s*등\s*기\s*사\s*항\s*요\s*약/;
  * 유효한 근저당까지 cancelled: null(확인 필요)이 됐다. 이런 줄은 권리·말소 기록으로 보지 않는다.
  */
 const NOTE_LINE = /^\s*\*|말\s*소\s*사\s*항|이\s*하\s*여\s*백/;
+/** 갑구·을구 표의 머리줄: "순위번호 등기목적 접수 등기원인 권리자 및 기타사항" (쪽이 넘어가면 다시 나온다) */
+const TABLE_HEADER_LINE = /순\s*위\s*번\s*호|권\s*리\s*자\s*및\s*기\s*타\s*사\s*항/;
+/**
+ * 순위번호 뒤에 한글 등기목적(2글자 이상)이 오는지: "3 가처분", "4 예고등기"
+ * 사진 OCR 잡글자 줄("107 — —", "1 ⎸ 2019년4월2일 …")은 기록이 아니라서 못 알아본 기록으로 세지 않는다.
+ */
+const PURPOSE_AFTER_RANK = /^\s*[가-힣](?:\s*[가-힣])+/;
 /**
  * 줄 맨 앞의 순위번호: "3 가압류", "1-1 근저당권변경"(부기등기).
  * 순위번호가 아닌 것: "2020년…"(날짜), "2/3"(쪽 번호), "23층(○○동)"·"101동"·"502호"(주소 둘째 줄) (#183 실제 신탁 등기부)
@@ -780,10 +809,8 @@ export function findRegistryRights(lines) {
   let waitingDate = null;
 
   for (let i = 0; i < lines.length; i += 1) {
-    const rawLine = lines[i];
-    const rawRank = RANK_REGEX.exec(rawLine);
     const joined = joinWrappedRow(lines, i);
-    const line = joined ?? rawLine;
+    const line = joined ?? lines[i];
     if (joined !== null) i += 1; // 붙인 다음 줄은 다시 보지 않는다
     if (SUMMARY_HEADING.test(line)) break;
     const empty = EMPTY_SECTION.exec(line);
@@ -808,6 +835,8 @@ export function findRegistryRights(lines) {
     }
     if (section === null) continue;
     if (NOTE_LINE.test(line)) continue; // 안내 줄의 "말소사항"은 말소 기록이 아니다
+    // 쪽이 넘어가며 다시 나오는 표 머리줄: 앞 권리의 권리자("및 기타사항")로 읽지 않는다
+    if (TABLE_HEADER_LINE.test(line)) continue;
 
     const rankMatch = RANK_REGEX.exec(line);
     if (rankMatch) {
@@ -837,15 +866,14 @@ export function findRegistryRights(lines) {
         : null;
 
     if (CONTINUATION_LINE.test(line)) {
-      if (activeRight) {
-        if (activeRight.holder === null) {
-          const h = parseRightHolder(line);
-          if (h !== null) {
-            activeRight.holder = h;
-            activeRight.holderIsCompany = isCompanyHolder(h);
-          }
+      // 권리자 줄("근저당권자 가상신탁주식회사 …")에서는 등기원인을 읽지 않는다.
+      // 회사 이름의 "신탁"이 원인 "신탁"으로 읽혔다.
+      if (activeRight && activeRight.holder === null) {
+        const h = parseRightHolder(line);
+        if (h !== null) {
+          activeRight.holder = h;
+          activeRight.holderIsCompany = isCompanyHolder(h);
         }
-        if (activeRight.cause === null) activeRight.cause = parseRightCause(line);
       }
       continue;
     }
@@ -872,14 +900,18 @@ export function findRegistryRights(lines) {
             activeRight.holderIsCompany = isCompanyHolder(h);
           }
         }
-        if (activeRight.cause === null) activeRight.cause = parseRightCause(line);
+        if (activeRight.cause === null) activeRight.cause = causeBeforeParties(line);
       }
       continue;
     }
     if (rank !== null && places.some((p) => p.section === section && p.rank === rank)) continue;
     // 신탁은 한 기록 안에 여러 줄로 나온다: "2 소유권이전 … 수탁자 ○○자산신탁(주)" / "신탁" / "신탁 신탁원부 제…호".
     // 순위번호 없는 신탁 줄은, 같은 기록에서 신탁을 이미 셌으면 새 권리가 아니다. (실제 양식 서류 점검)
-    if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) continue;
+    if (rank === null && found.kind === 'TRUST' && rowKinds.has('TRUST')) {
+      // 이 줄이 등기원인 칸("제71802호 신탁 …")이면 앞 신탁의 원인으로 붙인다
+      if (activeRight && activeRight.cause === null) activeRight.cause = causeBeforeParties(line);
+      continue;
+    }
 
     const holder = parseRightHolder(line);
     /** @type {RegistryRight} */
@@ -892,7 +924,7 @@ export function findRegistryRights(lines) {
       receivedAt: rank !== null ? parseDate(line) : null,
       holder,
       holderIsCompany: isCompanyHolder(holder),
-      cause: parseRightCause(line),
+      cause: causeBeforeParties(line),
     };
     rights.push(right);
     if (rank !== null && right.receivedAt === null) waitingDate = { right, seen: 0 };
@@ -974,6 +1006,7 @@ export function findUnknownActiveCount(lines) {
       continue;
     }
     if (!rankMatch) continue; // 순위번호 없는 이어지는 줄은 새 미인식 기록으로 세지 않는다
+    if (!PURPOSE_AFTER_RANK.test(line.slice(rankMatch[0].length))) continue; // OCR 잡글자 줄
     if (CONTINUATION_LINE.test(line)) continue;
     if (wrappedOwnership || KNOWN_OWNERSHIP_ROW.test(line)) continue;
     if (RIGHT_KINDS.some(({ regex }) => regex.test(line))) continue;
@@ -1358,7 +1391,13 @@ const CONTRACT_PREAMBLE =
   /임\s*대\s*인.*임\s*차\s*인.*(?:부\s*동\s*산|계\s*약|아래)|(?:이\s*하|약\s*칭)\s*["'「]?\s*(?:갑|을|임\s*대\s*인|임\s*차\s*인)/;
 /** 인적사항 칸을 끝내는 다음 구역/조항 제목 */
 const PERSONAL_INFO_NEXT_SECTION =
-  /^\s*(?:■|◈|[[【]\s*[^\]】\n]{1,40}\s*[\]】]|제\s*\d{1,2}\s*조\s*[(（]|\d{1,2}\s*[.)]\s*\S+|(?:본|이|위)\s*계\s*약\s*을\s*증\s*명)/;
+  /^\s*(?:■|◈|◆|◇|○|#|ㅇ\s|[[【]\s*[^\]】\n]{1,40}\s*[\]】]|제\s*\d{1,2}\s*조\s*[(（]|\d{1,2}\s*[.)]\s*\S+|(?:본|이|위)\s*계\s*약\s*을\s*증\s*명)/;
+/**
+ * 문장으로 끝나는 줄 ("…적용됩니다.", "…할 수 없습니다.", "…한다."): 인적사항 칸의 값이 아니라 안내·본문이다.
+ * 사진 OCR은 안내 상자의 "◈"를 "#"·"ㅇ"으로 읽어 다음 구역 제목을 못 알아보므로, 문장 줄에서도 칸을 끝낸다.
+ * (가짜세트4 사진: 중개사 칸 범위가 아래 민간임대 안내문 17줄까지 먹어 AI에 안 갔다)
+ */
+const SENTENCE_LINE_END = /(?:니다|한다|된다|있다|없다)\s*[.,]?\s*$/;
 
 /**
  * 계약서 전체 줄 배열(linesOf) 기준 인적사항(임대인·임차인·중개사·서명란) 구간의
@@ -1412,6 +1451,7 @@ export function findPersonalInfoRanges(lines) {
         if (
           termLineSet.has(j) ||
           PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          SENTENCE_LINE_END.test(cur) ||
           isSpecialTermsHeading(cur) ||
           CONTRACT_PREAMBLE.test(cur)
         ) {
@@ -1451,6 +1491,7 @@ export function findPersonalInfoRanges(lines) {
         if (
           termLineSet.has(j) ||
           PERSONAL_INFO_NEXT_SECTION.test(cur) ||
+          SENTENCE_LINE_END.test(cur) ||
           isSpecialTermsHeading(cur) ||
           CONTRACT_PREAMBLE.test(cur)
         ) {
