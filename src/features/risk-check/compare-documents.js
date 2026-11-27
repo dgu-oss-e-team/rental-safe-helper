@@ -25,6 +25,7 @@ import { buildRiskResult } from './risk-explanations.js';
 import { hasActiveTrust } from './assess-risks.js';
 import rules from '../../config/templates/person-labels.json';
 import { isPhotoDocument } from './photo-document.js';
+import { NAME_NOTICE } from './risk-result-model.js';
 
 /** PART 4 personGroups의 status 값 */
 const PERSON_CONFIRMED = 'CONFIRMED';
@@ -54,6 +55,47 @@ function resolveGroups(people, personGroups) {
 function describePeople(people) {
   if (!Array.isArray(people) || people.length === 0) return null;
   return people.map((p) => (p.birthDate ? `${p.name} (birth ${p.birthDate})` : p.name)).join(', ');
+}
+
+/** 이름 비교용: 공백 제거, 대문자 */
+const nameKey = (/** @type {unknown} */ name) => String(name ?? '').replace(/\s+/g, '').toUpperCase();
+
+/**
+ * 이름이 같은 사람이 양쪽에 있을 때 화면에 붙일 안내 코드를 정한다. (코드만 돌려준다. 이름·생년월일은 돌려주지 않는다)
+ *  - 이름이 같고 생년월일이 둘 다 있는데 다르면 SAME_NAME_DIFFERENT_BIRTH
+ *  - 이름이 같은데 어느 한쪽 생년월일이 없으면 SAME_NAME_BIRTH_UNKNOWN
+ *  - 해당 없으면 undefined
+ * @param {any[] | null | undefined} members
+ * @param {any[] | null | undefined} allowed
+ * @returns {string | undefined}
+ */
+function sameNameNotice(members, allowed) {
+  if (!Array.isArray(members) || !Array.isArray(allowed)) return undefined;
+  let unknown = false;
+  for (const a of members) {
+    for (const b of allowed) {
+      const key = nameKey(a?.name);
+      if (!key || key !== nameKey(b?.name)) continue;
+      if (a.findingId && a.findingId === b.findingId) continue; // 같은 기록
+      if (a.birthDate && b.birthDate) {
+        if (a.birthDate !== b.birthDate) return NAME_NOTICE.SAME_NAME_DIFFERENT_BIRTH;
+      } else {
+        unknown = true;
+      }
+    }
+  }
+  return unknown ? NAME_NOTICE.SAME_NAME_BIRTH_UNKNOWN : undefined;
+}
+
+/**
+ * buildRiskResult()가 돌려준 결과에 화면 전용 notice를 붙인다.
+ * (risk-explanations.js를 바꾸지 않으려고 여기서 붙인다. notice가 없거나 실패 결과면 그대로 돌려준다)
+ * @param {ReturnType<typeof buildRiskResult>} result
+ * @param {string | undefined} notice
+ */
+function withNotice(result, notice) {
+  if (!notice || !result.ok) return result;
+  return ok({ ...result.data, notice });
 }
 
 /** @param {any[]} groups */
@@ -101,10 +143,15 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
   const values = displayValues ?? { left: describePeople(display.left), right: describePeople(display.right) };
 
   if (!memberGroups || !allowedGroups) {
-    return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values });
+    // 판정 보류 등: "생년월일 없음" 안내만 붙인다. 같은 사람이라고도 다른 사람이라고도 쓰지 않는다.
+    const notice = sameNameNotice(members, allowed);
+    return withNotice(
+      buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values }),
+      notice === NAME_NOTICE.SAME_NAME_BIRTH_UNKNOWN ? notice : undefined,
+    );
   }
 
-    const allowedIds = new Set(allowedGroups.map((g) => g.personId));
+  const allowedIds = new Set(allowedGroups.map((g) => g.personId));
   const memberIds = new Set(memberGroups.map((g) => g.personId));
   const same = [...memberIds].every((id) => allowedIds.has(id));
   const aliases = {
@@ -116,7 +163,7 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
     if (hasUnreliableName([...members, ...allowed])) {
       return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'unreliable_name', values });
     }
-    return buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values });
+        return withNotice(buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values }), sameNameNotice(members, allowed));
   }
   // 공동 소유: 소유자가 2명 이상인데 그중 일부만 임대인으로 서명했다면 나머지 소유자의 동의가 필요하다
   const everyOwnerSigns = [...allowedIds].every((id) => memberIds.has(id));

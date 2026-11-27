@@ -21,7 +21,7 @@ import { el } from '../../app/ui.js';
 import { MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
 // index.js가 아니라 이 파일을 직접 불러와 첫 화면을 가볍게 둔다 (index.js는 YAML 규칙 파일까지 불러온다)
 import { getRecommendedQuestions } from './recommended-questions.js';
-import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, normalizeStatus, groupRiskResults, validFilter } from './risk-result-model.js';
+import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, NAME_NOTICE_TEXT, normalizeStatus, groupRiskResults, validFilter } from './risk-result-model.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
 
@@ -64,10 +64,18 @@ export function resetRiskResultsView() {
 function riskCard(r) {
   const status = normalizeStatus(r.status);
   const evidence = r.evidence?.left && r.evidence?.right ? r.evidence : null;
+  // 이름이 같은 사람 안내 (화면 전용, 알 수 없는 코드는 그리지 않는다)
+  const notice = r.notice ? NAME_NOTICE_TEXT[r.notice] ?? null : null;
   // data-rule: 결과 화면의 "See what changed"가 바뀐 카드를 찾을 때 쓴다 (개선 목록 5번)
   return el('li', { class: `risk risk-${status.toLowerCase()}`, 'data-rule': r.ruleId }, [
     el('span', { class: 'badge' }, [STATUS_TEXT[status]]),
     el('h3', {}, [r.title]),
+    notice
+      ? el('p', { class: `name-notice name-notice-${notice.tone}`, role: 'note' }, [
+          el('strong', {}, [notice.headline]),
+          ` ${notice.detail}`,
+        ])
+      : null,
     el('p', {}, [r.explanation]),
     el('p', { class: 'action' }, [el('strong', {}, ['What to do: ']), r.action]),
     // 근거 칸: 실제 이름·주소가 들어갈 수 있으므로 화면에만 보여 준다 (프롬프트에는 없음)

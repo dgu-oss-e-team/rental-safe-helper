@@ -59,3 +59,23 @@ export function groupRiskResults(riskResults) {
 export function validFilter(groups, filter) {
   return filter && groups[filter]?.length > 0 ? filter : null;
 }
+
+/** 이름이 같은 사람이 끼어 있을 때 카드에 붙이는 안내 코드 (개인정보 아님) */
+export const NAME_NOTICE = {
+  SAME_NAME_DIFFERENT_BIRTH: 'SAME_NAME_DIFFERENT_BIRTH',
+  SAME_NAME_BIRTH_UNKNOWN: 'SAME_NAME_BIRTH_UNKNOWN',
+};
+
+/** 코드 → 화면 문구. tone은 CSS 클래스(name-notice-<tone>)에 쓴다. */
+export const NAME_NOTICE_TEXT = {
+  [NAME_NOTICE.SAME_NAME_DIFFERENT_BIRTH]: {
+    tone: 'different',
+    headline: 'Same name, different date of birth',
+    detail: 'The names match, but the dates of birth do not. These are probably two different people.',
+  },
+  [NAME_NOTICE.SAME_NAME_BIRTH_UNKNOWN]: {
+    tone: 'unknown',
+    headline: 'Same name, date of birth not available',
+    detail: 'We cannot tell if this is the same person. Please check the ID yourself.',
+  },
+};
