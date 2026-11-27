@@ -53,6 +53,18 @@ export function resultsScreen(state, act) {
     ...uploadSlotNotices(analysis.documents, state.uploadSlots),
     ...uploadPartNotices(state.uploadParts, state.uploadSlots),
   ];
+  // 칸에 다른 서류를 넣었거나 서류 종류를 모르면, 다시 올리러 가는 버튼을 둔다 (기능 개선 목록 10번)
+  // ① 화면으로 돌아가도 고른 파일은 남아 있어서, 틀린 칸의 파일만 바꾸면 된다.
+  const backToUpload =
+    unknown > 0 || slotNotices.length > 0
+      ? actions([
+          // 종류를 모르는 서류가 있으면 눈에 띄는 기본 버튼, 칸만 다르면 보조 버튼
+          button('Go back and choose the right file', () => act.goTo('upload'), {
+            id: 'back-to-upload',
+            ...(unknown > 0 ? {} : { variant: 'secondary' }),
+          }),
+        ])
+      : null;
 
   // 질문 카드는 결과 목록 아래에 있어서 휴대폰에서는 화면 몇 개 아래로 밀린다.
   // 그래서 결과 요약 바로 아래에 안내와 "바로 가기" 버튼을 둔다. (#91)
@@ -89,19 +101,6 @@ export function resultsScreen(state, act) {
       ])
     : null;
 
-  // 칸에 다른 서류를 넣었거나 서류 종류를 모르면, 다시 올리러 가는 버튼을 둔다 (기능 개선 목록 10번)
-  // ① 화면으로 돌아가도 고른 파일은 남아 있어서, 틀린 칸의 파일만 바꾸면 된다.
-  const backToUpload =
-    unknown > 0 || slotNotices.length > 0
-      ? actions([
-          // 종류를 모르는 서류가 있으면 눈에 띄는 기본 버튼, 칸만 다르면 보조 버튼
-          button('Go back and choose the right file', () => act.goTo('upload'), {
-            id: 'back-to-upload',
-            ...(unknown > 0 ? {} : { variant: 'secondary' }),
-          }),
-        ])
-      : null;
-
   return el('div', {}, [
     card('Documents', [
       el(
@@ -129,8 +128,9 @@ export function resultsScreen(state, act) {
       backToUpload,
     ]),
     card('Check before you sign', [
-      roleLegend(),
       questionNotice,
+      // 역할 이름·가명 설명은 그 이름을 쓰는 결과 카드 바로 위에 둔다 (기능 개선 목록 9번)
+      roleLegend(),
       // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
       slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
     ]),
