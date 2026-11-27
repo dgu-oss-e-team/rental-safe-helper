@@ -245,7 +245,7 @@ export function resultsScreen(state, act) {
     // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 여기 한 번만 (#377)
     renderScreenOnlyNote(),
     actions([
-      button('Ask AI about these results', () => act.goTo('purpose')),
+      button('Next: see what AI will get', () => act.goTo('purpose')),
       button('Start over', () => act.restart(), { variant: 'secondary' }),
     ]),
   ]);
