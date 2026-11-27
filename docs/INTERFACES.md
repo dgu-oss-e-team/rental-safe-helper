@@ -72,7 +72,7 @@
 - 실패했을 때 PART 5(`pipeline.js`)는 `step: 'assessRisks'`로 멈추고 `analysis`를 만들지 않는다. 결과 화면과 AI 프롬프트 단계로 넘어가지 않고 오류 안내만 보인다. `riskResults`를 빈 배열로 채워 넘기지 않는다.
 - 오류 메시지에는 개인정보를 넣지 않는다 (영어 고정 문구).
 
-#### `buildPrompt({ purpose, riskResults, maskedText, legend })` → `Result<string>`
+#### `buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent?, registry? })` → `Result<string>`
 
 | 입력 | 내용 |
 |---|---|
@@ -80,8 +80,11 @@
 | `maskedText` | PART 4 `applyMaskingPlan()`이 돌려준 `{ [documentId]: 마스킹 완료 텍스트 }`. **없거나 비어 있으면 `MISSING_REQUIRED_FIELD`로 실패**한다 (원본 글자로 대신하지 않는다) |
 | `legend` | PART 4가 돌려준 역할 범례 `{ '[Owner_A]': 'owner on the register' }`. 없어도(undefined) 된다 |
 | `riskResults` | `assessRisks()`의 `data`. 없거나 `[]`여도 오류가 아니다. 이때는 "Automatic check results" 칸만 빠지고 다른 칸은 그대로 만든다 |
+| `registry` | (선택) `{ summaryTitle?, unavailable? }`. `summaryTitle`은 `maskedText` 중 등기부 요약(PART 4 `buildRegistrySummary`)인 글의 키로, 있으면 제목이 `### Registry (extracted)`로 나가고 안전 단정 금지 규칙이 붙는다. `unavailable: true`는 요약을 못 만들어 등기부를 뺐다는 뜻으로, **사기 위험 확인일 때만** "Registry: not provided (summary unavailable)..." 한 줄이 들어간다. 안 넘기면 기존과 똑같다 |
 
-프롬프트 칸 순서: 안내 문장 → `## Role legend`(사기 위험 확인 + 범례 있을 때) → `## Automatic check results`(사기 위험 확인 + 결과 있을 때) → `## Documents (masked)` → `## Questions` → `Please answer in English.`
+프롬프트 칸 순서: 안내 문장 → `## Role legend`(사기 위험 확인 + 범례 있을 때) → `## Automatic check results`(사기 위험 확인 + 결과 있을 때) → `## Registry summary rules`(등기부 요약이 있을 때) → `## Documents (masked)` → `## Questions` → `Please answer in English.`
+
+- **등기부 요약 규칙(#361):** 요약에 `Could not read`, `could not check`, `Unconfirmed register records`, `details hidden`, `cancellation unclear`, `check the original` 중 하나라도 있으면 AI가 "안전하다"고 답하지 않고 원본 등기부 확인을 안내하도록 한다. 이 표시 문구는 PART 4 `registry-summary.js`가 만드는 영어 문구와 같아야 하므로, 한쪽을 바꾸면 다른 쪽도 같이 바꾼다.
 
 - **"evidence는 프롬프트로 가지 않는다":** 위험 결과에서 프롬프트에 들어가는 것은 `status`, `title`, `explanation`뿐이다. `evidence`(실제 이름·주소·특약 원문이 들어갈 수 있는 화면 근거 칸)와 `action`은 넣지 않는다.
 - 설명에 남은 가명이 범례에 없으면(사용자가 가림을 해제한 사람) `the landlord` 같은 역할 이름으로 바꿔서 넣는다.
@@ -439,7 +442,7 @@ Real estate agent: a section for the agent is present (details hidden)
 | 2 | `detectPII(document)` | DocumentModel | PiiFinding[] |
 | 2 | `extractFields(documents, findings)` | DocumentModel[], PiiFinding[] | 비교용 추출 데이터 |
 | 3 | `assessRisks(fields, personGroups)` | 추출 데이터, 인물 판별 결과 | RiskResult[] |
-| 3 | `buildPrompt({ purpose, riskResults, maskedText, legend })` | 위험 결과, 마스킹 완료 텍스트, 범례 | string |
+| 3 | `buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent?, registry? })` | 위험 결과, 마스킹 완료 텍스트, 범례, (선택) 등기부 요약 정보 | string |
 | 4 | `matchPeople(fields)` | 추출 데이터 | PersonGroup[] |
 | 4 | `createMaskingPlan(findings, personGroups, purpose, edits?)` | PiiFinding[], PersonGroup[], 목적, 사용자 수정(8번, 없으면 빈 값) | MaskingPlan |
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
