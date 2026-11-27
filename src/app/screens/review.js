@@ -77,7 +77,7 @@ export function reviewScreen(state, act) {
   const korean = review.querySelector('.mr-korean');
   korean?.remove();
   // 서류마다 AI에 어떻게 보내는지 (#361의 sending). 등기부는 목적에 따라 요약만 가거나 안 가서, "AI가 보는 그대로"가 아니다 (개선 목록 12번)
-  const notes = sendingNotes(prepared.sending);
+  const notes = sendingNotes(prepared.sending, analysis.documents);
 
   return el('div', {}, [
     card('Check what will be shared', [
