@@ -91,6 +91,11 @@ export function initialState() {
     /** recheckPeople() 결과 (답으로 합친 그룹 + 다시 점검한 위험 결과). 답이 없으면 null */
     /** @type {import('./pipeline.js').Checked | null} */
     checked: null,
+    /**
+     * 마지막 "같은 사람인가요?" 답으로 바뀐 위험 점검 결과 (개선 목록 5번). 답한 적이 없으면 null, 바뀐 게 없으면 []
+     * @type {import('./result-changes.js').ResultChange[] | null}
+     */
+    resultChanges: null,
     purpose: MASKING_PURPOSE.FRAUD_CHECK,
     /** prepareForAi() 결과 */
     /** @type {import('./pipeline.js').Prepared | null} */

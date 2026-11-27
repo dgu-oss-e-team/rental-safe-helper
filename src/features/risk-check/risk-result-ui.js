@@ -64,7 +64,8 @@ export function resetRiskResultsView() {
 function riskCard(r) {
   const status = normalizeStatus(r.status);
   const evidence = r.evidence?.left && r.evidence?.right ? r.evidence : null;
-  return el('li', { class: `risk risk-${status.toLowerCase()}` }, [
+  // data-rule: 결과 화면의 "See what changed"가 바뀐 카드를 찾을 때 쓴다 (개선 목록 5번)
+  return el('li', { class: `risk risk-${status.toLowerCase()}`, 'data-rule': r.ruleId }, [
     el('span', { class: 'badge' }, [STATUS_TEXT[status]]),
     el('h3', {}, [r.title]),
     el('p', {}, [r.explanation]),

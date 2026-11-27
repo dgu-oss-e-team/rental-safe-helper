@@ -8,6 +8,59 @@ import { currentAnalysis } from '../app-state.js';
 import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
 import { uploadSlotNotices, uploadPartNotices } from '../upload-check.js';
+import { changeText } from '../result-changes.js';
+
+/** 바뀐 카드를 강조해 두는 시간 (ms) */
+const HIGHLIGHT_MS = 2500;
+
+/**
+ * 바뀐 카드로 스크롤하고 잠깐 강조한다. 접힌 칸(Could not check 등) 안이면 펼치고,
+ * 상태 필터 때문에 안 보이면 필터를 풀어 전체 보기로 바꾼다.
+ * @param {string[]} ruleIds  답한 뒤에도 있는 바뀐 결과의 규칙 id
+ */
+export function showChangedCards(ruleIds) {
+  /** @param {string} id */
+  const find = (id) => /** @type {HTMLElement | null} */ (document.querySelector(`.risk[data-rule="${CSS.escape(id)}"]`));
+  if (ruleIds.length > 0 && !ruleIds.some(find)) {
+    // 필터로 다른 상태만 보고 있으면 눌린 버튼을 다시 눌러 전체 보기로 (PART 3 결과 카드의 필터)
+    /** @type {HTMLButtonElement | null} */ (document.querySelector('.risk-chip[aria-pressed="true"]'))?.click();
+  }
+  const cards = ruleIds.map(find).filter((c) => c !== null);
+  for (const c of cards) {
+    const group = c.closest('details');
+    if (group && !(/** @type {HTMLDetailsElement} */ (group).open)) /** @type {HTMLDetailsElement} */ (group).open = true;
+    c.classList.add('risk-changed');
+    setTimeout(() => c.classList.remove('risk-changed'), HIGHLIGHT_MS);
+  }
+  const first = cards[0];
+  if (!first) return;
+  first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // 화면 낭독기·키보드 사용자도 바뀐 카드로 옮겨 가도록 카드 제목에 포커스
+  const heading = first.querySelector('h3');
+  if (heading) {
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+  }
+}
+
+/**
+ * "같은 사람인가요?"에 답한 뒤 결과가 바뀌었다는 안내 (개선 목록 5번). 답한 적이 없으면 null.
+ * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
+ */
+function resultsUpdatedNotice(changes) {
+  if (!Array.isArray(changes)) return null;
+  if (changes.length === 0) {
+    return el('div', { class: 'results-updated', id: 'results-updated', role: 'status' }, [
+      el('p', {}, ['Results updated. Your answer did not change any result.']),
+    ]);
+  }
+  const visible = changes.filter((c) => c.to !== null).map((c) => c.ruleId);
+  return el('div', { class: 'results-updated', id: 'results-updated', role: 'status' }, [
+    el('p', {}, [el('strong', {}, ['Results updated. ']), `Your answer changed ${changes.length === 1 ? '1 result' : `${changes.length} results`}:`]),
+    el('ul', {}, changes.map((c) => el('li', {}, [changeText(c)]))),
+    visible.length > 0 ? button('See what changed', () => showChangedCards(visible), { variant: 'secondary', id: 'see-changes' }) : null,
+  ]);
+}
 
 /**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
@@ -69,6 +122,8 @@ export function resultsScreen(state, act) {
       ])
     : null;
 
+  const changesNotice = resultsUpdatedNotice(state.resultChanges);
+
   return el('div', {}, [
     card('Documents', [
       el(
@@ -86,6 +141,7 @@ export function resultsScreen(state, act) {
         : null,
     ]),
     card('Check before you sign', [
+      changesNotice,
       questionNotice,
       // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
       slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
