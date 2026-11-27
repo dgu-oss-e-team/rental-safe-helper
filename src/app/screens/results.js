@@ -44,22 +44,51 @@ export function showChangedCards(ruleIds) {
 }
 
 /**
- * "같은 사람인가요?"에 답한 뒤 결과가 바뀌었다는 안내 (개선 목록 5번). 답한 적이 없으면 null.
- * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
+ * 마지막으로 자동으로 보여 준 답 결과. 화면은 여러 번 다시 그려지므로(필터·다른 상태 변경),
+ * 같은 답으로 두 번 자동 이동하지 않게 기억해 둔다. (resultChanges는 답할 때마다 새 배열)
+ * @type {unknown}
  */
-function resultsUpdatedNotice(changes) {
+let autoShownFor = null;
+
+/**
+ * "같은 사람인가요?"에 답한 뒤 결과가 바뀌었다는 안내 (개선 목록 5번). 답한 적이 없으면 null.
+ * 결과 위쪽(where: 'top')과 답한 질문 바로 아래(where: 'here') 두 곳에 같은 내용을 둔다.
+ * 질문은 결과 아래에 있어서, 답한 자리에서 바로 알 수 있게 한다.
+ * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
+ * @param {'top' | 'here'} where
+ */
+function resultsUpdatedNotice(changes, where) {
   if (!Array.isArray(changes)) return null;
+  const suffix = where === 'here' ? '-here' : '';
+  // 화면 낭독기는 사용자가 있는 곳(답한 질문 아래)의 안내만 읽게 한다 (두 번 읽지 않게)
+  const attrs = { class: `results-updated results-updated-${where}`, id: `results-updated${suffix}`, role: where === 'here' ? 'status' : undefined };
   if (changes.length === 0) {
-    return el('div', { class: 'results-updated', id: 'results-updated', role: 'status' }, [
-      el('p', {}, ['Results updated. Your answer did not change any result.']),
-    ]);
+    return el('div', attrs, [el('p', {}, ['Results updated. Your answer did not change any result.'])]);
   }
   const visible = changes.filter((c) => c.to !== null).map((c) => c.ruleId);
-  return el('div', { class: 'results-updated', id: 'results-updated', role: 'status' }, [
+  return el('div', attrs, [
     el('p', {}, [el('strong', {}, ['Results updated. ']), `Your answer changed ${changes.length === 1 ? '1 result' : `${changes.length} results`}:`]),
     el('ul', {}, changes.map((c) => el('li', {}, [changeText(c)]))),
-    visible.length > 0 ? button('See what changed', () => showChangedCards(visible), { variant: 'secondary', id: 'see-changes' }) : null,
+    visible.length > 0
+      ? button('See what changed', () => showChangedCards(visible), { variant: 'secondary', id: `see-changes${suffix}` })
+      : null,
   ]);
+}
+
+/**
+ * 마지막 질문까지 답했으면 바뀐 카드로 자동으로 올라간다 (개선 목록 5번, 섞는 방식).
+ *  - 아직 답할 질문이 남았으면 움직이지 않는다 (답할 때마다 위로 튀면 다음 질문에 답하기 어렵다)
+ *  - 바뀐 게 없거나 사라진 결과만 바뀌었으면 움직이지 않는다
+ * 화면을 다 그린 뒤 움직여야 해서 다음 차례로 미룬다.
+ * @param {import('../result-changes.js').ResultChange[] | null | undefined} changes
+ * @param {boolean} allAnswered
+ */
+function autoShowChanges(changes, allAnswered) {
+  if (!Array.isArray(changes) || changes === autoShownFor || !allAnswered) return;
+  const visible = changes.filter((c) => c.to !== null).map((c) => c.ruleId);
+  if (visible.length === 0) return;
+  autoShownFor = changes;
+  setTimeout(() => showChangedCards(visible), 0);
 }
 
 /**
@@ -96,6 +125,8 @@ export function resultsScreen(state, act) {
           'Some people could not be matched because a birth date was missing or a name may have been misread. Your answer updates the results above.',
         ]),
         questions,
+        // 답한 자리에서 바로 무엇이 바뀌었는지 보이게 한다 (개선 목록 5번)
+        resultsUpdatedNotice(state.resultChanges, 'here'),
       ])
     : null;
   // 물어보는 사람 = 화면에 보이는 질문 카드 (같은 두 사람은 한 번만, #171)
@@ -122,7 +153,8 @@ export function resultsScreen(state, act) {
       ])
     : null;
 
-  const changesNotice = resultsUpdatedNotice(state.resultChanges);
+  const changesNotice = resultsUpdatedNotice(state.resultChanges, 'top');
+  autoShowChanges(state.resultChanges, asked > 0 && answered >= asked);
 
   return el('div', {}, [
     card('Documents', [

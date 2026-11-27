@@ -6,6 +6,8 @@ import { diffRiskResults, changeText } from '../src/app/result-changes.js';
 import { resultsScreen } from '../src/app/screens/results.js';
 import { initialState } from '../src/app/app-state.js';
 import { RISK_STATUS } from '../src/shared/document-model.js';
+import { matchPeople } from '../src/features/masking/index.js';
+import { assessRisks } from '../src/features/risk-check/index.js';
 
 const { STOP, CHECK, UNVERIFIABLE, NO_FLAG } = RISK_STATUS;
 /** @param {string} ruleId @param {string} status @param {string} [title] */
@@ -96,5 +98,76 @@ describe('② 결과 화면: "Results updated"와 "See what changed"', () => {
     const node = screenFor([{ ruleId: 'OLD', title: 'Old check', from: CHECK, to: null }], [result('A', STOP)]);
     expect(node.querySelector('#results-updated')?.textContent).toContain('Old check: no longer shown');
     expect(node.querySelector('#see-changes')).toBeNull();
+  });
+});
+
+describe('② 결과 화면: 답한 자리 안내와 마지막 답 뒤 자동 이동 (섞는 방식)', () => {
+  // 계약서만: 임대인·예금주(둘 다 생년월일 없음)만 있어서 서로가 유일한 후보 → 질문 카드 하나
+  const onlyTwo = {
+    registry: {},
+    contract: {
+      landlords: [{ findingId: 'B', name: '김가상', birthDate: null, role: 'LANDLORD' }],
+      accountHolders: [{ findingId: 'C', name: '김가상', birthDate: null, role: 'ACCOUNT_HOLDER' }],
+    },
+  };
+  const personGroups = matchPeople(onlyTwo).data;
+  const landlordId = personGroups.find((g) => g.roles.includes('LANDLORD')).personId;
+  const riskResults = assessRisks(onlyTwo, personGroups).data;
+  const ruleId = riskResults[0].ruleId;
+
+  /** @param {any} personAnswers @param {any} resultChanges */
+  const screenFor = (personAnswers, resultChanges) => {
+    const analysis = { fields: onlyTwo, personGroups, riskResults, documents: [], files: [], findings: [] };
+    const state = /** @type {any} */ ({ ...initialState(), step: 'results', analysis, personAnswers, resultChanges });
+    const node = resultsScreen(state, /** @type {any} */ ({ setPersonAnswers: vi.fn(), goTo: vi.fn(), restart: vi.fn() }));
+    document.body.replaceChildren(node);
+    return node;
+  };
+  const card = () => document.querySelector(`.risk[data-rule="${ruleId}"]`);
+
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.replaceChildren();
+  });
+
+  it('답한 질문 바로 아래에도 같은 안내와 "See what changed"가 있다 (위쪽 안내는 화면 낭독기가 두 번 읽지 않게 status가 아님)', () => {
+    vi.useFakeTimers();
+    const changes = [{ ruleId, title: 'T', from: 'NO_FLAG', to: 'STOP' }];
+    const node = screenFor({}, changes);
+    const here = node.querySelector('#results-updated-here');
+    expect(here?.closest('section, .card')?.textContent).toContain('Help us check who is who');
+    expect(here?.getAttribute('role')).toBe('status');
+    expect(node.querySelector('#results-updated')?.getAttribute('role')).toBeNull();
+    /** @type {HTMLButtonElement} */ (node.querySelector('#see-changes-here')).click();
+    expect(card()?.classList.contains('risk-changed')).toBe(true);
+  });
+
+  it('아직 답할 질문이 남았으면 자동으로 움직이지 않는다', () => {
+    vi.useFakeTimers();
+    screenFor({}, [{ ruleId, title: 'T', from: 'NO_FLAG', to: 'STOP' }]);
+    vi.advanceTimersByTime(10);
+    expect(card()?.classList.contains('risk-changed')).toBe(false);
+  });
+
+  it('마지막 질문까지 답했으면 바뀐 카드로 자동으로 가서 강조하고, 같은 답으로 다시 그려도 한 번만 움직인다', () => {
+    vi.useFakeTimers();
+    const changes = [{ ruleId, title: 'T', from: 'NO_FLAG', to: 'STOP' }];
+    screenFor({ [landlordId]: null }, changes);
+    vi.advanceTimersByTime(10);
+    expect(card()?.classList.contains('risk-changed')).toBe(true);
+    expect(document.activeElement).toBe(card()?.querySelector('h3'));
+
+    // 필터 등으로 화면만 다시 그려지면 또 움직이지 않는다
+    screenFor({ [landlordId]: null }, changes);
+    vi.advanceTimersByTime(10);
+    expect(card()?.classList.contains('risk-changed')).toBe(false);
+  });
+
+  it('마지막 답이어도 바뀐 게 없으면 움직이지 않고 "did not change"만 알린다', () => {
+    vi.useFakeTimers();
+    const node = screenFor({ [landlordId]: null }, []);
+    vi.advanceTimersByTime(10);
+    expect(node.querySelector('#results-updated-here')?.textContent).toContain('did not change any result');
+    expect(document.querySelector('.risk-changed')).toBeNull();
   });
 });
