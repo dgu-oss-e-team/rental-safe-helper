@@ -9,6 +9,7 @@ import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
 import { uploadSlotNotices, uploadPartNotices } from '../upload-check.js';
 import { changeText } from '../result-changes.js';
+import { renderConclusionBanner, renderScreenOnlyNote } from '../../features/risk-check/risk-result-ui.js';
 
 /** 바뀐 카드를 강조해 두는 시간 (ms) */
 const HIGHLIGHT_MS = 2500;
@@ -230,6 +231,8 @@ export function resultsScreen(state, act) {
       backToUpload,
     ]),
     card('Check before you sign', [
+      // 맨 위 결론 배너 (#377)
+      renderConclusionBanner(analysis.riskResults),
       changesNotice,
       questionNotice,
       // 역할 이름·가명 설명은 그 이름을 쓰는 결과 카드 바로 위에 둔다 (기능 개선 목록 9번)
@@ -239,6 +242,8 @@ export function resultsScreen(state, act) {
     ]),
     // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
     questionCard,
+    // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 여기 한 번만 (#377)
+    renderScreenOnlyNote(),
     actions([
       button('Ask AI about these results', () => act.goTo('purpose')),
       button('Start over', () => act.restart(), { variant: 'secondary' }),

@@ -75,11 +75,6 @@ button.risk-chip[aria-pressed='true'] {
   gap: 2px;
 }
 
-.risk .evidence-note {
-  font-size: 12px;
-  color: var(--muted);
-}
-
 /* AI 추천 질문 */
 .risk-questions {
   border: 1px solid var(--line);
@@ -94,3 +89,33 @@ button.risk-chip[aria-pressed='true'] {
   gap: 6px;
   font-size: 14px;
 }
+/* 결론 배너 (#377) */
+.risk-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+}
+.risk-banner h3 { margin: 0; font-size: 18px; }
+.risk-banner p { margin: 0; font-size: 14px; }
+.risk-banner-stop { background: var(--stop-bg); border-color: var(--stop); }
+.risk-banner-stop h3 { color: var(--stop); }
+.risk-banner-check { background: var(--check-bg); border-color: var(--check); }
+.risk-banner-check h3 { color: var(--check); }
+.risk-banner-unverifiable,
+.risk-banner-unverifiable h3 { color: var(--unverifiable); }
+.risk-banner-unverifiable { background: var(--unverifiable-bg); }
+.risk-banner-no_flag { background: var(--ok-bg); border-color: var(--ok); }
+.risk-banner-no_flag h3 { color: var(--ok); }
+.risk-banner-note { font-weight: 700; color: var(--unverifiable); }
+.risk-banner-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+/* 도움받을 곳 (결론 배너 아래, 한 번만) */
+.help-box { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.help-box p { margin: 0 0 4px; }
+.help-box ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* 화면에만 보이는 정보 안내 (결과 화면 맨 아래에 한 번) */
+.screen-only-note { margin: 0; font-size: 12px; color: var(--muted); }
