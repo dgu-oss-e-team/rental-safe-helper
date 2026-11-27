@@ -79,3 +79,58 @@ export const NAME_NOTICE_TEXT = {
     detail: 'We cannot tell if this is the same person. Please check the ID yourself.',
   },
 };
+/**
+ * 결과 화면 맨 위 결론 배너에 쓸 내용 (#377)
+ * 우선순위: STOP > CHECK > (읽은 게 없음) > 경고 없음.
+ * "경고 없음"이어도 안전하다고 단정하지 않는다.
+ * UNVERIFIABLE이 있으면 어떤 경우에도 "확인하지 못한 항목이 있다"를 함께 알린다.
+ * @param {RiskResult[]} riskResults
+ * @returns {{ level: 'stop' | 'check' | 'unverifiable' | 'no_flag', title: string, message: string, unverifiableNote: string | null }}
+ */
+export function getConclusion(riskResults) {
+  const groups = groupRiskResults(riskResults);
+  const stop = groups[RISK_STATUS.STOP].length;
+  const check = groups[RISK_STATUS.CHECK].length;
+  const noFlag = groups[RISK_STATUS.NO_FLAG].length;
+  const unverifiable = groups[RISK_STATUS.UNVERIFIABLE].length;
+  const unverifiableNote = unverifiable > 0 ? 'Some items could not be checked. Treat them as not confirmed.' : null;
+
+  const stopText = stop === 1 ? 'a serious warning' : `${stop} serious warnings`;
+  if (stop > 0) {
+    return {
+      level: 'stop',
+      title: 'Do not sign yet',
+      message: `We found ${stopText}. Solve ${stop === 1 ? 'it' : 'them'} first, before you sign or send any money.`,
+      unverifiableNote,
+    };
+  }
+  if (check > 0) {
+    return {
+      level: 'check',
+      title: 'Check these items before you sign',
+      message: 'Some items need to be confirmed first. See the cards below.',
+      unverifiableNote,
+    };
+  }
+  if (noFlag === 0) {
+    // 결과가 없거나 전부 확인 불가: "문제 없음"으로 읽히면 안 된다
+    return {
+      level: 'unverifiable',
+      title: 'We could not check this yet',
+      message: 'We could not read enough to check these documents. Please check them yourself.',
+      unverifiableNote: null,
+    };
+  }
+  return {
+    level: 'no_flag',
+    title: 'No warning found in the parts we could read',
+    message: 'This does not mean the home is safe. Please still read the contract and the registry yourself.',
+    unverifiableNote,
+  };
+}
+
+/** STOP 또는 CHECK가 하나라도 있으면 도움받을 곳을 보여 준다 (#377) */
+export function shouldShowHelp(riskResults) {
+  const g = groupRiskResults(riskResults);
+  return g[RISK_STATUS.STOP].length + g[RISK_STATUS.CHECK].length > 0;
+}

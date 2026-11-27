@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildPrompt, getRecommendedQuestions, assessRisks } from '../src/features/risk-check/index.js';
 import { replaceUnlistedAliases, ANSWER_RULES } from '../src/features/risk-check/prompt-builder.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
@@ -270,20 +270,18 @@ describe('동명이인 안내는 프롬프트에 들어가지 않는다 (#378)',
       expect(p.data).not.toContain(s);
     }
   });
-});
 
-import { vi } from 'vitest'; // 맨 위 vitest import에 vi 추가
+  it('분석 중 콘솔에 이름·생년월일이 찍히지 않는다', () => {
+    const spies = ['log', 'warn', 'error', 'info', 'debug'].map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    assessRisks(structuredClone(mockExtractedFields), structuredClone(mockPersonGroups));
+    const printed = JSON.stringify(spies.flatMap((s) => s.mock.calls));
+    for (const s of ['김철수', '800101', '750315']) expect(printed).not.toContain(s);
+    spies.forEach((s) => s.mockRestore());
+  });
 
-it('분석 중 콘솔에 이름·생년월일이 찍히지 않는다', () => {
-  const spies = ['log', 'warn', 'error', 'info', 'debug'].map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
-  assessRisks(structuredClone(mockExtractedFields), structuredClone(mockPersonGroups));
-  const printed = JSON.stringify(spies.flatMap((s) => s.mock.calls));
-  for (const s of ['김철수', '800101', '750315']) expect(printed).not.toContain(s);
-  spies.forEach((s) => s.mockRestore());
-});
-
-it('잘못된 입력의 오류 메시지에 개인정보가 없다', () => {
-  const r = assessRisks(null, []);
-  expect(r.ok).toBe(false);
-  expect(r.error.message).not.toMatch(/김철수|800101|750315/);
+  it('잘못된 입력의 오류 메시지에 개인정보가 없다', () => {
+    const r = assessRisks(null, []);
+    expect(r.ok).toBe(false);
+    expect(r.error.message).not.toMatch(/김철수|800101|750315/);
+  });
 });

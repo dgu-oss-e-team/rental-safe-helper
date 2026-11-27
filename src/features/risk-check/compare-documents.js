@@ -163,7 +163,12 @@ function comparePeople({ ruleId, members, allowed, memberKey, allowedKey, person
     if (hasUnreliableName([...members, ...allowed])) {
       return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'unreliable_name', values });
     }
-        return withNotice(buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values }), sameNameNotice(members, allowed));
+    // STOP은 "다른 사람"으로 정해진 결과라서 "같은 사람인지 알 수 없다"(BIRTH_UNKNOWN)는 붙이지 않는다.
+    const notice = sameNameNotice(members, allowed);
+    return withNotice(
+      buildRiskResult(ruleId, RISK_STATUS.STOP, { aliases, values }),
+      notice === NAME_NOTICE.SAME_NAME_DIFFERENT_BIRTH ? notice : undefined,
+    );
   }
   // 공동 소유: 소유자가 2명 이상인데 그중 일부만 임대인으로 서명했다면 나머지 소유자의 동의가 필요하다
   const everyOwnerSigns = [...allowedIds].every((id) => memberIds.has(id));

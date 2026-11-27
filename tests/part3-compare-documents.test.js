@@ -1024,6 +1024,14 @@ describe('PART 3 동명이인 안내 (notice, #378)', () => {
     expect(r.data.notice).toBeUndefined();
   });
 
+  it('이름이 같고 생년월일이 없는데 다른 사람으로 확정되면 STOP이고 notice가 없다', () => {
+    const f = fields();
+    f.contract.landlords[0].birthDate = null; // 임대인 생년월일 없음, 그룹은 P1/P2로 서로 다른 사람 확정
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.status).toBe(RISK_STATUS.STOP);
+    expect(r.data.notice).toBeUndefined();
+  });
+
   it('생년월일이 없고 판정 보류(AMBIGUOUS)면 UNVERIFIABLE + SAME_NAME_BIRTH_UNKNOWN', () => {
     // 목 데이터: 예금주 김철수(생년월일 null)는 AMBIGUOUS, 임대인 김철수는 750315
     const r = compareAccountHolderAndLandlord(fields(), groups());
