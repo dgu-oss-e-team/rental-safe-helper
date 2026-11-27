@@ -3,7 +3,8 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
-import { DOCUMENT_TYPE } from '../../shared/document-model.js';
+import { DOCUMENT_TYPE, MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
+import { PURPOSES, purposeInfo } from '../purposes.js';
 import { currentAnalysis } from '../app-state.js';
 import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
@@ -126,6 +127,85 @@ function roleLegend() {
 }
 
 /**
+ * "Change"를 눌러 목적 목록을 펼친 상태. 목적을 고르면 화면이 다시 그려지므로, 고른 결과가 보이게 펼친 채로 둔다.
+ * 다음 단계로 가면 접는다.
+ */
+let purposeListOpen = false;
+
+/**
+ * 결과 화면 맨 아래 "Next: ask AI" (#381, 기능 개선 목록 2번)
+ * 목적은 ① 화면에서 이미 골랐다. 결과를 본 뒤에도 여기서 바꿀 수 있다 (옛 ③ 목적 화면을 대신함).
+ * Stop이 있는데 사기 위험 확인이 아니면 "Switch to Check fraud risks"를 제안한다.
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @param {import('../main.js').Actions} act
+ * @param {boolean} hasStop
+ */
+function askAiSection(state, act, hasStop) {
+  const chosen = purposeInfo(state.purpose);
+  const listId = 'purpose-choices';
+  const change = button(purposeListOpen ? 'Close' : 'Change', () => {
+    purposeListOpen = !purposeListOpen;
+    list.hidden = !purposeListOpen;
+    change.textContent = purposeListOpen ? 'Close' : 'Change';
+    change.setAttribute('aria-expanded', String(purposeListOpen));
+    if (purposeListOpen) /** @type {HTMLInputElement | null} */ (list.querySelector('input:checked'))?.focus();
+  }, { id: 'change-purpose', variant: 'secondary' });
+  change.setAttribute('aria-expanded', String(purposeListOpen));
+  change.setAttribute('aria-controls', listId);
+
+  // 목적마다 AI에 무엇을 보내는지 한 줄씩 (옛 목적 화면 설명)
+  const list = el(
+    'div',
+    { class: 'options purpose-choices', id: listId, role: 'radiogroup', 'aria-label': 'What do you want to ask AI?', hidden: !purposeListOpen },
+    PURPOSES.map((p) => {
+      const id = `purpose-${p.value.toLowerCase()}`;
+      const input = /** @type {HTMLInputElement} */ (
+        el('input', { type: 'radio', name: 'purpose', id, value: p.value, checked: state.purpose === p.value })
+      );
+      input.addEventListener('change', () => act.setPurpose(p.value));
+      return el('label', { class: 'option', for: id }, [
+        input,
+        el('span', {}, [el('strong', {}, [p.title]), el('span', { class: 'hint' }, [p.sendsText])]),
+      ]);
+    }),
+  );
+
+  const suggestSwitch =
+    hasStop && state.purpose !== MASKING_PURPOSE.FRAUD_CHECK
+      ? el('div', { class: 'warning switch-purpose', id: 'switch-purpose' }, [
+          el('p', {}, ['We found a Stop. To ask AI about it, switch to ', el('strong', {}, ['Check fraud risks']), '.']),
+          button('Switch to Check fraud risks', () => act.setPurpose(MASKING_PURPOSE.FRAUD_CHECK), { id: 'switch-fraud', variant: 'secondary' }),
+        ])
+      : null;
+
+  return card(
+    'Next: ask AI',
+    [
+      el('div', { class: 'chosen-purpose', id: 'chosen-purpose' }, [
+        el('div', { class: 'chosen-purpose-text' }, [
+          el('span', { class: 'hint' }, ['You chose']),
+          el('strong', { id: 'chosen-purpose-title' }, [chosen.title]),
+          el('span', { class: 'hint' }, [chosen.sendsText]),
+        ]),
+        change,
+      ]),
+      list,
+      suggestSwitch,
+      // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 다음 버튼 바로 위에 한 번만 (#377, PART 3)
+      renderScreenOnlyNote(),
+      actions([
+        button('Next: see what AI will get', () => {
+          purposeListOpen = false;
+          act.prepare();
+        }, { id: 'next-review' }),
+        button('Start over', () => act.restart(), { variant: 'secondary' }),
+      ]),
+    ],
+    'ask-ai-card',
+  );
+}
+
+/**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../main.js').Actions} act
  */
@@ -242,11 +322,8 @@ export function resultsScreen(state, act) {
     ]),
     // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
     questionCard,
-    // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 여기 한 번만 (#377)
-    renderScreenOnlyNote(),
-    actions([
-      button('Ask AI about these results', () => act.goTo('purpose')),
-      button('Start over', () => act.restart(), { variant: 'secondary' }),
-    ]),
+    // 목적 확인·바꾸기와 다음 단계 (#381). 옛 ③ 목적 화면을 대신한다.
+    // "화면에만 보이는 정보" 안내(#377)는 그 안의 다음 버튼 바로 위에 한 번만 둔다.
+    askAiSection(state, act, analysis.riskResults.some((r) => r.status === RISK_STATUS.STOP)),
   ]);
 }

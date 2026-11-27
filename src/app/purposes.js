@@ -20,7 +20,9 @@ import { MASKING_PURPOSE } from '../shared/document-model.js';
  *   questions: string[],
  *   needsText: string,
  *   needs: Record<DocSlot, DocNeed>,
+ *   sendsText: string,
  * }} PurposeInfo
+ *   sendsText: AI에 무엇을 보내는지 한 줄 (② 결과 화면 "You chose · Change", #381). 옛 목적 화면 설명을 옮겼다.
  */
 
 /** @type {PurposeInfo[]} 화면에 보이는 순서 (첫 번째가 기본 선택) */
@@ -32,6 +34,8 @@ export const PURPOSES = [
     questions: ['Is the landlord the same person as the owner?', 'Is the mortgage too large for my deposit?'],
     needsText: 'Needs: property register + lease contract',
     needs: { registry: 'required', lease: 'required' },
+    // send-mode.json: 등기부 SUMMARY, 계약서 인적사항 칸 PARTY_SUMMARY
+    sendsText: 'Sends a short summary of the property register and the contract. Names become role names like [Owner_A], and only the city and district of the address are kept.',
   },
   {
     value: MASKING_PURPOSE.CLAUSE_EXPLANATION,
@@ -40,6 +44,7 @@ export const PURPOSES = [
     questions: ['What does 근저당권 (mortgage) mean?', 'What is 확정일자 and why do I need it?'],
     needsText: 'Needs: the document you want explained',
     needs: { registry: 'optional', lease: 'optional' },
+    sendsText: 'Sends the text of your documents so the AI can explain each part and the legal terms. All names, numbers and addresses are hidden.',
   },
   {
     value: MASKING_PURPOSE.CONTRACT_EXPLANATION,
@@ -49,6 +54,7 @@ export const PURPOSES = [
     needsText: 'Needs: lease contract',
     // 등기부는 이 목적에서 AI로 보내지 않는다 (send-mode.json: CONTRACT_EXPLANATION → 등기부 OMIT). 점검에만 쓴다.
     needs: { registry: 'recommended', lease: 'required' },
+    sendsText: 'Sends only the contract, to ask about the deposit, rent, period and special terms. All names, numbers and addresses are hidden. The property register is not sent.',
   },
 ];
 
