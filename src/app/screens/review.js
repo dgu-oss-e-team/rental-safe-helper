@@ -5,6 +5,7 @@ import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
 import { currentAnalysis } from '../app-state.js';
 import { errorHelp } from '../error-help.js';
+import { sendingNotes } from './done.js';
 
 /**
  * 지금 마스킹 결과(prepared)에 맞는 미리보기가 다 그려졌는지
@@ -66,23 +67,34 @@ export function reviewScreen(state, act) {
   );
   confirm.addEventListener('change', () => act.setReviewed(confirm.checked));
 
+  const review = slots.maskingReview({
+    analysis,
+    prepared,
+    edits: state.maskingEdits,
+    onChange: (edits) => act.setMaskingEdits(edits),
+  });
+  // 한국어 가린 원문 접힌 칸은 페이지 그림 아래, 맨 끝으로 옮긴다 (개선 목록 11번: 기본 화면은 표와 페이지 그림)
+  const korean = review.querySelector('.mr-korean');
+  korean?.remove();
+  // 서류마다 AI에 어떻게 보내는지 (#361의 sending). 등기부는 목적에 따라 요약만 가거나 안 가서, "AI가 보는 그대로"가 아니다 (개선 목록 12번)
+  const notes = sendingNotes(prepared.sending);
+
   return el('div', {}, [
     card('Check what will be shared', [
-      el('p', {}, ['This is exactly what the AI will see. Make sure no name, ID number, phone number, account, or full address is left.']),
-      slots.maskingReview({
-        analysis,
-        prepared,
-        edits: state.maskingEdits,
-        onChange: (edits) => act.setMaskingEdits(edits),
-      }),
+      el('p', {}, [
+        'We hid personal information before anything is shared. Check the table and the page images below: no name, ID number, phone number, account, or full address should be left. You do not need to read Korean.',
+      ]),
+      notes.length > 0 ? el('ul', { class: 'sending-notes', id: 'review-sending-notes' }, notes.map((n) => el('li', {}, [n]))) : null,
+      review,
     ]),
     card('How the masked PDF will look', [
       el('p', {}, ['The PDF you download is made from these page images. Black boxes and role names replace the hidden parts.']),
       pdfPreview(state),
     ]),
+    korean ? card('Masked Korean text', [korean]) : null,
     el('label', { class: 'confirm', for: 'reviewed' }, [
       confirm,
-      ' I checked the text and the pages above. No personal information is left.',
+      ' I looked at the table and the page images above. I did not see any name, ID number, phone number, or bank account that is still visible.',
     ]),
     ready ? null : el('p', { class: 'hint' }, ['You can tick this after the page preview is ready.']),
     actions([

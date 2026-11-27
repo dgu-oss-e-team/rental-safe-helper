@@ -9,6 +9,9 @@
  * 1단계: 가린 항목 목록 + "AI에게 보여 주기"(해제) + 가명 범례 + 미리보기
  * 2단계: 미리보기에서 글자를 골라 더 가리기(add) + 더 가린 글자 목록·취소
  *        value는 미리보기 글자, pageIndex·bbox는 그 block 위치 (INTERFACES.md 8번)
+ * 개선 목록 11·12번(11/26): 기본 화면은 가린 개수·개인정보 표·가명 범례·(요약으로 보내는 서류의) 요약 글만.
+ *        한국어 가린 원문과 "Hide selected text"는 "For someone who reads Korean" 접힌 칸(.mr-korean) 안에 둔다.
+ *        서류마다 AI에 그대로 가는지·요약만 가는지·안 가는지 적는다 (prepared.sending, #359).
  *
  * 서류 글자는 el()로만 넣는다 (textContent, innerHTML 사용 안 함).
  */
@@ -70,6 +73,12 @@ function resultBadge(row) {
  */
 let lastHideNote = null;
 
+/**
+ * "For someone who reads Korean" 접힌 칸을 열어 두었는지. 가리면 화면을 새로 그리므로, 열린 상태를 기억해 둔다.
+ * (개선 목록 11번: 한국어 원문은 기본으로 접는다)
+ */
+let koreanOpen = false;
+
 /** 화면을 그린 뒤 안내 글을 넣기까지 기다리는 시간. 화면 읽기 프로그램이 "바뀐 내용"으로 읽게 한다. (ms) */
 const ANNOUNCE_DELAY = 100;
 
@@ -80,6 +89,65 @@ const SELECT_HINT = {
   EMPTY: 'Select some text in the preview first.',
   ALREADY_HIDDEN: 'That part is already hidden.',
   DUPLICATE: 'You already hid that text on this line.',
+};
+
+/**
+ * 접힌 칸의 서류 제목 아래 안내: 이 가린 글이 AI에 그대로 가는지 (#359, 개선 목록 12번)
+ * 가린 글은 마스킹 PDF에 늘 쓰이지만, AI에는 목적에 따라 요약만 가거나 안 갈 수 있다.
+ * @param {{ mode: string, reason?: string } | undefined} sent
+ */
+function sendNote(sent) {
+  if (!sent) return null;
+  const text = {
+    SUMMARY: 'The AI gets only the short summary shown above, not this text. This text is used for the masked PDF.',
+    PARTY_SUMMARY: "The AI gets this text, but the section with the parties' personal details is replaced by a short list of roles.",
+    MASKED_TEXT: 'The AI gets this text.',
+    OMIT: 'The AI does not get this document for this purpose. This text is used only for the masked PDF.',
+  }[sent.mode];
+  return text ? el('p', { class: 'mr-note' }, [text]) : null;
+}
+
+/**
+ * 요약으로 보내는 서류(등기부)의 요약 글. 영어라서 한국어를 못 읽어도 확인할 수 있어 접힌 칸 밖에 둔다 (#359)
+ * @param {{ documents: any[] }} analysis
+ * @param {{ sentText?: Record<string, string>, sending?: { documentId: string, documentType?: string, mode: string }[] }} prepared
+ */
+function summaryBlocks(analysis, prepared) {
+  const summaries = (prepared.sending ?? []).filter((s) => s.mode === 'SUMMARY' && typeof prepared.sentText?.[s.documentId] === 'string');
+  if (summaries.length === 0) return null;
+  const typeOf = new Map(analysis.documents.map((d) => [d.documentId, d.documentType]));
+  // 아래 한국어 가린 원문(회색 고정폭 상자)과 헷갈리지 않게, "AI에 가는 것" 표시를 붙인 글 목록으로 보여 준다
+  return el(
+    'div',
+    { class: 'mr-summaries' },
+    summaries.map((s) => {
+      const lines = /** @type {Record<string, string>} */ (prepared.sentText)[s.documentId].split('\n');
+      // 첫 줄("Extracted items from the property register …")은 제목·설명과 같은 말이라 뺀다
+      const items = lines.filter((line, i) => !(i === 0 && /^Extracted items/.test(line)) && line.trim() !== '');
+      return el('section', { class: 'mr-sent' }, [
+        el('span', { class: 'mr-sent-badge' }, ['Sent to the AI']),
+        el('h3', {}, [`${DOC_SHORT_TITLE[s.documentType ?? typeOf.get(s.documentId)] ?? 'Document'}: a short summary, not the full text`]),
+        el('p', { class: 'mr-note' }, [
+          'This list is all the AI gets from this document. Names are role names, and the address is only the city and district.',
+        ]),
+        el(
+          'ul',
+          { class: 'mr-sent-list' },
+          items.map((line) =>
+            // "- Mortgage (근저당권): …" 같은 권리 줄은 한 칸 들여 쓴다
+            line.startsWith('- ') ? el('li', { class: 'mr-sent-sub' }, [line.slice(2)]) : el('li', {}, [line]),
+          ),
+        ),
+      ]);
+    }),
+  );
+}
+
+/** 요약 제목용 서류 이름 (영어만) */
+const DOC_SHORT_TITLE = {
+  [DOCUMENT_TYPE.REGISTRY]: 'Property register',
+  [DOCUMENT_TYPE.LEASE_CONTRACT]: 'Lease contract',
+  [DOCUMENT_TYPE.UNKNOWN]: 'Document',
 };
 
 /**
@@ -122,7 +190,8 @@ function readSelection(root) {
  * 확인 화면을 만든다.
  * @param {{
  *   analysis: { documents: any[], findings: any[], personGroups: any[] },
- *   prepared: { maskingPlan: import('../../shared/document-model.js').MaskingPlan, maskedText: Record<string, string>, legend: Record<string, string> },
+ *   prepared: { maskingPlan: import('../../shared/document-model.js').MaskingPlan, maskedText: Record<string, string>, legend: Record<string, string>,
+ *     sentText?: Record<string, string>, sending?: { documentId: string, mode: string, reason?: string }[] },
  *   edits: import('./user-edits.js').MaskingEdits,
  *   onChange: (edits: { remove: string[], add: any[] }) => void,
  * }} input
@@ -179,12 +248,15 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
       text,
     })),
   );
+  // 서류마다 AI에 어떻게 보내는지 (PART 5 prepareForAi의 sending, #361). 없으면(예전 결과) 안내 없이 가린 글만 보여 준다
+  const modeOf = new Map((prepared.sending ?? []).map((s) => [s.documentId, s]));
   const preview = el(
     'div',
     { class: 'mr-preview' },
     blocksByDoc.map(({ doc, lines }) =>
       el('div', {}, [
         el('h4', {}, [DOC_TITLE[doc.documentType] ?? doc.documentType]),
+        sendNote(modeOf.get(doc.documentId)),
         el(
           'div',
           { class: 'masked mr-doc' },
@@ -278,9 +350,26 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
           ),
         ]);
 
+  // 한국어 원문과 "Hide selected text"는 기본으로 접는다 (개선 목록 11번: 외국인에게 한국어 원문 확인을 맡기지 않는다)
+  // 방금 가렸거나 더 가린 글자가 있으면 결과가 보이게 열어 둔다. PART 5 화면은 이 칸(.mr-korean)을 페이지 그림 아래로 옮길 수 있다.
+  const korean = /** @type {HTMLDetailsElement} */ (
+    el('details', { class: 'mr-korean', open: koreanOpen || Boolean(note) }, [
+      el('summary', {}, ['For someone who reads Korean: check the masked text and hide anything we missed']),
+      el('p', { class: 'mr-note' }, [
+        'This is the masked Korean text of each document. Did we miss something? Select it, then press "Hide selected text".',
+      ]),
+      preview,
+      el('div', { class: 'mr-add-bar' }, [hideButton, hint]),
+      addedList,
+    ])
+  );
+  korean.addEventListener('toggle', () => {
+    koreanOpen = korean.open;
+  });
+
   return el('div', { class: 'review mr' }, [
-    el('p', {}, [
-      `${rows.length - shownCount} of ${rows.length} item(s) of personal information are hidden or replaced.`,
+    el('p', { class: 'mr-count' }, [
+      `We hid or replaced ${rows.length - shownCount} of ${rows.length} item(s) of personal information.`,
       shownCount > 0 ? ` ${shownCount} item(s) will be shown to the AI as written.` : '',
     ]),
     ambiguous.length > 0
@@ -319,10 +408,7 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
         ])
       : null,
 
-    el('h3', {}, ['Preview: what the AI will see']),
-    el('p', { class: 'mr-note' }, ['Did we miss something? Select it in the preview, then press "Hide selected text".']),
-    preview,
-    el('div', { class: 'mr-add-bar' }, [hideButton, hint]),
-    addedList,
+    summaryBlocks(analysis, prepared),
+    korean,
   ]);
 }
