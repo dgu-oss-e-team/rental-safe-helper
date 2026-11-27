@@ -4,6 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { resumeStep } from '../step-history.js';
 import { addPicked, removePhoto, isPdf } from '../photo-pages.js';
+import { uploadTypeNotices } from '../upload-check.js';
 
 /** @param {number} n @param {string} word */
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -130,14 +131,17 @@ function photoViewer() {
  *   docName: string,
  *   current: import('../photo-pages.js').SlotValue,
  *   notice: string | null,
+ *   typeNotices: string[],
  *   onChange: (value: import('../photo-pages.js').SlotValue, notice?: string | null) => void,
  *   viewer: ReturnType<typeof photoViewer>,
  * }} opts
  *   docName: 화면 낭독기용 서류 이름 ("property register")
+ *   typeNotices: 넣은 파일이 다른 서류로 보일 때 칸 아래 안내 (#365)
  */
-function filePicker({ id, label, hint, docName, current, notice, onChange, viewer }) {
+function filePicker({ id, label, hint, docName, current, notice, typeNotices, onChange, viewer }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
+  const typeWarningId = `${id}-type-warning`;
   // 목록(사진만, 또는 PDF·사진 섞임 #298) / PDF 한 개
   const list = Array.isArray(current) ? current : null;
   const photosOnly = Boolean(list && !list.some(isPdf));
@@ -153,7 +157,7 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
       // 갤러리에서 여러 장을 한 번에 고를 수 있다. 카메라는 한 장씩 찍고 "Add another page"로 덧붙인다 (#268)
       multiple: true,
       // 화면 낭독기로도 칸 설명(특약 별지 안내 등)을 듣게 한다 (#234)
-      'aria-describedby': `${hintId} ${statusId}`,
+      'aria-describedby': typeNotices.length > 0 ? `${hintId} ${statusId} ${typeWarningId}` : `${hintId} ${statusId}`,
     })
   );
   // 고르기 창에서 취소하면 브라우저에 따라 빈 change가 온다. 그때 고른 파일이 지워지지 않게 한다 (지우기는 Remove로)
@@ -204,6 +208,10 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
       remove,
     ]),
     list ? photoList(id, docName, list, onChange, viewer) : null,
+    // 다른 서류로 보이면 분석 전에 바로 알려 준다 (#365). 막지 않고 안내만 한다.
+    typeNotices.length > 0
+      ? el('div', { class: 'warning picker-type-warning', id: typeWarningId, role: 'status' }, typeNotices.map((t) => el('p', {}, [t])))
+      : null,
     notice ? el('p', { class: 'picker-notice', role: 'status', id: `${id}-notice` }, [notice]) : null,
   ]);
 }
@@ -265,6 +273,9 @@ export function uploadScreen(state, act) {
   const { registry, lease } = state.files;
   const hasFile = Boolean(registry || lease);
   const notice = state.uploadNotice ?? null;
+  // 칸에 넣은 파일마다 바로 판별한 종류 (#365). 아직 보는 중이면 undefined, 사진·스캔은 null
+  const typesOf = (/** @type {import('../photo-pages.js').SlotValue} */ value) =>
+    (value === null ? [] : Array.isArray(value) ? value : [value]).map((f) => state.uploadTypes.get(f));
   // 칸에서 빠진 파일의 미리 보기 주소 정리
   releaseUnused(new Set([registry, lease].flat().filter((f) => f instanceof File)));
   const viewer = photoViewer();
@@ -285,6 +296,7 @@ export function uploadScreen(state, act) {
         docName: 'property register',
         current: registry,
         notice: notice?.slot === 'registry' ? notice.text : null,
+        typeNotices: uploadTypeNotices('registry', typesOf(registry)),
         onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
         viewer,
       }),
@@ -299,6 +311,7 @@ export function uploadScreen(state, act) {
         docName: 'lease contract',
         current: lease,
         notice: notice?.slot === 'lease' ? notice.text : null,
+        typeNotices: uploadTypeNotices('lease', typesOf(lease)),
         onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
         viewer,
       }),

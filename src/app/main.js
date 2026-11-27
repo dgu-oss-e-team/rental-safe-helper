@@ -13,7 +13,7 @@ import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
 import { filesWithSlots } from './upload-check.js';
 import { stopLinesPanel } from './stop-lines.js';
-import { slotToSource, isPhoto } from './photo-pages.js';
+import { slotToSource, isPhoto, isPdf } from './photo-pages.js';
 import { readingText, preparingText } from './progress-text.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange, addLineEdits } from './masking-edits.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
@@ -130,6 +130,37 @@ async function pipeline() {
       error: { step: 'loading', code: 'LOAD_FAILED', message: 'Please check your internet connection and try again.' },
     });
     return null;
+  }
+}
+
+/** ① 화면에서 지금 종류를 알아보는 중인 파일 (같은 파일을 두 번 읽지 않게, #365) */
+/** @type {Set<File>} */
+const typeChecking = new Set();
+
+/**
+ * ① 칸에 넣은 글자 PDF의 서류 종류를 뒤에서 알아보고 state.uploadTypes에 넣는다 (#365, #363 리뷰)
+ * 칸 아래에 "다른 서류 같아요" 안내를 분석 전에 바로 보여 주기 위해서다. 사진은 OCR이 오래 걸려서 보지 않는다.
+ * 칸에서 빠진 파일의 결과는 지운다.
+ */
+function checkUploadTypes() {
+  const { files, uploadTypes } = appState.getState();
+  const current = [files.registry, files.lease].flat().filter((f) => f instanceof File);
+  if ([...uploadTypes.keys()].some((f) => !current.includes(f))) {
+    appState.setState({ uploadTypes: new Map([...uploadTypes].filter(([f]) => current.includes(f))) });
+  }
+  for (const file of current) {
+    if (!isPdf(file) || uploadTypes.has(file) || typeChecking.has(file)) continue;
+    typeChecking.add(file);
+    loadPipeline()
+      .then((m) => m.quickDocumentType(file))
+      .catch(() => null)
+      .then((type) => {
+        typeChecking.delete(file);
+        const now = appState.getState();
+        // 기다리는 동안 칸에서 뺐으면 버린다
+        if (![now.files.registry, now.files.lease].flat().includes(file)) return;
+        appState.setState({ uploadTypes: new Map(now.uploadTypes).set(file, type) });
+      });
   }
 }
 
@@ -266,6 +297,7 @@ const act = {
     appState.setState({ files: { ...appState.getState().files, ...patch }, uploadNotice: notice, error: null });
     // 분석 버튼을 누르기 전에 처리 코드를 미리 받아 둔다 (실패는 분석할 때 다시 처리)
     loadPipeline().catch(() => {});
+    checkUploadTypes();
   },
   async analyze() {
     const chosen = appState.getState().files;

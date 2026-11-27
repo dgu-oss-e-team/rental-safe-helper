@@ -24,6 +24,8 @@ const SLOT_TYPE = /** @type {const} */ ({
 
 /** 화면 이름 (① 화면의 칸 이름과 같은 말) */
 const SLOT_TEXT = { registry: 'property register', lease: 'lease contract' };
+/** 칸 이름의 한국어 (① 화면 칸 이름과 같은 말) */
+const SLOT_KOREAN = { registry: '등기부등본', lease: '임대차계약서' };
 const TYPE_TEXT = {
   [DOCUMENT_TYPE.REGISTRY]: 'a property register',
   [DOCUMENT_TYPE.LEASE_CONTRACT]: 'a lease contract',
@@ -128,6 +130,46 @@ export function uploadPartNotices(parts, slots) {
           `If you added it by mistake, go back, remove it from this box, and upload it in the ${SLOT_TEXT[other]} box.`,
       );
     }
+  }
+  return notices;
+}
+
+/**
+ * ① 업로드 화면: 칸에 넣은 파일이 다른 서류로 보이면 그 칸 아래에 바로 안내한다 (#365, #363 리뷰)
+ * 분석을 기다리지 않고 파일을 넣자마자 알려 준다. 글자 PDF만 판별할 수 있다 (사진·스캔은 null → 안내 없음).
+ * - 파일 하나: 다른 서류면 올릴 칸을 알려 주고, 종류를 모르면 맞는 서류인지 확인하라고 한다.
+ * - 파일 여러 개: 다른 서류로 보이는 파일만 "File 2 …"로 알려 준다. 종류를 모르는 파일(특약 별지 등)은 안내하지 않는다.
+ * - 막지 않고 안내만 한다. 파일 이름은 넣지 않는다 (몇 번째 파일인지만). "safe" 같은 말은 쓰지 않는다.
+ * @param {UploadSlot} slot
+ * @param {(string | null | undefined)[]} types  types[k]: 칸 목록 k번째 파일의 종류. null = 판별하지 않음(사진·스캔), undefined = 아직 보는 중
+ * @returns {string[]}
+ */
+export function uploadTypeNotices(slot, types) {
+  const other = slot === 'registry' ? 'lease' : 'registry';
+  const known = (/** @type {string | null | undefined} */ t) => t === DOCUMENT_TYPE.REGISTRY || t === DOCUMENT_TYPE.LEASE_CONTRACT;
+  const typeText = (/** @type {string} */ t) => TYPE_TEXT[/** @type {keyof typeof TYPE_TEXT} */ (t)];
+  if (types.length === 1) {
+    const [type] = types;
+    if (known(type) && type !== SLOT_TYPE[slot]) {
+      return [
+        `This file looks like ${typeText(/** @type {string} */ (type))}, not a ${SLOT_TEXT[slot]}. ` +
+          `If you added it by mistake, remove it and upload it in the ${SLOT_TEXT[other]} box.`,
+      ];
+    }
+    if (type === DOCUMENT_TYPE.UNKNOWN) {
+      return [`We could not tell what this file is. Please check that it is the ${SLOT_TEXT[slot]} (${SLOT_KOREAN[slot]}).`];
+    }
+    return [];
+  }
+  /** @type {string[]} */
+  const notices = [];
+  for (const [k, type] of types.entries()) {
+    if (!known(type) || type === SLOT_TYPE[slot]) continue;
+    notices.push(
+      `${fileLabel([k])} looks like ${typeText(/** @type {string} */ (type))}, not a ${SLOT_TEXT[slot]}. ` +
+        'Files in one box are checked together as one document. ' +
+        `If you added it by mistake, remove it and upload it in the ${SLOT_TEXT[other]} box.`,
+    );
   }
   return notices;
 }

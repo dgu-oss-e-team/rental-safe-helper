@@ -17,7 +17,7 @@
 
 import { ok, fail, ERROR_CODE, SOURCE_TYPE, DOCUMENT_TYPE } from '../shared/document-model.js';
 import { mergeDocumentModels } from './merge-documents.js';
-import { readDocument, getFlaggedBlocks } from '../features/document-input/index.js';
+import { readDocument, readPdfText, getFlaggedBlocks } from '../features/document-input/index.js';
 import { classifyDocument, detectPII, extractFields } from '../features/document-analysis/index.js';
 import { assessRisks, buildPrompt } from '../features/risk-check/index.js';
 import {
@@ -151,6 +151,26 @@ export async function analyzeDocuments({ files }) {
   const read = await readDocuments({ files });
   if (!read.ok) return read;
   return analyzeReadDocuments(read.data);
+}
+
+/**
+ * 업로드 화면에서 파일을 넣자마자 서류 종류를 알아본다 (#365, #363 리뷰).
+ * 글자 PDF만 본다: 글자를 읽고(PART 1 readPdfText, OCR 없음) PART 2 classifyDocument로 판별한다.
+ * 사진·스캔 PDF(글자 없음)는 OCR이 오래 걸려서 여기서는 판별하지 않는다(null). 분석 뒤 ② 결과 화면이 안내한다.
+ * 읽지 못해도 null. 이 결과는 안내에만 쓰고, 분석은 늘 내용을 다시 읽어서 판별한다.
+ * @param {File} file
+ * @returns {Promise<string | null>} DOCUMENT_TYPE 값, 또는 판별하지 않음(null)
+ */
+export async function quickDocumentType(file) {
+  try {
+    const read = await readPdfText(await file.arrayBuffer());
+    const pages = read.pages.filter((pg) => pg.blocks.length > 0);
+    if (pages.length === 0) return null;
+    const c = classifyDocument({ documentId: 'quick', documentType: DOCUMENT_TYPE.UNKNOWN, sourceType: SOURCE_TYPE.TEXT_PDF, pages });
+    return c.ok ? c.data.documentType : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
