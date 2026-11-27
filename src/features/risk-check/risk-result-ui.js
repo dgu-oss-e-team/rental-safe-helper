@@ -21,7 +21,8 @@ import { el } from '../../app/ui.js';
 import { MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
 // index.js가 아니라 이 파일을 직접 불러와 첫 화면을 가볍게 둔다 (index.js는 YAML 규칙 파일까지 불러온다)
 import { getRecommendedQuestions } from './recommended-questions.js';
-import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, normalizeStatus, groupRiskResults, validFilter } from './risk-result-model.js';
+import { STATUS_ORDER, STATUS_TEXT, COLLAPSED_STATUSES, normalizeStatus, groupRiskResults, validFilter, getConclusion } from './risk-result-model.js';
+import { HELP_CONTACTS } from '../../config/help-contacts.js';
 
 /** @typedef {import('../../shared/document-model.js').RiskResult} RiskResult */
 
@@ -57,6 +58,47 @@ export function resetRiskResultsView() {
   view.open.clear();
 }
 
+/** 도움받을 곳을 보여 주는 상태 (STOP·CHECK만) */
+const HELP_STATUSES = [RISK_STATUS.STOP, RISK_STATUS.CHECK];
+
+/** 중개사만 믿지 않도록, 중개사와 관계없는 도움받을 곳 (연락처는 config/help-contacts.js 한 곳에서만 관리) */
+function helpBox() {
+  return el('div', { class: 'help-box' }, [
+    el('p', { class: 'help-title' }, [el('strong', {}, ['Need help? Ask someone who is not part of the deal:'])]),
+    el(
+      'ul',
+      {},
+      HELP_CONTACTS.map((c) => el('li', {}, [el('strong', {}, [c.name]), ` — ${c.note}`])),
+    ),
+  ]);
+}
+
+/**
+ * 결과 화면 맨 위 결론 배너 (#377). 개수 요약(Stop 1, Check 3 …)은 이 아래에 보조 정보로 있다.
+ * PART 5 results.js가 결과 카드 맨 위에 넣는다.
+ * @param {RiskResult[]} riskResults
+ * @returns {HTMLElement}
+ */
+export function renderConclusionBanner(riskResults) {
+  const c = getConclusion(riskResults);
+  return el('div', { class: `risk-banner risk-banner-${c.level}`, role: 'status', id: 'risk-banner' }, [
+    el('h3', {}, [c.title]),
+    el('p', {}, [c.message]),
+    c.unverifiableNote ? el('p', { class: 'risk-banner-unverifiable' }, [c.unverifiableNote]) : null,
+  ]);
+}
+
+/**
+ * 화면에만 보이는 정보 안내. 카드마다 붙이지 않고 결과 화면 맨 아래, "Ask AI" 버튼 바로 위에 한 번만 둔다. (#377)
+ * PART 5 results.js가 호출한다.
+ * @returns {HTMLElement}
+ */
+export function renderScreenOnlyNote() {
+  return el('p', { class: 'screen-only-note', id: 'screen-only-note' }, [
+    'Names and addresses shown in the result cards are shown only on this screen. They are not included in the AI prompt.',
+  ]);
+}
+
 /**
  * 결과 카드 한 장
  * @param {RiskResult} r
@@ -70,7 +112,7 @@ function riskCard(r) {
     el('h3', {}, [r.title]),
     el('p', {}, [r.explanation]),
     el('p', { class: 'action' }, [el('strong', {}, ['What to do: ']), r.action]),
-    // 근거 칸: 실제 이름·주소가 들어갈 수 있으므로 화면에만 보여 준다 (프롬프트에는 없음)
+    // 근거 칸: 실제 이름·주소가 들어갈 수 있으므로 화면에만 보여 준다 (프롬프트에는 없음). 안내 문구는 화면 맨 아래에 한 번만 (#377)
     evidence
       ? el('div', { class: 'evidence-box' }, [
           el('dl', { class: 'evidence' }, [
@@ -79,9 +121,10 @@ function riskCard(r) {
             el('dt', {}, [evidence.right.label]),
             el('dd', {}, [String(evidence.right.value)]),
           ]),
-          el('p', { class: 'evidence-note' }, ['Shown only on this screen. It is not included in the AI prompt.']),
         ])
       : null,
+    // 도움받을 곳: STOP·CHECK 카드에만 (#377)
+    HELP_STATUSES.includes(status) ? helpBox() : null,
   ]);
 }
 

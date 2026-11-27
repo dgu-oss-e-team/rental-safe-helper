@@ -264,7 +264,7 @@ rules:
           deposit may be at risk.
         action: >-
           Do not sign until you confirm in writing that the provisional disposition has been
-          cleared. Ask a lawyer or a licensed real estate agent what it means for your lease.
+          cleared. Ask a lawyer or a legal aid service what it means for your lease.
       UNVERIFIABLE.cancel_unknown:
         explanation: >-
           The registry shows a provisional disposition entry, but we could not tell whether
@@ -347,8 +347,8 @@ rules:
           affected. It is not always a problem, but it needs to be checked.
         action: >-
           Check who holds the provisional registration and why. Ask the landlord to explain
-          it and, if needed, to cancel it before you sign. Ask a lawyer or a licensed real
-          estate agent if you are not sure.
+          it and, if needed, to cancel it before you sign. Ask a lawyer or a legal aid
+          service if you are not sure.
       UNVERIFIABLE.cancel_unknown:
         explanation: >-
           The registry shows a provisional registration entry, but we could not tell whether
@@ -386,7 +386,7 @@ rules:
           A mortgage is registered on this home. Maximum secured amount: {maxClaim}.
           Your deposit: {deposit}. If the home is sold at auction, the mortgage is paid
           before your deposit.
-        action: Compare the two amounts with the likely price of the home and ask the agent to explain.
+        action: Compare the two amounts with the likely price of the home. Ask the agent to explain, and check it with an independent adviser too.
       CHECK.deposit_unknown:
         explanation: >-
           A mortgage is registered on this home (maximum secured amount: {maxClaim}).

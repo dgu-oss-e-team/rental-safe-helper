@@ -7,6 +7,7 @@ import {
   normalizeStatus,
   groupRiskResults,
   validFilter,
+  getConclusion,
 } from '../src/features/risk-check/risk-result-model.js';
 
 const make = (ruleId, status) => ({ ruleId, status, title: ruleId, explanation: 'e', action: 'a' });
@@ -65,5 +66,35 @@ describe('PART 3 위험 결과 카드: 상태 계산', () => {
       expect(text.toLowerCase()).not.toMatch(/\bsafe\b/);
     }
     expect(STATUS_TEXT[RISK_STATUS.NO_FLAG]).toBe('No warning found');
+  });
+});
+
+describe('PART 3 결론 배너 (#377)', () => {
+  it('STOP이 있으면 Do not sign yet', () => {
+    const c = getConclusion([make('A', RISK_STATUS.STOP), make('B', RISK_STATUS.CHECK)]);
+    expect(c.level).toBe('stop');
+    expect(c.title).toBe('Do not sign yet');
+  });
+
+  it('STOP 없이 CHECK만 있으면 확인 필요 배너', () => {
+    expect(getConclusion([make('A', RISK_STATUS.CHECK)]).level).toBe('check');
+  });
+
+  it('전부 NO_FLAG여도 안전하다고 단정하지 않는다', () => {
+    const c = getConclusion([make('A', RISK_STATUS.NO_FLAG)]);
+    expect(c.level).toBe('no_flag');
+    expect(c.message).toContain('This does not mean the home is safe');
+    expect(c.unverifiableNote).toBeNull();
+  });
+
+  it('UNVERIFIABLE가 있으면 확인하지 못한 항목이 있다고 함께 알린다', () => {
+    for (const first of [RISK_STATUS.STOP, RISK_STATUS.CHECK, RISK_STATUS.NO_FLAG]) {
+      expect(getConclusion([make('A', first), make('B', RISK_STATUS.UNVERIFIABLE)]).unverifiableNote).toMatch(/could not be checked/);
+    }
+  });
+
+  it('결과가 없거나 전부 확인 불가면 "경고 없음"이라고 하지 않는다', () => {
+    expect(getConclusion([]).level).toBe('unverifiable');
+    expect(getConclusion([make('A', RISK_STATUS.UNVERIFIABLE)]).level).toBe('unverifiable');
   });
 });
