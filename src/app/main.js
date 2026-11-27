@@ -19,7 +19,6 @@ import { emptyEdits, normalizeEdits, editsAfterPurposeChange, addLineEdits } fro
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
-import { purposeScreen } from './screens/purpose.js';
 import { reviewScreen } from './screens/review.js';
 import { doneScreen } from './screens/done.js';
 import { confirmScreen } from './screens/confirm.js';
@@ -53,7 +52,7 @@ const STEP_TEXT = {
  *   칸 값을 바꾼다. notice는 그 칸 아래 안내 (#268)
  * @property {() => Promise<void>} analyze
  * @property {() => Promise<void>} analyzeSample
- * @property {(step: 'upload' | 'results' | 'purpose' | 'review' | 'done') => void} goTo
+ * @property {(step: 'upload' | 'results' | 'review' | 'done') => void} goTo
  * @property {() => void} dismissError
  * @property {() => any[]} getOcrDraft  "Confirm text": 지금까지 고친 사진·스캔 서류
  * @property {(docs: any[]) => number} setOcrDraft  PART 1 OCR 수정 화면의 onChange. 남은 흐린 줄 수를 돌려준다
@@ -268,7 +267,26 @@ const act = {
     loadPipeline().catch(() => {});
   },
   async analyze() {
-    const chosen = appState.getState().files;
+    const state = appState.getState();
+    const chosen = state.files;
+    const hasRegistry = Boolean(chosen.registry);
+    const hasLease = Boolean(chosen.lease);
+    const valid =
+      state.purpose === 'FRAUD_CHECK'
+        ? hasRegistry && hasLease
+        : state.purpose === 'CONTRACT_EXPLANATION'
+          ? hasLease
+          : hasRegistry || hasLease;
+    if (!valid) {
+      const message =
+        state.purpose === 'FRAUD_CHECK'
+          ? 'Add both a property register and a lease contract to check fraud risks.'
+          : state.purpose === 'CONTRACT_EXPLANATION'
+            ? 'Add a lease contract to explain the contract conditions.'
+            : 'Add the document you want explained.';
+      appState.setState({ error: { step: 'input', code: 'MISSING_REQUIRED_FIELD', message } });
+      return;
+    }
     // 사진은 보정해서 PDF로, 여러 파일(계약서 PDF + 특약 별지 등)은 조각으로 나눠 읽고 그릴 때만 합친다 (#268, #272, #298)
     const needsPrep = [chosen.registry, chosen.lease].some((v) => Array.isArray(v) && v.length > 0);
     if (needsPrep) appState.setState({ busy: 'Preparing your files…', error: null, uploadNotice: null });
@@ -389,10 +407,14 @@ const act = {
   },
   setPurpose(purpose) {
     const state = appState.getState();
-    if (purpose === state.purpose) return;
+    if (purpose === state.purpose) {
+      appState.setState({ setupStage: 'upload' });
+      return;
+    }
     // 목적이 바뀌면 이전 마스킹 결과는 버리고, 해제(remove)는 새 목적에서 다시 고르게 한다 (더 가린 것은 유지)
     appState.setState({
       purpose,
+      setupStage: 'upload',
       maskingEdits: editsAfterPurposeChange(state.maskingEdits),
       prepared: null,
       pdfs: null,
@@ -494,7 +516,6 @@ const SCREENS = {
   upload: uploadScreen,
   confirm: confirmScreen,
   results: resultsScreen,
-  purpose: purposeScreen,
   review: reviewScreen,
   done: doneScreen,
 };
@@ -545,8 +566,8 @@ function errorCard(error, screenStep) {
 function homeLink() {
   const link = el(
     'a',
-    { href: hashFor('upload'), class: 'home-link', 'aria-label': 'Rental Safety Helper, go to the first step' },
-    ['Rental Safety Helper'],
+    { href: hashFor('upload'), class: 'home-link bp-brand', 'aria-label': 'BANGPAE, go to the first step' },
+    [el('img', { class: 'bp-logo-image', src: `${import.meta.env.BASE_URL}bangpae-logo.png`, alt: 'BANGPAE' })],
   );
   link.addEventListener('click', (e) => {
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
@@ -559,13 +580,57 @@ function homeLink() {
 function render() {
   const state = appState.getState();
   const screen = SCREENS[state.step] ?? uploadScreen;
+  const isStart = state.step === 'upload';
+  const header = el('header', { class: 'bp-header' }, [
+    el('div', { class: 'bp-header-inner' }, [
+      homeLink(),
+      el('span', { class: 'bp-tagline' }, ['Your rental document companion']),
+      el('nav', { class: 'bp-nav', 'aria-label': 'About this service' }, [
+        el('a', { href: '#how-it-works' }, ['How it works']),
+        el('a', { href: '#privacy-note' }, ['Privacy']),
+        button('Try with sample', () => act.analyzeSample(), { id: 'header-sample', variant: 'secondary' }),
+      ]),
+    ]),
+  ]);
+  const hero = isStart
+    ? el('section', { class: 'bp-hero' }, [
+        el('p', { class: 'bp-eyebrow' }, ['For international students renting in Korea']),
+        el('h1', {}, ['Check your rental documents ', el('span', {}, ['before you sign'])]),
+        el('p', { class: 'bp-hero-copy' }, ['We point out warning signs to ask about, and hide personal details before you ask AI.']),
+        el('p', { class: 'bp-browser-note' }, [el('span', { 'aria-hidden': 'true' }, ['●']), ' Read in your browser. Nothing is uploaded.']),
+      ])
+    : null;
+  const landingBottom = isStart
+    ? [
+        el('section', { class: 'bp-how', id: 'how-it-works' }, [
+          el('h2', {}, ['How it works']),
+          el('ol', {}, [
+            ['Upload', 'Choose what you want to do, then add the documents it needs.'],
+            ['Check', 'See warning signs from the documents you added. You can still change what to ask AI here.'],
+            ['Review', 'See what we hid. Names become roles like [Landlord_B]; ID numbers are always hidden.'],
+            ['Done', 'After the privacy check passes, download the masked PDF and copy the prompt into the AI you use.'],
+          ].map(([title, text], i) => el('li', {}, [el('span', {}, [String(i + 1)]), el('h3', {}, [title]), i === 1 ? el('div', { class: 'bp-statuses' }, ['Stop', 'Check', 'Could not check'].map((x) => el('b', {}, [x]))) : null, el('p', {}, [text])]))),
+        ]),
+        el('section', { class: 'bp-privacy', id: 'privacy-note' }, [
+          el('div', {}, [
+            ['▣', 'Your files stay in this browser', 'Original documents are not sent away for analysis. You control the copies you download.'],
+            ['▤', 'ID, phone and account numbers are always hidden', 'We check the output again before creating materials for AI. Review every page yourself, too.'],
+            ['♢', 'We never call a home “safe”', 'We show what to check and tell you when we could not read something.'],
+          ].map(([icon, title, text]) => el('article', {}, [el('span', {}, [icon]), el('div', {}, [el('h3', {}, [title]), el('p', {}, [text])])]))),
+        ]),
+      ]
+    : [];
   const parts = [
-    el('header', {}, [el('h1', {}, [homeLink()]), disclaimer()]),
-    stepper(state.step),
+    header,
+    hero,
+    el('div', { class: 'bp-progress-wrap' }, [stepper(state.step, Boolean(state.files.registry || state.files.lease))]),
     state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
     state.error ? errorCard(state.error, state.step) : null,
-    state.busy ? null : screen(state, act),
+    state.busy ? null : el('main', { class: `bp-screen bp-screen-${state.step}`, id: 'main-content', tabindex: '-1' }, [screen(state, act)]),
+    ...landingBottom,
+    el('footer', { class: 'bp-footer' }, [disclaimer(), el('p', {}, ['BANGPAE · Your rental document companion'])]),
   ];
+  app.className = 'bp-app';
   app.replaceChildren(.../** @type {HTMLElement[]} */ (parts.filter(Boolean)));
   // 단계가 바뀌면 화면 맨 위로 (휴대폰에서 다음 단계가 아래에 숨지 않게)
   if (render.lastStep !== state.step) window.scrollTo({ top: 0 });

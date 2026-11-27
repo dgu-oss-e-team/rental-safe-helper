@@ -87,7 +87,7 @@ export function reviewScreen(state, act) {
     ready ? null : el('p', { class: 'hint' }, ['You can tick this after the page preview is ready.']),
     actions([
       button('Create masked PDF and AI prompt', () => act.finish(), { disabled: !state.reviewed }),
-      button('Back', () => act.goTo('purpose'), { variant: 'secondary' }),
+      button('Back to content confirmation', () => act.goTo('results'), { variant: 'secondary' }),
     ]),
   ]);
 }

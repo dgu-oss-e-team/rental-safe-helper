@@ -4,6 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { resumeStep } from '../step-history.js';
 import { addPicked, removePhoto, isPdf } from '../photo-pages.js';
+import { MASKING_PURPOSE } from '../../shared/document-model.js';
 
 /** @param {number} n @param {string} word */
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -58,6 +59,46 @@ function photoTipsBox() {
       'To add several pages at once, take photos of all pages with your camera first, then tap "Choose file" and select them all from your photo library.',
     ]),
   ]);
+}
+
+const PURPOSES = [
+  {
+    value: MASKING_PURPOSE.FRAUD_CHECK,
+    title: 'Check fraud risks',
+    text: '“Is the landlord really the owner? Is the mortgage too large for my deposit?”',
+    needs: 'Needs: property register + lease contract',
+  },
+  {
+    value: MASKING_PURPOSE.CLAUSE_EXPLANATION,
+    title: 'Explain clauses and terms',
+    text: '“What does 근저당 or 확정일자 mean in my documents?”',
+    needs: 'Needs: a document to explain',
+  },
+  {
+    value: MASKING_PURPOSE.CONTRACT_EXPLANATION,
+    title: 'Explain contract conditions',
+    text: '“When do I get my deposit back? Who pays for repairs?”',
+    needs: 'Needs: lease contract',
+  },
+];
+
+/** @param {ReturnType<typeof import('../app-state.js').initialState>} state @param {import('../main.js').Actions} act */
+function purposePicker(state, act) {
+  return el('div', { class: 'bp-purpose-picker', role: 'radiogroup', 'aria-label': 'What do you want to do?' },
+    PURPOSES.map((purpose) => {
+      const selected = state.purpose === purpose.value;
+      const choice = button('', () => act.setPurpose(purpose.value), { id: `purpose-${purpose.value.toLowerCase()}` });
+      choice.className = `bp-purpose-card${selected ? ' is-selected' : ''}`;
+      choice.setAttribute('role', 'radio');
+      choice.setAttribute('aria-checked', String(selected));
+      choice.replaceChildren(
+        el('strong', {}, [purpose.title]),
+        el('span', {}, [purpose.text]),
+        el('small', {}, [purpose.needs]),
+      );
+      return choice;
+    }),
+  );
 }
 
 /*
@@ -135,7 +176,7 @@ function photoViewer() {
  * }} opts
  *   docName: 화면 낭독기용 서류 이름 ("property register")
  */
-function filePicker({ id, label, hint, docName, current, notice, onChange, viewer }) {
+function filePicker({ id, label, hint, docName, current, notice, onChange, viewer, requirement = 'Required' }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
   // 목록(사진만, 또는 PDF·사진 섞임 #298) / PDF 한 개
@@ -192,7 +233,7 @@ function filePicker({ id, label, hint, docName, current, notice, onChange, viewe
   const statusText = list ? listStatus(list) : pdf ? pdf.name : 'No file chosen';
 
   return el('div', { class: 'picker' }, [
-    el('label', { for: id }, [label]),
+    el('div', { class: 'bp-picker-heading' }, [el('label', { for: id }, [label]), el('b', { class: requirement === 'Required' ? 'bp-required' : 'bp-optional' }, [requirement])]),
     el('p', { class: 'hint', id: hintId }, [hint]),
     el('div', { class: 'file-row' }, [
       input,
@@ -263,21 +304,31 @@ function photoList(id, docName, photos, onChange, viewer) {
  */
 export function uploadScreen(state, act) {
   const { registry, lease } = state.files;
-  const hasFile = Boolean(registry || lease);
   const notice = state.uploadNotice ?? null;
+  const fraud = state.purpose === MASKING_PURPOSE.FRAUD_CHECK;
+  const contract = state.purpose === MASKING_PURPOSE.CONTRACT_EXPLANATION;
+  const clause = state.purpose === MASKING_PURPOSE.CLAUSE_EXPLANATION;
+  const ready = fraud ? Boolean(registry && lease) : contract ? Boolean(lease) : Boolean(registry || lease);
   // 칸에서 빠진 파일의 미리 보기 주소 정리
   releaseUnused(new Set([registry, lease].flat().filter((f) => f instanceof File)));
   const viewer = photoViewer();
-  return el('div', {}, [
+  return el('div', { class: 'bp-upload-page' }, [
     resumeCard(state, act),
-    card('Upload your documents', [
-      el('p', {}, [
-        'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
+    card('', [
+      el('p', { class: 'bp-section-kicker' }, ['1. What do you want to do?']),
+      purposePicker(state, act),
+      el('p', { class: 'bp-section-kicker' }, ['2. Add your documents']),
+      el('p', { class: 'bp-upload-intro' }, [
+        fraud
+          ? 'Add both documents for a risk check. PDF files and photos (JPG, PNG) both work.'
+          : contract
+            ? 'Add the lease contract you want explained. Include every page and any special terms page.'
+            : 'Add the document you want explained. PDF files and photos (JPG, PNG) both work.',
       ]),
-      photoTipsBox(),
-      filePicker({
+      el('div', { class: `bp-upload-grid${contract ? ' is-single' : ''}` }, [
+      (fraud || clause) ? filePicker({
         id: 'registry-file',
-        label: 'Property register (등기부등본)',
+        label: clause ? 'Document to explain (optional)' : 'Property register (등기부등본)',
         // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
         hint:
           'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
@@ -287,10 +338,11 @@ export function uploadScreen(state, act) {
         notice: notice?.slot === 'registry' ? notice.text : null,
         onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
         viewer,
-      }),
+        requirement: fraud ? 'Required' : 'Optional',
+      }) : null,
       filePicker({
         id: 'lease-file',
-        label: 'Lease contract (임대차계약서)',
+        label: clause ? 'Document to explain' : 'Lease contract (임대차계약서)',
         // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
         hint:
           'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
@@ -301,9 +353,13 @@ export function uploadScreen(state, act) {
         notice: notice?.slot === 'lease' ? notice.text : null,
         onChange: (value, n) => act.setFiles({ lease: value }, n ? { slot: 'lease', text: n } : null),
         viewer,
+        requirement: clause ? 'Optional' : 'Required',
       }),
+      ]),
+      contract ? el('div', { class: 'bp-add-register' }, [el('div', {}, [el('strong', {}, ['Also check for fraud warning signs? (recommended)']), el('p', {}, ['Add the property register too. We use it only for the check. It is not sent to AI for this purpose.'])]), button('Add property register', () => act.setPurpose(MASKING_PURPOSE.FRAUD_CHECK), { variant: 'secondary' })]) : null,
+      el('p', { class: 'bp-photo-help' }, ['ⓘ  Using photos? See tips for clear photos. Some checks may show “Could not check”.']),
       actions([
-        button('Check my documents', () => act.analyze(), { id: 'run', disabled: !hasFile }),
+        button('Continue to content confirmation', () => act.analyze(), { id: 'run', disabled: !ready }),
         button('Try with sample data', () => act.analyzeSample(), { id: 'run-sample', variant: 'secondary' }),
       ]),
     ]),

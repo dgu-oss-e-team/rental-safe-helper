@@ -47,8 +47,7 @@ export function purposeScreen(state, act) {
       ),
     ]),
     actions([
-      button('Hide personal information', () => act.prepare()),
-      button('Back', () => act.goTo('results'), { variant: 'secondary' }),
+      button('Continue to documents', () => act.goTo('upload')),
     ]),
   ]);
 }

@@ -43,7 +43,7 @@ export function createStore(initial) {
 /** 처음 상태 (다시 시작할 때도 이 값으로 되돌린다) */
 export function initialState() {
   return {
-    /** @type {'upload' | 'confirm' | 'results' | 'purpose' | 'review' | 'done'} */
+    /** @type {'upload' | 'confirm' | 'results' | 'review' | 'done'} */
     step: 'upload',
     /** 처리 중이면 안내 문구, 아니면 null */
     /** @type {string | null} */
@@ -92,6 +92,9 @@ export function initialState() {
     /** @type {import('./pipeline.js').Checked | null} */
     checked: null,
     purpose: MASKING_PURPOSE.FRAUD_CHECK,
+    /** First page sub-stage. Purpose and files remain on one screen. */
+    /** @type {'purpose' | 'upload'} */
+    setupStage: 'purpose',
     /** prepareForAi() 결과 */
     /** @type {import('./pipeline.js').Prepared | null} */
     prepared: null,

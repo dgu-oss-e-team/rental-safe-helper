@@ -93,7 +93,8 @@ export function resultsScreen(state, act) {
     // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
     questionCard,
     actions([
-      button('Ask AI about these results', () => act.goTo('purpose')),
+      button('Continue to masking review', () => act.prepare()),
+      button('Change purpose or documents', () => act.goTo('upload'), { variant: 'secondary' }),
       button('Start over', () => act.restart(), { variant: 'secondary' }),
     ]),
   ]);

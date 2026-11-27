@@ -41,20 +41,21 @@ export function button(label, onClick, opts = {}) {
 
 /** 화면 단계 (순서대로) */
 export const STEPS = [
-  { id: 'upload', label: 'Upload' },
-  { id: 'results', label: 'Check' },
   { id: 'purpose', label: 'Purpose' },
-  { id: 'review', label: 'Review' },
-  { id: 'done', label: 'Done' },
+  { id: 'upload', label: 'Documents' },
+  { id: 'confirm', label: 'Confirm' },
+  { id: 'review', label: 'Masking review' },
+  { id: 'done', label: 'Get results' },
 ];
 
 /**
  * 맨 위 진행 표시 (1 Upload — 2 Check — …)
  * @param {string} current  지금 단계 id
  */
-export function stepper(current) {
-  // "Confirm text"(사진·스캔 글자 확인)는 ① 서류 올리기의 일부로 보여 준다 (휴대폰에서 단계 칸이 늘지 않게)
-  const shown = current === 'confirm' ? 'upload' : current;
+export function stepper(current, hasDocuments = false) {
+  // Purpose and documents share the first screen. Results is the content-confirmation
+  // screen, while photo OCR confirmation is an extra check inside that same stage.
+  const shown = current === 'upload' ? (hasDocuments ? 'upload' : 'purpose') : current === 'results' ? 'confirm' : current;
   const index = STEPS.findIndex((s) => s.id === shown);
   return el(
     'ol',

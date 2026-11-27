@@ -12,7 +12,7 @@
  */
 
 /** 단계 순서 ("Confirm text"는 ① 다음, 사진·스캔이 있을 때만) */
-export const STEP_ORDER = /** @type {const} */ (['upload', 'confirm', 'results', 'purpose', 'review', 'done']);
+export const STEP_ORDER = /** @type {const} */ (['upload', 'confirm', 'results', 'review', 'done']);
 
 /** @typedef {typeof STEP_ORDER[number]} Step */
 
@@ -46,8 +46,6 @@ function hasResultFor(state, step) {
     case 'confirm':
       return Boolean(state.ocrReview);
     case 'results':
-    case 'purpose':
-      return Boolean(state.analysis);
     case 'review':
       return Boolean(state.analysis && state.prepared);
     case 'done':
