@@ -379,7 +379,7 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 
 `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks?, registryFields?, document? })` → `{ documentId, text, replaced, lineBlocks? }`
 
-- `maskedText`는 **반드시** `applyMaskingPlan()`의 그 계약서 가린 글(쪽 표시 넣기 전)을 넘긴다. 줄 순서가 PART 2 `linesOf`와 같아서 `contract.personalInfoRange`(한 칸) 또는 `personalInfoRanges`(여러 칸)의 줄을 그대로 바꾼다.
+- `maskedText`는 **반드시** `applyMaskingPlan()`의 그 계약서 가린 글(쪽 표시 넣기 전)을 넘긴다. 줄 순서가 PART 2 `linesOf`와 같아서 `contract.personalInfoRanges`(5번, 위쪽 당사자 칸·아래쪽 서명 칸 등 여러 칸)의 줄을 그대로 바꾼다. (예전 모양 `personalInfoRange` 한 칸도 받지만, PART 2는 `personalInfoRanges`만 준다)
 - `document`(그 계약서 DocumentModel)를 주면 가린 글의 줄 수가 서류 줄 수와 같은지 확인한다. 다르면(쪽 표시가 먼저 들어간 글 등) 엉뚱한 줄을 바꾸지 않도록 바꾸지 않는다.
 - 첫 칸은 아래 요약으로, 나머지 칸(서명 칸 등)은 `contents hidden` 한 줄로 바꾼다. 범위가 없거나 줄 수가 안 맞으면 바꾸지 않는다(`replaced: false`).
 - 사기 점검은 가명과 관계, 조항·계약 설명은 역할만 적는다(이 두 목적은 이름을 `REDACT`해서 본문에도 가명이 없다).

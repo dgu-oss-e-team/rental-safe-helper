@@ -13,7 +13,8 @@
  *    대신 등기부 데이터(registryFields)를 주면 회사 형태 표기를 뺀 이름이 완전히 같을 때만 "소유자와 같은 회사"로 적고,
  *    다르면 단정하지 않고 "이름이 맞지 않음(원본 확인)"으로 적는다. 등기부를 안 줬으면 비교하지 않았다고 적는다.
  *  - 조항·계약 설명: 이름을 어차피 다 가리므로 어떤 역할 칸이 있는지만 적는다.
- *  - 범위는 PART 2 extractFields()의 contract.personalInfoRanges(여러 칸) 또는 personalInfoRange(한 칸).
+ *  - 범위는 PART 2 extractFields()의 contract.personalInfoRanges(여러 칸, INTERFACES.md 5번).
+ *    예전 모양 personalInfoRange(한 칸)도 받지만 PART 2는 personalInfoRanges만 준다.
  *    둘 다 없거나, 범위가 줄 수를 넘거나, document를 주었는데 가린 글의 줄 수가 서류 줄 수(PART 2 linesOf)와 다르면
  *    (쪽 표시가 먼저 들어간 글 등) 바꾸지 않고 가린 원문 그대로 돌려준다 (replaced: false). 보내기 전 검사는 그대로 거친다.
  *  - 첫 칸은 요약으로, 나머지 칸(아래쪽 서명 칸 등)은 "내용 가림" 한 줄로 바꾼다.
