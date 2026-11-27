@@ -5,7 +5,7 @@
  *
  * 공개 함수
  *   assessRisks(fields, personGroups)                          → Result<RiskResult[]>
- *   buildPrompt({ purpose, riskResults, maskedText, legend })  → Result<string>
+ *   buildPrompt({ purpose, riskResults, maskedText, legend, monthlyRent?, registry? })  → Result<string>
  *   getRecommendedQuestions(purpose, riskResults?)             → string[] | null
  *   renderRiskResults(riskResults)                             → HTMLElement  (slots.js riskResults)
  *
