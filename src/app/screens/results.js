@@ -105,6 +105,26 @@ function autoShowChanges(changes, autoMove) {
 }
 
 /**
+ * 결과 카드에 나오는 역할 이름·가명·"Could not check"를 처음 보는 사람을 위한 한 줄 설명 (기능 개선 목록 9번, 사용자 점검)
+ * [Owner_A]·[PrevOwner_D]가 무엇인지, 등기부의 집주인과 계약서의 집주인이 왜 따로 나오는지 처음엔 알기 어렵다.
+ * 이름·번호 같은 개인정보는 넣지 않는다 (정해진 문구만).
+ */
+function roleLegend() {
+  /** @param {string} term @param {string} meaning */
+  const item = (term, meaning) => el('li', {}, [el('strong', {}, [term]), ` = ${meaning}`]);
+  return el('div', { class: 'role-legend', id: 'role-legend' }, [
+    el('p', {}, ['How to read the results:']),
+    el('ul', {}, [
+      item('Owner', 'the owner of the home on the property register (등기부등본)'),
+      item('Previous owner', 'someone who owned the home before'),
+      item('Landlord', 'the person renting the home to you on the lease contract (임대차계약서)'),
+      item('[Owner_A], [Landlord_B] …', 'labels we use instead of real names'),
+      item('Could not check', 'we could not read the part we needed, so this was not checked. It does not mean there is no problem.'),
+    ]),
+  ]);
+}
+
+/**
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../main.js').Actions} act
  */
@@ -128,6 +148,18 @@ export function resultsScreen(state, act) {
     ...uploadSlotNotices(analysis.documents, state.uploadSlots),
     ...uploadPartNotices(state.uploadParts, state.uploadSlots),
   ];
+  // 칸에 다른 서류를 넣었거나 서류 종류를 모르면, 다시 올리러 가는 버튼을 둔다 (기능 개선 목록 10번)
+  // ① 화면으로 돌아가도 고른 파일은 남아 있어서, 틀린 칸의 파일만 바꾸면 된다.
+  const backToUpload =
+    unknown > 0 || slotNotices.length > 0
+      ? actions([
+          // 종류를 모르는 서류가 있으면 눈에 띄는 기본 버튼, 칸만 다르면 보조 버튼
+          button('Go back and choose the right file', () => act.goTo('upload'), {
+            id: 'back-to-upload',
+            ...(unknown > 0 ? {} : { variant: 'secondary' }),
+          }),
+        ])
+      : null;
 
   // 질문 카드는 결과 목록 아래에 있어서 휴대폰에서는 화면 몇 개 아래로 밀린다.
   // 그래서 결과 요약 바로 아래에 안내와 "바로 가기" 버튼을 둔다. (#91)
@@ -178,18 +210,30 @@ export function resultsScreen(state, act) {
         { class: 'doc-list' },
         analysis.documents.map((d) => el('li', {}, [DOCUMENT_TEXT[d.documentType] ?? d.documentType])),
       ),
+      // 등기부도 계약서도 아닌 서류: 그 서류로는 아무것도 점검하지 못하므로 노란 한 줄보다 크게 알린다 (10번)
       unknown > 0
-        ? el('p', { class: 'warning' }, [
-            `We could not tell the type of ${unknown} document(s). Please check that you uploaded a property register or a lease contract.`,
+        ? el('div', { class: 'unknown-doc-notice', id: 'unknown-doc-notice', role: 'alert' }, [
+            el('strong', {}, [
+              unknown === 1
+                ? 'We could not recognize 1 document.'
+                : `We could not recognize ${unknown} documents.`,
+            ]),
+            el('p', {}, [
+              'It does not look like a property register (등기부등본) or a lease contract (임대차계약서), so we could not check it. ' +
+                'The checks that need it show "Could not check". Please go back and upload the right file.',
+            ]),
           ])
         : null,
       slotNotices.length > 0
         ? el('div', { class: 'warning upload-slot-notice', id: 'upload-slot-notice' }, slotNotices.map((t) => el('p', {}, [t])))
         : null,
+      backToUpload,
     ]),
     card('Check before you sign', [
       changesNotice,
       questionNotice,
+      // 역할 이름·가명 설명은 그 이름을 쓰는 결과 카드 바로 위에 둔다 (기능 개선 목록 9번)
+      roleLegend(),
       // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
       slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
     ]),
