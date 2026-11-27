@@ -592,6 +592,19 @@ const CAUSE_PATTERNS = [
   /해\s*지/,
 ];
 
+/** 순위번호 없는 줄 맨 앞의 접수번호: "제200호", "제 71802 호" */
+const RECEIPT_START = /^\s*제\s*\d+\s*호/;
+
+/**
+ * 권리자 라벨("근저당권자", "가처분채권자", "전세권자" …) 앞의 글자. 라벨이 없으면 줄 전체.
+ * @param {string} line
+ * @returns {string}
+ */
+function textBeforeHolderLabel(line) {
+  const m = HOLDER_LABEL.exec(line);
+  return m ? line.slice(0, m.index) : line;
+}
+
 /**
  * 권리자 이름을 추출한다.
  * @param {string} line
@@ -885,7 +898,14 @@ export function findRegistryRights(lines) {
       continue; // 다음 줄로 넘어간 등기원인 칸
     }
 
-    const found = RIGHT_KINDS.find(({ regex }) => regex.test(line));
+    // 권리자 칸 줄("제500호 가처분채권자 박가상", "제100호 설정계약 전세권자 김가상")은 라벨 속 낱말
+    // ("가처분", "전세권", "근저당")이 있어도 새 권리가 아니다. 순위번호 없는 줄은 권리자 라벨 앞 글자에서만 권리 종류를 찾는다.
+    // (그대로 세면 말소된 가처분 옆에 말소 안 된 가처분이 하나 더 생겨 STOP이 된다. #362·#369·#370 리뷰)
+    // 순위번호 없이 접수번호("제200호 …")로 시작하는 줄은 접수·등기원인 칸이 넘어온 줄이다.
+    // 원인 칸의 권리 이름("임차권등기명령", "전세권설정계약")으로 새 권리를 세지 않는다. (#376 리뷰)
+    // 신탁은 원인 칸("제71802호 신탁 …")이 신탁 기록의 표시라서 그대로 센다 (같은 기록에서 이미 셌으면 위에서 건너뜀).
+    const kindFound = RIGHT_KINDS.find(({ regex }) => regex.test(rank === null ? textBeforeHolderLabel(line) : line));
+    const found = rank === null && RECEIPT_START.test(line) && kindFound?.kind !== 'TRUST' ? undefined : kindFound;
     const maxClaim = MAX_CLAIM_LABEL.exec(line);
     if (!found) {
       // 채권최고액·등기원인·권리자가 다음 줄에 있는 경우: 바로 앞 권리에 붙인다.
