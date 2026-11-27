@@ -94,7 +94,7 @@ export function reviewScreen(state, act) {
     korean ? card('Masked Korean text', [korean]) : null,
     el('label', { class: 'confirm', for: 'reviewed' }, [
       confirm,
-      ' I looked at the table and the page images above. No personal information is left.',
+      ' I looked at the table and the page images above. I did not see any name, ID number, phone number, or bank account that is still visible.',
     ]),
     ready ? null : el('p', { class: 'hint' }, ['You can tick this after the page preview is ready.']),
     actions([
