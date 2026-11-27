@@ -18,7 +18,8 @@
  *    둘 다 없거나, 범위가 줄 수를 넘거나, document를 주었는데 가린 글의 줄 수가 서류 줄 수(PART 2 linesOf)와 다르면
  *    (쪽 표시가 먼저 들어간 글 등) 바꾸지 않고 가린 원문 그대로 돌려준다 (replaced: false). 보내기 전 검사는 그대로 거친다.
  *  - 첫 칸은 요약으로, 나머지 칸(아래쪽 서명 칸 등)은 "내용 가림" 한 줄로 바꾼다.
- *  - 한계: 사용자가 ④에서 칸 안의 값을 보이게(KEEP) 풀어도 그 칸은 요약으로 바뀐다 (요약에는 가명·역할만 들어간다).
+ *  - 사용자가 ④에서 칸 안의 값을 보이게(KEEP) 풀어도 그 칸은 요약으로 바뀐다 (요약에는 가명·역할만 들어간다).
+ *    ④ 확인 화면이 그 항목의 "Show" 옆에 "PDF만 바뀐다"고 알려 준다 (masking-review-ui.js notSentAsWritten, #359).
  */
 
 import { ok, fail, ERROR_CODE, MASKING_PURPOSE } from '../../shared/document-model.js';

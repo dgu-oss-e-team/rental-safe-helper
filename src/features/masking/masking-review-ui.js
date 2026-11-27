@@ -22,6 +22,8 @@ import { DOCUMENT_TYPE, PII_TYPE } from '../../shared/document-model.js';
 import { buildReviewRows, setRowShown, addSelection, removeAdd, hiddenPlacesNote } from './review-model.js';
 // block마다 가린 글을 만들 때 쓴다
 import { applyMaskingPlan } from './apply-masking-plan.js';
+// 계약서 인적사항 칸 범위 (요약으로 바뀐 칸 안의 항목을 찾을 때)
+import { normalizeRanges } from './contract-party-summary.js';
 
 /** 개인정보 종류 → 화면 이름 (화면 문구는 영어, 제안서 기준) */
 const TYPE_TEXT = {
@@ -151,6 +153,72 @@ const DOC_SHORT_TITLE = {
 };
 
 /**
+ * AI 글에 그대로 들어가지 않는 개인정보 항목 (#359): findingId → 'SUMMARY' | 'OMIT'
+ *  - SUMMARY: 등기부를 요약으로 보내거나(SUMMARY), 계약서 인적사항 칸을 요약으로 바꾼(PARTY_SUMMARY) 곳에 있는 항목.
+ *    요약에는 가명·역할만 들어가므로, 표에서 "Show"를 체크해도 AI 글에는 원래 값이 나가지 않는다.
+ *  - OMIT: 이 목적에는 서류를 아예 보내지 않는다.
+ * 어느 경우든 "Show"는 마스킹 PDF만 바꾼다. (가리기 계산은 그대로 두고, 화면에서 알려만 준다)
+ * @param {{ documents: any[], findings: any[], fields?: any }} analysis
+ * @param {{ sending?: { documentId: string, mode: string }[] }} prepared
+ * @returns {Map<string, 'SUMMARY' | 'OMIT'>}
+ */
+export function notSentAsWritten(analysis, prepared) {
+  /** @type {Map<string, 'SUMMARY' | 'OMIT'>} */
+  const out = new Map();
+  const modeOf = new Map((prepared.sending ?? []).map((s) => [s.documentId, s.mode]));
+  if (modeOf.size === 0) return out;
+
+  // 인적사항 칸을 요약으로 바꾼 계약서: 칸 범위 안 줄에 있는 block (줄 번호는 PART 2 linesOf와 같은 기준)
+  /** @type {Set<string>} documentId::blockId */
+  const partyBlocks = new Set();
+  for (const doc of analysis.documents) {
+    if (modeOf.get(doc.documentId) !== 'PARTY_SUMMARY') continue;
+    const contract = analysis.fields?.contract;
+    if (contract?.documentId !== doc.documentId) continue;
+    let line = 0;
+    const blockLines = doc.pages.flatMap((/** @type {any} */ p) =>
+      p.blocks.map((/** @type {any} */ b) => {
+        const start = line;
+        line += String(b.text ?? '').split('\n').length;
+        return { blockId: b.blockId, start, end: line - 1 };
+      }),
+    );
+    const ranges = normalizeRanges(contract, line);
+    for (const b of blockLines) {
+      if (ranges.some((r) => b.start <= r.endLine && r.startLine <= b.end)) partyBlocks.add(`${doc.documentId}::${b.blockId}`);
+    }
+  }
+
+  for (const f of analysis.findings) {
+    const mode = modeOf.get(f.documentId);
+    if (mode === 'OMIT') out.set(f.id, 'OMIT');
+    else if (mode === 'SUMMARY') out.set(f.id, 'SUMMARY');
+    else if (mode === 'PARTY_SUMMARY' && partyBlocks.has(`${f.documentId}::${f.blockId}`)) out.set(f.id, 'SUMMARY');
+  }
+  return out;
+}
+
+/**
+ * 표의 "Show" 옆 안내 (#359). 이 항목이 AI 글에 그대로 들어가지 않으면, "Show"가 마스킹 PDF만 바꾼다고 알려 준다.
+ * @param {string[]} findingIds  표 한 줄에 묶인 항목들
+ * @param {Map<string, 'SUMMARY' | 'OMIT'>} notSent
+ */
+function showNote(findingIds, notSent) {
+  const kinds = findingIds.map((id) => notSent.get(id));
+  const count = kinds.filter(Boolean).length;
+  if (count === 0) return null;
+  if (count < findingIds.length) {
+    return el('span', { class: 'mr-note mr-show-note' }, [
+      'In some places this is not sent to the AI as written (only a summary, or not at all). There, ticking Show only changes the masked PDF.',
+    ]);
+  }
+  const text = kinds.every((k) => k === 'OMIT')
+    ? 'This document is not sent to the AI for this purpose, so ticking Show only changes the masked PDF.'
+    : 'This part is sent to the AI as a summary with role names only, so ticking Show only changes the masked PDF.';
+  return el('span', { class: 'mr-note mr-show-note' }, [text]);
+}
+
+/**
  * 서류의 block마다 가린 글을 만든다. (미리보기에서 어느 block을 골랐는지 알기 위해)
  * @param {any} doc
  * @param {any} plan
@@ -189,7 +257,7 @@ function readSelection(root) {
 /**
  * 확인 화면을 만든다.
  * @param {{
- *   analysis: { documents: any[], findings: any[], personGroups: any[] },
+ *   analysis: { documents: any[], findings: any[], personGroups: any[], fields?: any },
  *   prepared: { maskingPlan: import('../../shared/document-model.js').MaskingPlan, maskedText: Record<string, string>, legend: Record<string, string>,
  *     sentText?: Record<string, string>, sending?: { documentId: string, mode: string, reason?: string }[] },
  *   edits: import('./user-edits.js').MaskingEdits,
@@ -203,6 +271,8 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
   const shownCount = rows.filter((r) => r.shown).length;
   const ambiguous = analysis.personGroups.filter((g) => g.status === 'AMBIGUOUS');
 
+  // 요약으로 보내거나 보내지 않는 곳의 항목: "Show"가 마스킹 PDF만 바꾼다고 알려 준다 (#359)
+  const notSent = notSentAsWritten(analysis, prepared);
   const tableRows = rows.map((row) => {
     /** @type {HTMLElement} */
     let control;
@@ -227,7 +297,8 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
       // 원본 글자는 이 화면에만 보여 준다 (AI로 보내지 않음)
       el('td', { class: 'mr-original' }, [row.values.join(' / ')]),
       el('td', {}, [resultBadge(row)]),
-      el('td', {}, [control]),
+      // 항상 가리는 항목(🔒)은 Show가 없으니 안내도 없다
+      el('td', {}, [control, row.locked ? null : showNote(row.findingIds, notSent)]),
     ]);
   });
 

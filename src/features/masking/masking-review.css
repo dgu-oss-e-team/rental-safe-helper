@@ -202,3 +202,10 @@
   margin-left: 16px;
   list-style: circle;
 }
+
+/* "Show" 옆 안내: 요약으로 보내는 곳이라 Show가 PDF만 바꾼다 (#359) */
+.mr-show-note {
+  display: block;
+  margin-top: 4px;
+  max-width: 220px;
+}
