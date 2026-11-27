@@ -492,6 +492,41 @@ textarea:focus-visible {
   }
 }
 
+/* ② 등기부도 계약서도 아닌 서류: 노란 한 줄보다 크게 (기능 개선 목록 10번) */
+.unknown-doc-notice {
+  border: 2px solid var(--stop);
+  background: var(--stop-bg);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 0;
+}
+
+.unknown-doc-notice strong {
+  display: block;
+  color: var(--stop);
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+
+/* ② 결과 위 역할 이름·가명 설명 (기능 개선 목록 9번) */
+.role-legend {
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--unverifiable-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.role-legend ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+.role-legend strong {
+  color: var(--ink);
+}
+
 /* ② 결과 요약 아래 "같은 사람인가요?" 안내 */
 .question-notice {
   display: flex;
