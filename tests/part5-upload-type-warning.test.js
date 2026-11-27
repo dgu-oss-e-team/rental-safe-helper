@@ -119,7 +119,8 @@ describe('PART 5 quickDocumentType: 글자 PDF만 바로 판별', () => {
   it('가짜 등기부 PDF는 등기부, 가짜 계약서 PDF는 계약서로 본다', async () => {
     expect(await quickDocumentType(fixture('form-individual-registry.pdf'))).toBe(REGISTRY);
     expect(await quickDocumentType(fixture('form-individual-lease.pdf'))).toBe(LEASE_CONTRACT);
-  });
+    // PDF 2개를 읽어서, 전체 테스트를 한꺼번에 돌리면 기본 5초를 넘길 때가 있다 (다른 PDF 테스트와 같게 20초)
+  }, 20000);
 
   it('읽지 못하는 파일은 판별하지 않는다 (null, 오류를 내지 않음)', async () => {
     expect(await quickDocumentType(pdf('broken.pdf'))).toBeNull();
