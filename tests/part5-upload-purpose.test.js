@@ -96,6 +96,17 @@ describe('PART 5 ① 목적에 맞는 서류 칸 (#380)', () => {
     expect(uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct()).querySelector('#registry-optin')).not.toBeNull();
   });
 
+  it('지금 설정(send-mode.json: 계약 조건 설명 → 등기부 OMIT)에서는 "not sent to AI"가 상자와 칸에 나온다', () => {
+    const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
+    expect(node.querySelector('#registry-optin-text')?.textContent).toContain('not sent to AI');
+    document.body.append(node);
+    /** @type {HTMLButtonElement} */ (node.querySelector('#add-registry')).click();
+    expect(node.querySelector('#registry-file-extra')?.textContent).toContain('not sent to AI');
+    // 연 칸은 다시 그려도 기억되므로 다음 테스트를 위해 닫아 둔다
+    /** @type {HTMLButtonElement} */ (node.querySelector('#close-registry')).click();
+    node.remove();
+  });
+
   it('"같이 확인할까요?" 상자에 목적은 그대로라는 한 줄이 있다 (정연님 의견)', () => {
     const node = uploadScreen(stateWith({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION }), fakeAct());
     expect(node.querySelector('#registry-optin-purpose')?.textContent).toBe('Your purpose stays "Explain contract conditions".');

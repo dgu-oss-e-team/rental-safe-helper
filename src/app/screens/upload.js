@@ -6,6 +6,9 @@ import { resumeStep } from '../step-history.js';
 import { addPicked, removePhoto, isPdf } from '../photo-pages.js';
 import { uploadTypeNotices } from '../upload-check.js';
 import { PURPOSES, NEED_LABEL, purposeInfo, missingDocNotices } from '../purposes.js';
+// send-mode.json만 읽는 가벼운 함수 (masking/index.js는 무거워서 이 파일을 직접 불러온다)
+import { getSendMode, SEND_MODE } from '../../features/masking/send-mode.js';
+import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 
 /** @param {number} n @param {string} word */
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -339,6 +342,8 @@ export function uploadScreen(state, act) {
   // 다른 목적과 확실히 달라 보이게 한다 (성연님 v2 의견). 이미 등기부를 넣었으면 칸을 그대로 보여 준다.
   const registryOptional = info.needs.registry === 'recommended';
   if (!registryOptional) registryOptIn = false;
+  // "AI로 보내지 않는다"는 글은 PART 4 설정(send-mode.json)이 실제로 OMIT일 때만 쓴다 (정연님 리뷰). 설정이 바뀌면 화면도 따라간다.
+  const registryNotSent = getSendMode(state.purpose, DOCUMENT_TYPE.REGISTRY) === SEND_MODE.OMIT;
   const registryPicker = filePicker({
     id: 'registry-file',
     label: 'Property register (등기부등본)',
@@ -355,10 +360,11 @@ export function uploadScreen(state, act) {
     onChange: (value, n) => act.setFiles({ registry: value }, n ? { slot: 'registry', text: n } : null),
     viewer,
     need: info.needs.registry,
-    // 계약 조건 설명: 등기부는 점검에만 쓰고 AI로는 보내지 않는다 (send-mode.json)
-    extra: registryOptional
-      ? 'For this purpose the property register is used only for the checks on this website. It is not sent to AI.'
-      : null,
+    // 계약 조건 설명: 등기부는 점검에만 쓰고 AI로는 보내지 않는다 (send-mode.json이 OMIT일 때만)
+    extra:
+      registryOptional && registryNotSent
+        ? 'For this purpose the property register is used only for the checks on this website. It is not sent to AI.'
+        : null,
   });
   const leasePicker = filePicker({
     id: 'lease-file',
@@ -399,7 +405,11 @@ export function uploadScreen(state, act) {
     const box = el('div', { class: 'registry-optin', id: 'registry-optin' }, [
       el('div', { class: 'registry-optin-text' }, [
         el('strong', {}, ['Also check for fraud warning signs? (recommended)']),
-        el('p', {}, ['Add the property register too. We use it only for the checks on this website. It is not sent to AI for this purpose.']),
+        el('p', { id: 'registry-optin-text' }, [
+          registryNotSent
+            ? 'Add the property register too. We use it only for the checks on this website. It is not sent to AI for this purpose.'
+            : 'Add the property register too, so we can also check the owner, mortgage and seizures.',
+        ]),
         // 목적이 바뀌는 것으로 오해하지 않게 (정연님 의견)
         el('p', { class: 'hint', id: 'registry-optin-purpose' }, [`Your purpose stays "${info.title}".`]),
       ]),
