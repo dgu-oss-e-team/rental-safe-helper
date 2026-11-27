@@ -750,3 +750,27 @@ a.ai-link {
   font-family: ui-monospace, Consolas, monospace;
   overflow-wrap: anywhere;
 }
+
+/* "같은 사람인가요?" 답한 뒤 결과가 바뀌었다는 안내 (개선 목록 5번) */
+.results-updated {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  background: var(--ok-bg);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.results-updated ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* "See what changed"로 찾아간 카드를 잠깐 강조 */
+.risk-changed {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  transition: outline-color 0.3s;
+}

@@ -16,6 +16,7 @@ import { stopLinesPanel } from './stop-lines.js';
 import { slotToSource, isPhoto } from './photo-pages.js';
 import { readingText, preparingText } from './progress-text.js';
 import { emptyEdits, normalizeEdits, editsAfterPurposeChange, addLineEdits } from './masking-edits.js';
+import { diffRiskResults } from './result-changes.js';
 import { el, button, stepper, disclaimer, card, actions } from './ui.js';
 import { uploadScreen } from './screens/upload.js';
 import { resultsScreen } from './screens/results.js';
@@ -250,6 +251,7 @@ async function finishAnalysis(p, read, slots) {
       ocrReview: null,
       personAnswers: {},
       checked: null,
+      resultChanges: null,
       prepared: null,
       previews: null,
       maskingEdits: emptyEdits(),
@@ -376,11 +378,16 @@ const act = {
     }
     // 숨긴 카드의 답·엇갈린 답을 뺀 답을 저장한다 (#171: 같은 두 사람 질문은 한 번만 보임)
     const next = r.data.personAnswers;
+    const checked = Object.keys(next).length > 0 ? r.data : null;
+    // 답하기 전과 뒤의 결과를 비교해 "Results updated" 안내에 쓴다 (개선 목록 5번)
+    const before = currentAnalysis(appState.getState())?.riskResults;
+    const resultChanges = diffRiskResults(before, (checked ?? analysis).riskResults);
     // 같은 사람이면 가명도 합쳐지므로 이전에 만든 마스킹·미리보기·PDF는 버리고 다시 확인하게 한다
     clearTimeout(previewTimer);
     appState.setState({
       personAnswers: next,
-      checked: Object.keys(next).length > 0 ? r.data : null,
+      checked,
+      resultChanges,
       prepared: null,
       pdfs: null,
       reviewed: false,
