@@ -273,6 +273,19 @@ button.link-button:hover {
   color: var(--check);
 }
 
+/* 칸에 넣은 파일이 다른 서류로 보일 때 파일 이름 바로 아래 안내 (#365) */
+.picker-type-warning {
+  margin-top: 4px;
+}
+
+.picker-type-warning p {
+  margin: 0;
+}
+
+.picker-type-warning p + p {
+  margin-top: 6px;
+}
+
 .file-viewer {
   width: min(92vw, 720px);
   max-height: 92vh;

@@ -294,5 +294,8 @@ export async function readDocument(file, options = {}) {
   }
 }
 
+// PDF 글자만 빨리 읽기 (OCR 없음). PART 5 업로드 화면에서 서류 종류를 바로 알려 줄 때 쓴다 (#365)
+export { readPdfText } from './pdf-reader.js';
+
 // OCR 결과 수정 화면 (PART 5 #54에서 slots.ocrEditor에 연결)
 export { renderOcrEditor, isLowConfidenceBlock, getFlaggedBlocks } from './ocr-editor.js';

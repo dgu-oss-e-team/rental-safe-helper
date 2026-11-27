@@ -56,6 +56,12 @@ export function initialState() {
      */
     files: { registry: null, lease: null },
     /**
+     * ① 화면: 칸에 넣은 글자 PDF마다 바로 판별한 서류 종류 (#365). null = 판별하지 않음(사진·스캔·못 읽음).
+     * 파일을 넣으면 main.js가 뒤에서 채운다. 아직 없는 파일은 보는 중이다. 칸 아래 안내에만 쓴다.
+     * @type {Map<File, string | null>}
+     */
+    uploadTypes: new Map(),
+    /**
      * ① 칸 아래 안내 (PDF와 사진을 섞어 골랐을 때 등, #268). 정해진 문구만 넣는다.
      * @type {{ slot: 'registry' | 'lease', text: string } | null}
      */
