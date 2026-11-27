@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { resultsScreen } from '../src/app/screens/results.js';
 import { initialState } from '../src/app/app-state.js';
 import { DOCUMENT_TYPE, MASKING_PURPOSE, RISK_STATUS } from '../src/shared/document-model.js';
-import { PURPOSES } from '../src/app/purposes.js';
+import { PURPOSES, sendsTextOf } from '../src/app/purposes.js';
 import { stepper } from '../src/app/ui.js';
 
 const DOCS = [{ documentType: DOCUMENT_TYPE.REGISTRY }, { documentType: DOCUMENT_TYPE.LEASE_CONTRACT }];
@@ -52,7 +52,9 @@ describe('② "Next: ask AI" (#381)', () => {
     expect(change.getAttribute('aria-expanded')).toBe('true');
     expect(list.querySelectorAll('input[type=radio]')).toHaveLength(3);
     // 목적마다 AI에 보내는 것 설명 (옛 목적 화면 문구)
-    for (const p of PURPOSES) expect(list.textContent).toContain(p.sendsText);
+    for (const p of PURPOSES) expect(list.textContent).toContain(sendsTextOf(p));
+    // 등기부를 보내지 않는다는 말은 send-mode.json이 OMIT인 목적(지금은 계약 조건 설명)에만 붙는다 (#380 리뷰)
+    expect(PURPOSES.filter((p) => sendsTextOf(p).includes('The property register is not sent')).map((p) => p.value)).toEqual([MASKING_PURPOSE.CONTRACT_EXPLANATION]);
     const clause = /** @type {HTMLInputElement} */ (list.querySelector(`input[value="${MASKING_PURPOSE.CLAUSE_EXPLANATION}"]`));
     clause.checked = true;
     clause.dispatchEvent(new Event('change'));

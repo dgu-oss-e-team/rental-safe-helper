@@ -4,7 +4,7 @@
 import { el, button, card, actions } from '../ui.js';
 import { slots, DOCUMENT_TEXT } from '../slots.js';
 import { DOCUMENT_TYPE, MASKING_PURPOSE, RISK_STATUS } from '../../shared/document-model.js';
-import { PURPOSES, purposeInfo } from '../purposes.js';
+import { PURPOSES, purposeInfo, sendsTextOf } from '../purposes.js';
 import { currentAnalysis } from '../app-state.js';
 import { buildPersonQuestions } from '../../features/masking/index.js';
 import { visiblePersonQuestions, countPersonQuestions } from '../person-questions.js';
@@ -165,7 +165,7 @@ function askAiSection(state, act, hasStop) {
       input.addEventListener('change', () => act.setPurpose(p.value));
       return el('label', { class: 'option', for: id }, [
         input,
-        el('span', {}, [el('strong', {}, [p.title]), el('span', { class: 'hint' }, [p.sendsText])]),
+        el('span', {}, [el('strong', {}, [p.title]), el('span', { class: 'hint' }, [sendsTextOf(p)])]),
       ]);
     }),
   );
@@ -185,7 +185,7 @@ function askAiSection(state, act, hasStop) {
         el('div', { class: 'chosen-purpose-text' }, [
           el('span', { class: 'hint' }, ['You chose']),
           el('strong', { id: 'chosen-purpose-title' }, [chosen.title]),
-          el('span', { class: 'hint' }, [chosen.sendsText]),
+          el('span', { class: 'hint' }, [sendsTextOf(chosen)]),
         ]),
         change,
       ]),
