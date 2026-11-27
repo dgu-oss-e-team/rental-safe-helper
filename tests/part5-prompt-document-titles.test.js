@@ -71,8 +71,19 @@ describe('PART 5 prepareForAi(): 프롬프트 서류 제목 (#240)', () => {
     const analyzed = (await analyzeDocuments({ files: sampleFiles() })).data;
     const prepared = prepareForAi(analyzed, purpose).data;
     // 계약 조건 설명에는 등기부를 보내지 않는다 (#360)
-    if (purpose === MASKING_PURPOSE.CONTRACT_EXPLANATION) expect(prepared.prompt).not.toContain(`### ${REGISTRY}\n`);
-    else expect(prepared.prompt).toContain(`### ${REGISTRY}\n`);
+    if (purpose === MASKING_PURPOSE.CONTRACT_EXPLANATION) {
+      // 계약 조건 설명에는 등기부를 보내지 않는다 (#360)
+      expect(prepared.prompt).not.toContain(`### ${REGISTRY}\n`);
+      expect(prepared.prompt).not.toContain('Registry (extracted)');
+    } else if (purpose === MASKING_PURPOSE.FRAUD_CHECK) {
+      // 등기부 요약은 이름표로 나간다 (#361)
+      expect(prepared.prompt).toContain('### Registry (extracted)\n');
+      expect(prepared.prompt).not.toContain(`### ${REGISTRY}\n`);
+    } else {
+      // 조항·용어 설명: 가린 원문이라 서류 이름 그대로
+      expect(prepared.prompt).toContain(`### ${REGISTRY}\n`);
+      expect(prepared.prompt).not.toContain('Registry (extracted)');
+    }
     expect(prepared.prompt).toContain(`### ${LEASE}\n`);
     for (const doc of analyzed.documents) expect(prepared.prompt).not.toContain(doc.documentId);
   });
