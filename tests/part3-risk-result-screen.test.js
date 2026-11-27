@@ -74,7 +74,7 @@ describe('"Shown only on this screen" 안내 한 번만 (#377)', () => {
     expect(node.textContent?.match(/shown only on this screen/gi)).toHaveLength(1);
     // 바로 다음 칸이 Ask AI 버튼이 있는 actions
     const note = node.querySelector('#screen-only-note');
-    expect(note?.nextElementSibling?.textContent).toContain('Ask AI about these results');
+    expect(note?.nextElementSibling?.textContent).toContain('Next: see what AI will get');
   });
 
   it('결과 화면 전체에서 도움받을 곳은 한 번만 나온다', () => {
