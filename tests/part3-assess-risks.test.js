@@ -3,12 +3,16 @@ import {
   assessTrust,
   hasTrustNotice,
   assessSeizure,
+  assessProvisionalDisposition,
+  assessAuction,
+  assessProvisionalRegistration,
   assessMortgage,
   assessOwnershipTransfer,
   assessRegistryRisks,
   parseIsoDate,
   subtractMonths,
 } from '../src/features/risk-check/assess-risks.js';
+import { groupRiskResults, STATUS_ORDER } from '../src/features/risk-check/risk-result-model.js';
 import { assessRisks } from '../src/features/risk-check/index.js';
 import { parseRiskRules } from '../src/features/risk-check/risk-rules.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
@@ -35,6 +39,12 @@ const right = (kind, cancelled = false, maxClaimAmount = null) => ({
   cancelled,
   receivedAt: null,
 });
+/** unknownActiveCount는 기본 0. 없음·null 등을 시험할 때는 registryExtra로 덮어쓴다 ({}면 필드 없음) */
+const withRegistry = (rights, registryExtra = { unknownActiveCount: 0 }) => {
+  const f = withRights(rights);
+  Object.assign(f.registry, registryExtra);
+  return f;
+};
 
 describe('PART 3 근저당 + 보증금 비교 (MORTGAGE_EXISTS)', () => {
   it('Mock 등기부에서 근저당이 점검 결과로 나오고, 두 금액이 같이 표시된다', () => {
@@ -274,6 +284,121 @@ describe('PART 3 압류·가압류 (SEIZURE_ACTIVE)', () => {
   });
 });
 
+const NEW_RIGHT_RULES = [
+  { name: '가처분', kind: 'PROVISIONAL_DISPOSITION', run: assessProvisionalDisposition, ruleId: 'PROVISIONAL_DISPOSITION_ACTIVE', activeStatus: STOP },
+  { name: '경매개시결정', kind: 'AUCTION', run: assessAuction, ruleId: 'AUCTION_ACTIVE', activeStatus: STOP },
+  { name: '가등기', kind: 'PROVISIONAL_REGISTRATION', run: assessProvisionalRegistration, ruleId: 'PROVISIONAL_REGISTRATION_ACTIVE', activeStatus: CHECK },
+];
+
+describe.each(NEW_RIGHT_RULES)('PART 3 $name ($ruleId) (#345)', ({ kind, run, ruleId, activeStatus }) => {
+  it('말소되지 않은 기록이 있으면 해당 상태(STOP 또는 CHECK)', () => {
+    const r = run(withRegistry([right(kind, false)]));
+    expect(r.ok).toBe(true);
+    expect(r.data.ruleId).toBe(ruleId);
+    expect(r.data.status).toBe(activeStatus);
+  });
+
+  it('말소된 기록만 있으면 NO_FLAG', () => {
+    expect(run(withRegistry([right(kind, true)])).data.status).toBe(NO_FLAG);
+  });
+
+  it('해당 권리가 아예 없으면(rights: []) NO_FLAG', () => {
+    expect(run(withRegistry([])).data.status).toBe(NO_FLAG);
+  });
+
+  it('다른 종류 권리만 있으면 섞이지 않고 NO_FLAG', () => {
+    const f = withRegistry([right('SEIZURE'), right('MORTGAGE', false, 100000000)]);
+    expect(run(f).data.status).toBe(NO_FLAG);
+  });
+
+  it('cancelled: null만 있으면 UNVERIFIABLE (NO_FLAG도 CHECK도 아니다)', () => {
+    const r = run(withRegistry([right(kind, null)]));
+    expect(r.data.status).toBe(UNVERIFIABLE);
+    expect(r.data.status).not.toBe(NO_FLAG);
+  });
+
+  it('rights: null이면 UNVERIFIABLE (NO_FLAG로 표시하지 않는다)', () => {
+    expect(run(withRegistry(null)).data.status).toBe(UNVERIFIABLE);
+  });
+
+  it('같은 종류 2건 중 1건만 말소돼도 말소 안 된 기록이 있으면 해당 상태', () => {
+    expect(run(withRegistry([right(kind, true), right(kind, false)])).data.status).toBe(activeStatus);
+  });
+
+  it('유효한 기록이 있으면 cancelled: null 기록이 같이 있어도 해당 상태', () => {
+    expect(run(withRegistry([right(kind, false), right(kind, null)])).data.status).toBe(activeStatus);
+  });
+
+  it('holder·holderIsCompany·cause가 비어 있거나 아예 없어도 오류 없이 같은 결과', () => {
+    const blank = { kind, cancelled: false, holder: null, holderIsCompany: null, cause: null };
+    const missing = { kind, cancelled: false };
+    for (const item of [blank, missing]) {
+      const r = run(withRegistry([item]));
+      expect(r.ok).toBe(true);
+      expect(r.data.status).toBe(activeStatus);
+    }
+  });
+
+  it('unknownActiveCount: 0이면 기존 결과(NO_FLAG)', () => {
+    expect(run(withRegistry([], { unknownActiveCount: 0 })).data.status).toBe(NO_FLAG);
+  });
+
+  it('unknownActiveCount가 1 이상이면 NO_FLAG 대신 UNVERIFIABLE', () => {
+    for (const n of [1, 3]) {
+      const r = run(withRegistry([], { unknownActiveCount: n }));
+      expect(r.data.status, String(n)).toBe(UNVERIFIABLE);
+      expect(r.data.explanation).toContain('could not be read');
+    }
+  });
+
+  it('unknownActiveCount가 없음·null·NaN·음수·소수면 확인 못 함 → UNVERIFIABLE', () => {
+    for (const extra of [{}, { unknownActiveCount: null }, { unknownActiveCount: Number.NaN }, { unknownActiveCount: -1 }, { unknownActiveCount: 1.5 }]) {
+      expect(run(withRegistry([], extra)).data.status, JSON.stringify(extra)).toBe(UNVERIFIABLE);
+    }
+  });
+
+  it('유효한 기록이 있으면 unknownActiveCount가 1 이상이거나 없어도 STOP/CHECK 유지', () => {
+    for (const extra of [{ unknownActiveCount: 2 }, { unknownActiveCount: null }, {}]) {
+      expect(run(withRegistry([right(kind, false)], extra)).data.status).toBe(activeStatus);
+    }
+  });
+});
+
+describe('PART 3 가처분·경매개시결정·가등기 여러 규칙 동시 발생 (#345)', () => {
+  const byIdOf = (f) => Object.fromEntries(assessRegistryRisks(f).data.map((x) => [x.ruleId, x.status]));
+
+  it('규칙마다 따로 판정되고, 화면에서는 STOP > CHECK > UNVERIFIABLE > NO_FLAG 순서로 묶인다', () => {
+    const f = withRegistry([
+      right('PROVISIONAL_DISPOSITION', false),
+      right('PROVISIONAL_REGISTRATION', false),
+      right('AUCTION', null),
+    ]);
+    const r = assessRegistryRisks(f);
+    expect(r.ok).toBe(true);
+    const byId = byIdOf(f);
+    expect(byId.PROVISIONAL_DISPOSITION_ACTIVE).toBe(STOP);
+    expect(byId.PROVISIONAL_REGISTRATION_ACTIVE).toBe(CHECK);
+    expect(byId.AUCTION_ACTIVE).toBe(UNVERIFIABLE);
+
+    const groups = groupRiskResults(r.data);
+    expect(STATUS_ORDER.filter((s) => groups[s].length > 0)).toEqual([STOP, CHECK, UNVERIFIABLE, NO_FLAG]);
+  });
+
+  it('다른 권리(압류)가 STOP이면 unknownActiveCount가 1 이상이어도 STOP 유지, 새 규칙만 UNVERIFIABLE', () => {
+    const byId = byIdOf(withRegistry([right('SEIZURE', false)], { unknownActiveCount: 2 }));
+    expect(byId.SEIZURE_ACTIVE).toBe(STOP);
+    expect(byId.PROVISIONAL_DISPOSITION_ACTIVE).toBe(UNVERIFIABLE);
+    expect(byId.AUCTION_ACTIVE).toBe(UNVERIFIABLE);
+    expect(byId.PROVISIONAL_REGISTRATION_ACTIVE).toBe(UNVERIFIABLE);
+  });
+
+  it('기존 규칙(압류·신탁·근저당)은 unknownActiveCount와 상관없이 결과가 그대로다', () => {
+    const a = byIdOf(withRegistry([right('MORTGAGE', false, 100000000)], { unknownActiveCount: 0 }));
+    const b = byIdOf(withRegistry([right('MORTGAGE', false, 100000000)], { unknownActiveCount: 5 }));
+    for (const id of ['TRUST_REGISTERED', 'SEIZURE_ACTIVE', 'MORTGAGE_EXISTS']) expect(b[id], id).toBe(a[id]);
+  });
+});
+
 describe('PART 3 최근 소유권 이전 (RECENT_OWNERSHIP_CHANGE)', () => {
   it('Mock에는 날짜가 없어서(undefined) UNVERIFIABLE', () => {
     expect(assessOwnershipTransfer(fields()).data.status).toBe(UNVERIFIABLE);
@@ -334,7 +459,7 @@ describe('PART 3 최근 소유권 이전 (RECENT_OWNERSHIP_CHANGE)', () => {
 });
 
 describe('PART 3 assessRisks() 연결 (#11)', () => {
-  it('Mock 입력으로 점검 결과 8개가 나오고, 근저당과 위험 특약은 CHECK다', () => {
+  it('Mock 입력으로 점검 결과 11개가 나오고, 근저당과 위험 특약은 CHECK다', () => {
     const r = assessRisks(fields(), mockPersonGroups);
     expect(r.ok).toBe(true);
     const byId = Object.fromEntries(r.data.map((x) => [x.ruleId, x.status]));
@@ -344,6 +469,9 @@ describe('PART 3 assessRisks() 연결 (#11)', () => {
       ADDRESS_MISMATCH: NO_FLAG,
       TRUST_REGISTERED: NO_FLAG,
       SEIZURE_ACTIVE: NO_FLAG,
+      PROVISIONAL_DISPOSITION_ACTIVE: UNVERIFIABLE,
+      AUCTION_ACTIVE: UNVERIFIABLE,
+      PROVISIONAL_REGISTRATION_ACTIVE: UNVERIFIABLE,
       MORTGAGE_EXISTS: CHECK,
       RECENT_OWNERSHIP_CHANGE: UNVERIFIABLE,
       RISKY_SPECIAL_TERM: CHECK,
@@ -356,6 +484,7 @@ describe('PART 3 assessRisks() 연결 (#11)', () => {
     expect(byId.TRUST_REGISTERED).toBe(UNVERIFIABLE);
     expect(byId.SEIZURE_ACTIVE).toBe(UNVERIFIABLE);
     expect(byId.MORTGAGE_EXISTS).toBe(UNVERIFIABLE);
+    expect(byId.PROVISIONAL_DISPOSITION_ACTIVE).toBe(UNVERIFIABLE);
   });
 
   it('모든 결과에 근거 칸(evidence)·설명·행동 안내가 있고, 설명에 실제 이름이 없다', () => {
@@ -410,6 +539,9 @@ describe('PART 3 사진에서 읽지 못한 항목은 NO_FLAG가 아니라 UNVER
       'SEIZURE_ACTIVE',
       'MORTGAGE_EXISTS',
       'RECENT_OWNERSHIP_CHANGE',
+      'PROVISIONAL_DISPOSITION_ACTIVE',
+      'AUCTION_ACTIVE',
+      'PROVISIONAL_REGISTRATION_ACTIVE',
     ]) {
       expect(byId[ruleId], ruleId).toBe(UNVERIFIABLE);
     }

@@ -250,6 +250,131 @@ rules:
           Check the registry for seizures (압류) and provisional seizures (가압류) yourself.
           Do not sign until you are sure there are none.
 
+  PROVISIONAL_DISPOSITION_ACTIVE:
+    title: Provisional disposition (가처분)
+    evidence:
+      left: Registry active entries
+      right: Entries with unclear status
+    results:
+      STOP:
+        explanation: >-
+          The registry shows an active provisional disposition. It is a court order that can
+          limit what the owner may do with this home, for example selling it or putting a new
+          mortgage on it. If the court case ends against the owner, your lease and your
+          deposit may be at risk.
+        action: >-
+          Do not sign until you confirm in writing that the provisional disposition has been
+          cleared. Ask a lawyer or a licensed real estate agent what it means for your lease.
+      UNVERIFIABLE.cancel_unknown:
+        explanation: >-
+          The registry shows a provisional disposition entry, but we could not tell whether
+          it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry for it. Do not sign until you are sure
+          it has been cleared.
+      UNVERIFIABLE.unread_rows:
+        explanation: >-
+          Some lines in the registry could not be read, and a provisional disposition could
+          be hidden in them. We did not find one, but this is not a sign that there is none.
+        action: >-
+          Check the original registry for provisional dispositions (가처분) yourself,
+          including any lines that could not be read. Do not sign until you are sure there
+          are none.
+      NO_FLAG:
+        explanation: >-
+          No active provisional disposition was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not read the parts of the registry that show provisional dispositions.
+        action: >-
+          Check the registry for provisional dispositions (가처분) yourself.
+          Do not sign until you are sure there are none.
+
+  AUCTION_ACTIVE:
+    title: Auction started (경매개시결정)
+    evidence:
+      left: Registry active entries
+      right: Entries with unclear status
+    results:
+      STOP:
+        explanation: >-
+          The registry shows an active auction start decision (경매개시결정). It means a court
+          has started a forced sale of this home. The home may be sold to someone else, and
+          your deposit may be at risk.
+        action: >-
+          Do not sign or send any money until you confirm in writing that the auction has been
+          cancelled. Check the registry again just before you sign.
+      UNVERIFIABLE.cancel_unknown:
+        explanation: >-
+          The registry shows an auction start decision entry, but we could not tell whether
+          it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry for it. Do not sign or send any money
+          until you are sure it has been cleared.
+      UNVERIFIABLE.unread_rows:
+        explanation: >-
+          Some lines in the registry could not be read, and an auction start decision could
+          be hidden in them. We did not find one, but this is not a sign that there is none.
+        action: >-
+          Check the original registry for an auction start decision (경매개시결정) yourself,
+          including any lines that could not be read. Do not sign until you are sure there
+          is none.
+      NO_FLAG:
+        explanation: >-
+          No active auction start decision was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not read the parts of the registry that show auction start decisions.
+        action: >-
+          Check the registry for an auction start decision (경매개시결정) yourself.
+          Do not sign until you are sure there is none.
+
+  PROVISIONAL_REGISTRATION_ACTIVE:
+    title: Provisional registration (가등기)
+    evidence:
+      left: Registry active entries
+      right: Entries with unclear status
+    results:
+      CHECK:
+        explanation: >-
+          The registry shows an active provisional registration. It can reserve someone's right
+          to take over ownership of this home later, for example after a sale promise. If that
+          person completes the registration, the owner may change and your lease may be
+          affected. It is not always a problem, but it needs to be checked.
+        action: >-
+          Check who holds the provisional registration and why. Ask the landlord to explain
+          it and, if needed, to cancel it before you sign. Ask a lawyer or a licensed real
+          estate agent if you are not sure.
+      UNVERIFIABLE.cancel_unknown:
+        explanation: >-
+          The registry shows a provisional registration entry, but we could not tell whether
+          it has been cancelled.
+        action: >-
+          Check the registry for a cancellation entry for it. Do not sign until you are sure
+          it has been cleared or explained.
+      UNVERIFIABLE.unread_rows:
+        explanation: >-
+          Some lines in the registry could not be read, and a provisional registration could
+          be hidden in them. We did not find one, but this is not a sign that there is none.
+        action: >-
+          Check the original registry for provisional registrations (가등기) yourself,
+          including any lines that could not be read.
+      NO_FLAG:
+        explanation: >-
+          No active provisional registration was found on the registry.
+          This is based only on the documents you uploaded.
+        action: No action needed for this check. Use an up-to-date registry just before you sign.
+      UNVERIFIABLE:
+        explanation: >-
+          We could not read the parts of the registry that show provisional registrations.
+        action: >-
+          Check the registry for provisional registrations (가등기) yourself.
+          Do not sign until you are sure there are none.    
+
   MORTGAGE_EXISTS:
     title: Mortgage (근저당)
     evidence:

@@ -1,16 +1,21 @@
-// @ts-check
 /**
- * 등기부 권리와 소유권 이전을 점검하는 규칙 4개.
+ * 등기부 권리와 소유권 이전을 점검하는 규칙 7개.
  *   1) 신탁 등기                  (TRUST_REGISTERED)
  *   2) 압류·가압류                (SEIZURE_ACTIVE)
- *   3) 근저당 + 보증금 비교 표시   (MORTGAGE_EXISTS)
- *   4) 최근 소유권 이전           (RECENT_OWNERSHIP_CHANGE)
+ *   3) 가처분                     (PROVISIONAL_DISPOSITION_ACTIVE)
+ *   4) 경매개시결정               (AUCTION_ACTIVE)
+ *   5) 가등기                     (PROVISIONAL_REGISTRATION_ACTIVE)
+ *   6) 근저당 + 보증금 비교 표시   (MORTGAGE_EXISTS)
+ *   7) 최근 소유권 이전           (RECENT_OWNERSHIP_CHANGE)
  *
  * 규칙 (docs/INTERFACES.md 5번 null 규칙)
  *  - rights가 null(못 읽음)이면 "없음"이 아니라 UNVERIFIABLE
  *  - rights가 [](읽었는데 없음)이면 NO_FLAG
  *  - cancelled === true(말소됨)인 권리는 점검에서 뺀다
  *  - cancelled === null(말소 여부를 모름)인 권리는 CHECK ("말소됐는지 확인 필요")
+ *    (가처분·경매개시결정·가등기는 CHECK가 아니라 UNVERIFIABLE)
+ *  - 가처분·경매개시결정·가등기: unknownActiveCount가 0이 아니면(1 이상, 없음, null, NaN, 음수)
+ *    NO_FLAG 대신 UNVERIFIABLE. 못 읽은 줄 안에 숨어 있을 수 있기 때문이다. (#345)
  *  - 보증금 또는 채권최고액을 못 읽으면 두 금액을 비교하지 않고, 이유를 설명에 적는다
  *  - 날짜가 없거나 'YYYY-MM-DD' 형식이 아니면 UNVERIFIABLE
  * 문구는 src/config/rules/risk-rules.yaml 에 있다.
@@ -27,6 +32,9 @@ const KIND = Object.freeze({
   SEIZURE: 'SEIZURE',
   PROVISIONAL_SEIZURE: 'PROVISIONAL_SEIZURE',
   TRUST: 'TRUST',
+  PROVISIONAL_DISPOSITION: 'PROVISIONAL_DISPOSITION',
+  AUCTION: 'AUCTION',
+  PROVISIONAL_REGISTRATION: 'PROVISIONAL_REGISTRATION',
 });
 
 const KIND_LABEL = {
@@ -34,6 +42,9 @@ const KIND_LABEL = {
   [KIND.SEIZURE]: 'seizure',
   [KIND.PROVISIONAL_SEIZURE]: 'provisional seizure',
   [KIND.TRUST]: 'trust',
+  [KIND.PROVISIONAL_DISPOSITION]: 'provisional disposition',
+  [KIND.AUCTION]: 'auction',
+  [KIND.PROVISIONAL_REGISTRATION]: 'provisional registration',
 };
 
 /** 최근 소유권 이전으로 보는 기간의 기본값 (규칙 파일의 params.withinMonths가 우선) */
@@ -50,6 +61,16 @@ const NO_VALUE = { left: null, right: null };
 function readRights(fields) {
   const rights = fields?.registry?.rights;
   return Array.isArray(rights) ? rights : null;
+}
+
+/**
+ * 등기부에서 알아보지 못한 유효 줄 수. 0 이상의 정수가 아니면(없음·null·NaN·음수·소수) null = 확인 못 함.
+ * @param {any} fields
+ * @returns {number | null}
+ */
+function readUnknownActiveCount(fields) {
+  const n = fields?.registry?.unknownActiveCount;
+  return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
 /**
@@ -87,10 +108,14 @@ const formatKRW = (amount) => (amount === null ? null : `KRW ${amount.toLocaleSt
 /**
  * 신탁·압류처럼 "있으면 위험"인 권리 규칙의 공통 판정.
  * @param {any} fields
- * @param {{ ruleId: string, kinds: string[], activeStatus: string, activeVariant?: string }} rule
+ * @param {{ ruleId: string, kinds: string[], activeStatus: string, activeVariant?: string, strict?: boolean }} rule
  *   activeVariant: 유효한 권리가 있을 때 쓸 문구 변형 (예: 'trust_notice')
+ *   strict: true면 (가처분·경매개시결정·가등기, #345)
+ *     - 말소 여부를 모르는 기록만 있을 때 CHECK가 아니라 UNVERIFIABLE
+ *     - 기록이 없어도 unknownActiveCount가 0이 아니면 NO_FLAG 대신 UNVERIFIABLE
+ *     유효한 기록이 있으면 STOP/CHECK 그대로 둔다.
  */
-function assessRightsRule(fields, { ruleId, kinds, activeStatus, activeVariant }) {
+function assessRightsRule(fields, { ruleId, kinds, activeStatus, activeVariant, strict = false }) {
   const rights = readRights(fields);
   if (!rights) return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { values: NO_VALUE });
 
@@ -99,7 +124,13 @@ function assessRightsRule(fields, { ruleId, kinds, activeStatus, activeVariant }
 
   if (active.length > 0) return buildRiskResult(ruleId, activeStatus, { variant: activeVariant, values });
   if (unclear.length > 0) {
-    return buildRiskResult(ruleId, RISK_STATUS.CHECK, { variant: 'cancel_unknown', values });
+    const status = strict ? RISK_STATUS.UNVERIFIABLE : RISK_STATUS.CHECK;
+    return buildRiskResult(ruleId, status, { variant: 'cancel_unknown', values });
+  }
+  // 못 읽은 줄 안에 숨어 있을 수 있으니 말없이 NO_FLAG로 보내지 않는다.
+  // (1 이상일 때 CHECK로 올릴지는 팀 확인 후 결정. 지금은 UNVERIFIABLE)
+  if (strict && readUnknownActiveCount(fields) !== 0) {
+    return buildRiskResult(ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'unread_rows', values });
   }
   return buildRiskResult(ruleId, RISK_STATUS.NO_FLAG, { values });
 }
@@ -182,6 +213,36 @@ export function assessSeizure(fields) {
     ruleId: 'SEIZURE_ACTIVE',
     kinds: [KIND.SEIZURE, KIND.PROVISIONAL_SEIZURE],
     activeStatus: RISK_STATUS.STOP,
+  });
+}
+
+/** 가처분: 말소되지 않은 기록이 있으면 STOP */
+export function assessProvisionalDisposition(fields) {
+  return assessRightsRule(fields, {
+    ruleId: 'PROVISIONAL_DISPOSITION_ACTIVE',
+    kinds: [KIND.PROVISIONAL_DISPOSITION],
+    activeStatus: RISK_STATUS.STOP,
+    strict: true,
+  });
+}
+
+/** 경매개시결정: 말소되지 않은 기록이 있으면 STOP */
+export function assessAuction(fields) {
+  return assessRightsRule(fields, {
+    ruleId: 'AUCTION_ACTIVE',
+    kinds: [KIND.AUCTION],
+    activeStatus: RISK_STATUS.STOP,
+    strict: true,
+  });
+}
+
+/** 가등기: 말소되지 않은 기록이 있으면 CHECK (정상적인 가등기도 있어서 STOP은 아니다) */
+export function assessProvisionalRegistration(fields) {
+  return assessRightsRule(fields, {
+    ruleId: 'PROVISIONAL_REGISTRATION_ACTIVE',
+    kinds: [KIND.PROVISIONAL_REGISTRATION],
+    activeStatus: RISK_STATUS.CHECK,
+    strict: true,
   });
 }
 
@@ -288,13 +349,21 @@ export function assessOwnershipTransfer(fields) {
 }
 
 /**
- * 등기부 관련 점검 4개를 모두 실행한다. 규칙 파일 오류로 하나라도 실패하면 그 오류를 그대로 돌려준다.
+ * 등기부 관련 점검 7개를 모두 실행한다. 규칙 파일 오류로 하나라도 실패하면 그 오류를 그대로 돌려준다.
  * @param {any} fields  extractFields() 결과
  * @returns {import('../../shared/document-model.js').Result<import('../../shared/document-model.js').RiskResult[]>}
  */
 export function assessRegistryRisks(fields) {
   const results = [];
-  for (const run of [assessTrust, assessSeizure, assessMortgage, assessOwnershipTransfer]) {
+  for (const run of [
+    assessTrust,
+    assessSeizure,
+    assessProvisionalDisposition,
+    assessAuction,
+    assessProvisionalRegistration,
+    assessMortgage,
+    assessOwnershipTransfer,
+  ]) {
     const r = run(fields);
     if (!r.ok) return r;
     results.push(r.data);

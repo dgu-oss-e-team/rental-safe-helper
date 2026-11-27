@@ -97,3 +97,5 @@ npm run eval        # 평가 세트로 4가지 지표를 계산해 docs/EVALUATI
 | 예금주 ≠ 임대인 | STOP |
 | 근저당 / 최근 소유권 이전 / 위험 특약 | CHECK |
 | 읽지 못한 항목 | UNVERIFIABLE |
+| 말소되지 않은 가처분·경매개시결정 | STOP |
+| 말소되지 않은 가등기 | CHECK |
