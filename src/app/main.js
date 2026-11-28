@@ -600,12 +600,17 @@ function homeLink() {
 function render() {
   const state = appState.getState();
   const screen = SCREENS[state.step] ?? uploadScreen;
+  // ① 첫 화면은 프로토타입처럼 넓게, 진행 표시 대신 화면 안의 "How it works"로 단계를 보여 준다 (#382)
+  const home = state.step === 'upload';
+  app.dataset.step = state.step;
   const parts = [
-    el('header', { class: 'site-header' }, [el('div', { class: 'brand-bar' }, [el('h1', { class: 'brand' }, [homeLink()])]), disclaimer()]),
-    stepper(state.step),
+    el('header', { class: 'site-header' }, [el('div', { class: 'brand-bar' }, [el('h1', { class: 'brand' }, [homeLink()])])]),
+    home ? null : stepper(state.step),
     state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
     state.error ? errorCard(state.error, state.step) : null,
     state.busy ? null : screen(state, act),
+    // 법률 자문이 아니라는 안내는 모든 화면 맨 아래에 (프로토타입 v2)
+    el('footer', { class: 'site-footer' }, [disclaimer()]),
   ];
   app.replaceChildren(.../** @type {HTMLElement[]} */ (parts.filter(Boolean)));
   // 단계가 바뀌면 화면 맨 위로 (휴대폰에서 다음 단계가 아래에 숨지 않게)

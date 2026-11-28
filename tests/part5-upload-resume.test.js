@@ -16,7 +16,8 @@ describe('PART 5 ① 화면: 이전 결과로 돌아가기 (#124)', () => {
   it('처음 들어오면(결과 없음) 안내가 없고 목적 고르기가 맨 위다 (#380)', () => {
     const node = uploadScreen(initialState(), fakeAct());
     expect(node.querySelector('#back-to-results')).toBeNull();
-    expect(node.querySelector('section.card h2')?.textContent).toBe('What do you want to do?');
+    expect(node.querySelector('.resume-card')).toBeNull();
+    expect(node.querySelector('section.start-section > h2')?.textContent).toBe('What do you want to do?');
   });
 
   it('이전 결과가 있으면 안내가 업로드 칸 위에 나오고, 결과가 바뀐다는 말도 있다', () => {

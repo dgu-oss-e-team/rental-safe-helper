@@ -50,7 +50,7 @@ describe('PART 5 ① 화면: 올린 파일 지우기 (#188)', () => {
 
   it('파일 칸 글자는 영어다 (브라우저 기본 "파일 선택 / 선택된 파일 없음" 대신)', () => {
     const { node } = screenWith({});
-    expect(node.querySelector('label.file-button[for="lease-file"]')?.textContent).toBe('Choose file');
+    expect(node.querySelector('label.file-button[for="lease-file"]')?.textContent).toBe('Choose file or photos');
     expect(node.querySelector('#lease-file-status')?.textContent).toBe('No file chosen');
     // 기본 파일 칸은 숨기지만 키보드·화면 낭독기로 쓸 수 있게 남겨 두고, 칸 설명·상태 글과 연결한다 (#234)
     const input = node.querySelector('#lease-file');

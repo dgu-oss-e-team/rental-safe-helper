@@ -113,9 +113,8 @@ function autoShowChanges(changes, autoMove) {
  */
 function roleLegend(hasRegistry = true) {
   /** @param {string} term @param {string} meaning */
-  const item = (term, meaning) => el('li', {}, [el('strong', {}, [term]), ` = ${meaning}`]);
+  const item = (term, meaning) => el('li', {}, [el('strong', {}, [term]), el('span', {}, [meaning])]);
   return el('div', { class: 'role-legend', id: 'role-legend' }, [
-    el('p', {}, ['How to read the results:']),
     el('ul', {}, [
       // 등기부를 넣지 않았으면 Owner·Previous owner는 화면 어디에도 안 나오므로 설명하지 않는다 (v2 프로토타입 의견)
       hasRegistry ? item('Owner', 'the owner of the home on the property register (등기부등본)') : null,
@@ -188,6 +187,7 @@ function askAiSection(state, act, hasStop) {
         ])
       : null;
 
+  // 큰 카드가 아니라 한 줄 (#388 성연님 의견). 넓은 화면에서는 오른쪽 칸 맨 아래에 둔다 (프로토타입 v2)
   return el('section', { class: 'ask-ai', id: 'ask-ai', 'aria-label': 'Next: ask AI' }, [
     suggestSwitch,
     el('div', { class: 'chosen-purpose', id: 'chosen-purpose' }, [
@@ -291,8 +291,15 @@ export function resultsScreen(state, act) {
   const changesNotice = resultsUpdatedNotice(state.resultChanges, 'top', autoMove);
   autoShowChanges(state.resultChanges, autoMove);
 
-  return el('div', {}, [
-    card('Documents', [
+  // 프로토타입 v2 배치 (#382): 맨 위 결론 배너 + 개수 칸, 왼쪽 결과 카드, 오른쪽 설명·질문·다음 단계
+  // 개수 칸(누르면 그 상태만 보기)은 PART 3 결과 화면 안의 것을 그대로 배너 옆으로 옮긴다 (누르는 동작은 그대로)
+  const risk = slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent });
+  const counts = risk.querySelector('.risk-filter');
+  const bannerWrap = renderConclusionBanner(analysis.riskResults);
+  const banner = bannerWrap.querySelector('.risk-banner');
+  const help = bannerWrap.querySelector('.help-box');
+  const hasAlerts = unknown > 0 || slotNotices.length > 0;
+  const documentsCard = card('Documents', [
       el(
         'ul',
         { class: 'doc-list' },
@@ -316,21 +323,29 @@ export function resultsScreen(state, act) {
         ? el('div', { class: 'warning upload-slot-notice', id: 'upload-slot-notice' }, slotNotices.map((t) => el('p', {}, [t])))
         : null,
       backToUpload,
+    ], 'documents-card');
+
+  return el('div', { class: 'results-screen' }, [
+    // 맨 위 결론 배너 (#377) + 개수 칸
+    el('section', { class: 'results-hero', 'aria-label': 'Check before you sign' }, [banner, counts]),
+    // 다른 서류를 넣었거나 종류를 모르면 결과보다 먼저 알린다
+    hasAlerts ? documentsCard : null,
+    el('div', { class: 'results-grid' }, [
+      el('div', { class: 'results-main' }, [
+        changesNotice,
+        questionNotice,
+        help,
+        risk,
+      ]),
+      el('aside', { class: 'results-side', 'aria-label': 'Help and next step' }, [
+        // 역할 이름·가명 설명 (기능 개선 목록 9번)
+        card('How to read the results', [roleLegend(analysis.documents.some((d) => d.documentType === DOCUMENT_TYPE.REGISTRY))], 'legend-card'),
+        // 확인할 사람이 있으면 결과 옆에서 묻는다. 답하면 결과가 그 자리에서 바뀐다.
+        questionCard,
+        // 목적 확인·바꾸기와 다음 단계 (#381). "화면에만 보이는 정보" 안내(#377)는 다음 버튼 바로 위에 한 번만 둔다.
+        hasAlerts ? null : documentsCard,
+        askAiSection(state, act, analysis.riskResults.some((r) => r.status === RISK_STATUS.STOP)),
+      ]),
     ]),
-    card('Check before you sign', [
-      // 맨 위 결론 배너 (#377)
-      renderConclusionBanner(analysis.riskResults),
-      changesNotice,
-      questionNotice,
-      // 역할 이름·가명 설명은 그 이름을 쓰는 결과 카드 바로 위에 둔다 (기능 개선 목록 9번)
-      roleLegend(analysis.documents.some((d) => d.documentType === DOCUMENT_TYPE.REGISTRY)),
-      // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
-      slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
-    ]),
-    // 확인할 사람이 있으면 결과 바로 아래에서 묻는다. 답하면 위 결과가 그 자리에서 바뀐다.
-    questionCard,
-    // 목적 확인·바꾸기와 다음 단계 (#381). 옛 ③ 목적 화면을 대신한다.
-    // "화면에만 보이는 정보" 안내(#377)는 그 안의 다음 버튼 바로 위에 한 번만 둔다.
-    askAiSection(state, act, analysis.riskResults.some((r) => r.status === RISK_STATUS.STOP)),
   ]);
 }

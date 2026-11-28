@@ -11,7 +11,7 @@
  *       남은 줄 수와 버튼 상태만 이 화면에서 직접 바꾼다.
  */
 
-import { el, button, card, actions } from '../ui.js';
+import { el, button } from '../ui.js';
 import { slots } from '../slots.js';
 
 /**
@@ -44,15 +44,17 @@ export function confirmScreen(state, act) {
 
   showRemaining(act.countOcrLinesToCheck(draft));
 
-  return el('div', {}, [
-    card('Check the text we read', [
+  // 프로토타입 v2 배치 (#382): 큰 제목과 설명, PART 1 확인 화면, 아래 흰 띠에 남은 줄 수와 버튼
+  const back = button('Back', () => act.cancelOcr(), { variant: 'secondary' });
+  return el('div', { class: 'confirm-screen' }, [
+    el('div', { class: 'page-head page-head-stack' }, [
+      el('h2', { class: 'page-title' }, ['Check the text we read']),
       el('p', {}, [
         'Some of your documents are photos or scans. Text recognition can make mistakes, so please compare the lines we marked with your document before we check the risks.',
       ]),
       el('p', { class: 'hint' }, ['Wrong numbers or names can stop us from finding and hiding personal information.']),
     ]),
     editor,
-    status,
-    actions([next, button('Back', () => act.cancelOcr(), { variant: 'secondary' })]),
+    el('div', { class: 'confirm-bar' }, [status, el('div', { class: 'confirm-actions' }, [back, next])]),
   ]);
 }

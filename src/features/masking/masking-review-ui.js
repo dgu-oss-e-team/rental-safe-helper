@@ -309,12 +309,13 @@ export function renderMaskingReview({ analysis, prepared, edits, onChange }) {
     const places = row.findingIds.length > 1 ? `${row.findingIds.length} places · ` : '';
     const where = places + row.documentIds.map((id) => DOC_SHORT[docType.get(id)] ?? 'Document').join(', ');
     return el('tr', { class: row.shown ? 'mr-row-shown' : undefined }, [
-      el('td', {}, [TYPE_TEXT[row.type] ?? row.type, el('br'), el('span', { class: 'mr-note' }, [where])]),
+      // data-label: 휴대폰에서 표를 줄마다 쌓을 때 칸 이름으로 쓴다 (#382, 프로토타입 v2)
+      el('td', { class: 'mr-type', 'data-label': 'Type' }, [TYPE_TEXT[row.type] ?? row.type, el('br'), el('span', { class: 'mr-note' }, [where])]),
       // 원본 글자는 이 화면에만 보여 준다 (AI로 보내지 않음)
-      el('td', { class: 'mr-original' }, [row.values.join(' / ')]),
-      el('td', {}, [resultBadge(row)]),
+      el('td', { class: 'mr-original', 'data-label': 'In your document' }, [row.values.join(' / ')]),
+      el('td', { class: 'mr-sees', 'data-label': 'What the AI sees' }, [resultBadge(row)]),
       // 항상 가리는 항목(🔒)은 Show가 없으니 안내도 없다
-      el('td', {}, [control, row.locked ? null : showNote(row.findingIds, notSent)]),
+      el('td', { class: 'mr-ctl', 'data-label': 'Show to AI' }, [control, row.locked ? null : showNote(row.findingIds, notSent)]),
     ]);
   });
 

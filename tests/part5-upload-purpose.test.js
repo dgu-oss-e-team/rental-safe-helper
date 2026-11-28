@@ -18,8 +18,9 @@ const needs = (node) => [node.querySelector('#registry-file-need')?.textContent,
 describe('PART 5 ① 목적 카드 (#380)', () => {
   it('목적 카드가 서류 칸보다 위에 있고, 3개다', () => {
     const node = uploadScreen(initialState(), fakeAct());
-    const sections = [...node.querySelectorAll('section.card h2')].map((h) => h.textContent);
-    expect(sections).toEqual(['What do you want to do?', 'Upload your documents']);
+    // 첫 화면은 프로토타입 v2 구조 (#382): 큰 제목 아래 목적 고르기 → 서류 넣기
+    const sections = [...node.querySelectorAll('section.start-section > h2')].map((h) => h.textContent);
+    expect(sections).toEqual(['What do you want to do?', 'Add your documents']);
     expect(node.querySelectorAll('.purpose-card input[type=radio]').length).toBe(3);
   });
 

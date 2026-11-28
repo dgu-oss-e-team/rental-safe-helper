@@ -10,6 +10,86 @@ import { PURPOSES, NEED_LABEL, purposeInfo, missingDocNotices } from '../purpose
 import { getSendMode, SEND_MODE } from '../../features/masking/send-mode.js';
 import { DOCUMENT_TYPE } from '../../shared/document-model.js';
 
+/**
+ * 꾸밈 그림(SVG). 코드에 적은 고정 그림만 넣는다 (서류 글자는 절대 넣지 않음). 화면 낭독기는 읽지 않는다.
+ * @param {string} markup
+ * @returns {Element}
+ */
+function icon(markup) {
+  const t = document.createElement('template');
+  t.innerHTML = markup.trim();
+  const svg = /** @type {Element} */ (t.content.firstElementChild);
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  return svg;
+}
+
+const ICON = {
+  shieldCheck:
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.4 7.5 9.5 4.4-1.1 7.5-4.9 7.5-9.5V6L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m8.8 12.2 2.3 2.3 4.3-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  registry:
+    '<svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.8"/><path d="M14 3v4h4M9 12h6M9 15.5h6M9 9h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  lease:
+    '<svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m18.5 5.5 1 1-6.5 6.5-1.8.6.6-1.8 6.7-6.3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 17h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5.5M12 7.6v.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  screen:
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  lock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg>',
+  shieldAlert:
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.4 7.5 9.5 4.4-1.1 7.5-4.9 7.5-9.5V6L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8.5v4.5M12 15.8v.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+
+/** 첫 화면 맨 위 큰 제목 (프로토타입 v2, #382) */
+function hero() {
+  return el('section', { class: 'hero', 'aria-labelledby': 'hero-title' }, [
+    el('h2', { class: 'hero-title', id: 'hero-title' }, ['Check your rental documents ', el('span', {}, ['before you sign'])]),
+    el('p', { class: 'lead' }, [
+      'For international students renting in Korea. We point out warning signs to ask about, and hide personal details before you ask AI.',
+    ]),
+    el('p', { class: 'trust-line' }, [icon(ICON.shieldCheck), 'Read in your browser. Nothing is uploaded.']),
+  ]);
+}
+
+/** 첫 화면 아래: 이용 방법 4단계 + 개인정보 약속 3가지 (프로토타입 v2, #382) */
+function howItWorks() {
+  /** @param {string} title @param {string} text @param {Node | null} [extra] */
+  const step = (title, text, extra = null) =>
+    el('li', {}, [el('span', { class: 'step-dot', 'aria-hidden': 'true' }), el('strong', {}, [title]), extra, el('p', {}, [text])]);
+  return el('div', { class: 'home-more' }, [
+    el('section', { class: 'how', id: 'how', 'aria-labelledby': 'how-title' }, [
+      el('h2', { id: 'how-title' }, ['How it works']),
+      el('ol', { class: 'how-steps' }, [
+        step('Upload', 'Choose what you want to do, then add the documents it needs.'),
+        step(
+          'Check',
+          'See warning signs from the documents you added. You can still change what to ask AI here.',
+          el('span', { class: 'chip-row' }, [
+            el('span', { class: 'chip chip-stop' }, ['Stop']),
+            el('span', { class: 'chip chip-check' }, ['Check']),
+            el('span', { class: 'chip chip-unverifiable' }, ['Could not check']),
+          ]),
+        ),
+        step('Review', 'See what we hid. Names become roles like [Landlord_B]; ID numbers are always hidden.'),
+        step('Done', 'After the privacy check passes, download the masked PDF and copy the prompt into the AI you use.'),
+      ]),
+    ]),
+    el('section', { class: 'promises', 'aria-label': 'Our privacy promises' }, [
+      promise(ICON.screen, 'Your files stay in this browser', 'Original documents are not sent away for analysis. You control the copies you download.'),
+      promise(
+        ICON.lock,
+        'ID, phone and account numbers are always hidden',
+        'We check the output again before creating materials for AI. Review every page yourself, too.',
+      ),
+      promise(ICON.shieldAlert, 'We never call a home "safe"', 'We show what to check, and tell you when we could not read something.'),
+    ]),
+  ]);
+}
+
+/** @param {string} svg @param {string} title @param {string} text */
+function promise(svg, title, text) {
+  return el('div', { class: 'promise' }, [icon(svg), el('div', {}, [el('strong', {}, [title]), el('p', {}, [text])])]);
+}
+
 /** @param {number} n @param {string} word */
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -51,12 +131,11 @@ function resumeCard(state, act) {
  * @param {import('../main.js').Actions} act
  */
 function purposeCard(state, act) {
-  return card(
-    'What do you want to do?',
-    [
-      el(
+  return el('section', { class: 'start-section purpose-card-section', 'aria-labelledby': 'purpose-title' }, [
+    el('h2', { id: 'purpose-title' }, ['What do you want to do?']),
+    el(
         'div',
-        { class: 'purpose-cards', role: 'radiogroup', 'aria-label': 'What do you want to do?' },
+        { class: 'purpose-cards', role: 'radiogroup', 'aria-labelledby': 'purpose-title' },
         PURPOSES.map((p) => {
           const id = `start-purpose-${p.value.toLowerCase()}`;
           const input = /** @type {HTMLInputElement} */ (
@@ -71,20 +150,23 @@ function purposeCard(state, act) {
                 p.recommended ? el('span', { class: 'chip chip-recommended' }, ['Recommended']) : null,
               ]),
               el('ul', { class: 'purpose-questions' }, p.questions.map((q) => el('li', {}, [`“${q}”`]))),
-              el('span', { class: 'hint' }, [p.needsText]),
+              el('span', { class: 'purpose-needs' }, [p.needsText]),
             ]),
           ]);
         }),
       ),
-    ],
-    'purpose-card-section',
-  );
+  ]);
 }
 
 function photoTipsBox() {
   // 촬영 팁은 기본으로 접는다 (#380). 사진으로 올리는 사람만 펼쳐 본다.
   return el('details', { class: 'photo-tips' }, [
-    el('summary', {}, [el('strong', {}, ['Tips for taking a clear photo'])]),
+    el('summary', {}, [
+      el('span', { class: 'photo-tips-lead' }, [icon(ICON.info), 'Using photos?']),
+      ' ',
+      el('strong', {}, ['Tips for taking a clear photo']),
+    ]),
+    el('p', { class: 'photo-tips-note' }, ['With photos, some checks may show "Could not check".']),
     el('ul', {}, [
       el('li', {}, ['Place the paper flat without folds or creases.']),
       el('li', {}, ['Shoot straight-on from the front so the page is not tilted.']),
@@ -175,6 +257,8 @@ function photoViewer() {
  * @param {{
  *   id: string,
  *   label: string,
+ *   sub: string,
+ *   kind: 'registry' | 'lease',
  *   hint: string,
  *   docName: string,
  *   current: import('../photo-pages.js').SlotValue,
@@ -185,12 +269,14 @@ function photoViewer() {
  *   need: import('../purposes.js').DocNeed,
  *   extra?: string | null,
  * }} opts
+ *   label·sub: 칸 제목(영어)과 그 아래 작은 글(한국어 이름 등)
+ *   kind: 칸 그림 종류
  *   docName: 화면 낭독기용 서류 이름 ("property register")
  *   typeNotices: 넣은 파일이 다른 서류로 보일 때 칸 아래 안내 (#365)
  *   need: 고른 목적에서 이 서류가 필요한 정도 (#380). 칸 이름 옆에 표시
  *   extra: 목적에 따라 칸에 덧붙이는 한 줄 (예: 계약 조건 설명에서 등기부 추천)
  */
-function filePicker({ id, label, hint, docName, current, notice, typeNotices, onChange, viewer, need, extra = null }) {
+function filePicker({ id, label, sub, kind, hint, docName, current, notice, typeNotices, onChange, viewer, need, extra = null }) {
   const statusId = `${id}-status`;
   const hintId = `${id}-hint`;
   const typeWarningId = `${id}-type-warning`;
@@ -244,15 +330,16 @@ function filePicker({ id, label, hint, docName, current, notice, typeNotices, on
   }
 
   // PDF가 들어 있으면 새로 고른 파일은 바꾸지 않고 뒤에 덧붙인다 (특약 별지 PDF·사진, #298). 바꾸려면 Remove 후 다시 고른다.
-  const buttonText = photosOnly ? 'Add another page' : current ? 'Add another file' : 'Choose file';
+  const buttonText = photosOnly ? 'Add another page' : current ? 'Add another file' : 'Choose file or photos';
   const statusText = list ? listStatus(list) : pdf ? pdf.name : 'No file chosen';
 
-  return el('div', { class: 'picker', 'data-need': need }, [
+  return el('div', { class: `picker upbox${current ? ' has-file' : ''}`, 'data-need': need }, [
     el('div', { class: 'picker-head' }, [
-      el('label', { for: id }, [label]),
+      icon(kind === 'registry' ? ICON.registry : ICON.lease),
+      el('label', { for: id, class: 'picker-title' }, [el('strong', {}, [label]), el('small', {}, [sub])]),
       el('span', { class: `chip chip-need chip-${need}`, id: `${id}-need` }, [NEED_LABEL[need]]),
     ]),
-    el('p', { class: 'hint', id: hintId }, [hint]),
+    el('p', { class: 'hint picker-hint', id: hintId }, [hint]),
     extra ? el('p', { class: 'picker-extra', id: `${id}-extra` }, [extra]) : null,
     el('div', { class: 'file-row' }, [
       input,
@@ -346,7 +433,9 @@ export function uploadScreen(state, act) {
   const registryNotSent = getSendMode(state.purpose, DOCUMENT_TYPE.REGISTRY) === SEND_MODE.OMIT;
   const registryPicker = filePicker({
     id: 'registry-file',
-    label: 'Property register (등기부등본)',
+    label: 'Property register',
+    sub: '등기부등본 · all pages',
+    kind: 'registry',
     // 등기부는 보통 여러 쪽이고, 근저당·압류·신탁은 뒤쪽 갑구·을구에 있다 (#243 리뷰)
     hint:
       'Shows who owns the home and any mortgage or seizure. Include every page: mortgages and seizures are often on the later pages. ' +
@@ -368,7 +457,9 @@ export function uploadScreen(state, act) {
   });
   const leasePicker = filePicker({
     id: 'lease-file',
-    label: 'Lease contract (임대차계약서)',
+    label: 'Lease contract',
+    sub: '임대차계약서 · with special terms',
+    kind: 'lease',
     // 특약을 별지에 따로 적은 계약서는 그 쪽이 빠지면 "특약 없음"으로 보일 수 있다 (#234)
     hint:
       'The contract you are about to sign. Include every page, including any separate special terms page (특약사항 별지). ' +
@@ -418,29 +509,38 @@ export function uploadScreen(state, act) {
     const openArea = el('div', { class: 'registry-open', id: 'registry-open' }, [registryPicker, closeButton]);
     registryArea = registryOptIn ? openArea : box;
   }
-  return el('div', {}, [
+  const sampleButton = button('Try with sample data', () => act.analyzeSample(), { id: 'run-sample', variant: 'secondary' });
+  sampleButton.classList.add('text-button');
+  return el('div', { class: 'home' }, [
+    hero(),
     resumeCard(state, act),
     purposeCard(state, act),
-    card('Upload your documents', [
-      el('p', {}, [
+    el('section', { class: 'start-section upload-section', 'aria-labelledby': 'upload-title' }, [
+      el('h2', { id: 'upload-title' }, ['Add your documents']),
+      el('p', { class: 'upload-intro' }, [
         // 조항·용어 설명은 서류 하나만으로도 된다
         info.needs.registry === 'optional' && info.needs.lease === 'optional'
           ? 'Add the document you want explained. One is enough, or add both. PDF files and photos (JPG, PNG) both work.'
           : registryOptional
-            ? 'Upload the lease contract you are about to sign. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.'
-            : 'Upload the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
+            ? 'Add the lease contract you are about to sign. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.'
+            : 'Add the property register and the lease contract you received. PDF files and photos (JPG, PNG) both work. On a phone, you can take a photo of each page.',
       ]),
+      // 계약 조건 설명은 계약서가 주인공이라 계약서 칸을 먼저 둔다 (한 줄에 하나씩)
+      el(
+        'div',
+        { class: `uploads${registryOptional ? ' lease-first' : ''}` },
+        registryOptional ? [leasePicker, registryArea] : [registryPicker, leasePicker],
+      ),
       photoTipsBox(),
-      // 계약 조건 설명은 계약서가 주인공이라 계약서 칸을 먼저 둔다
-      ...(registryOptional ? [leasePicker, registryArea] : [registryPicker, leasePicker]),
       missing.length > 0
         ? el('div', { class: 'warning upload-missing', id: 'upload-missing', role: 'status' }, missing.map((t) => el('p', {}, [t])))
         : null,
-      actions([
+      el('div', { class: 'start-actions' }, [
+        sampleButton,
         button('Check my documents', () => act.analyze(), { id: 'run', disabled: !hasFile }),
-        button('Try with sample data', () => act.analyzeSample(), { id: 'run-sample', variant: 'secondary' }),
       ]),
     ]),
+    howItWorks(),
     viewer.node,
   ]);
 }

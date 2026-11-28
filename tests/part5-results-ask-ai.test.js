@@ -30,7 +30,8 @@ describe('② "Next: ask AI" (#381)', () => {
     expect(ask.classList.contains('card')).toBe(false);
     expect(ask.querySelector('h2')).toBeNull();
     expect(ask.getAttribute('aria-label')).toBe('Next: ask AI');
-    expect(node.lastElementChild).toBe(ask);
+    // 오른쪽 칸 맨 아래 (프로토타입 v2 배치, #382). 휴대폰에서는 한 줄로 쌓여 화면 맨 아래가 된다
+    expect(node.querySelector('.results-side')?.lastElementChild).toBe(ask);
     const line = ask.querySelector('.chosen-purpose-line');
     expect(line?.textContent).toBe('Asking AI to: Explain contract conditions · Change purpose');
     expect(line?.querySelector('#change-purpose')?.tagName).toBe('BUTTON');

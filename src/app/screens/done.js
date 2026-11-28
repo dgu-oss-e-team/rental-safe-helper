@@ -8,6 +8,7 @@ import { errorHelp } from '../error-help.js';
 import { CHECK_STATUS, PII_TYPE_TEXT, partlyCheckedText } from '../double-check.js';
 import { hasPhotoDocuments } from '../text-review.js';
 import { buildRestoreTable, restoreAliases } from '../alias-restore.js';
+import { HELP_CONTACTS } from '../../config/help-contacts.js';
 
 /**
  * 웹서비스가 AI를 직접 부르지 않는다. 프롬프트를 복사해 두고 사용자가 직접 붙여넣는다 (제안서 ⑨).
@@ -193,7 +194,9 @@ export function doneScreen(state, act) {
   // 사진·스캔 서류는 다시 확인을 먼저 하고, 그 결과를 본 뒤에 받는다 (#314). 글자 PDF는 지금처럼 받은 뒤 원하면 확인한다.
   const photo = hasPhotoDocuments(state.analysis);
 
-  return el('div', {}, [
+  // 프로토타입 v2 배치 (#382): 왼쪽 마스킹 서류·서명 전 안내, 오른쪽 AI 묻기(주황 테두리)·가명 복원
+  return el('div', { class: 'done-screen' }, [
+    el('div', { class: 'done-side' }, [
     card(
       'Masked documents',
       photo
@@ -208,9 +211,19 @@ export function doneScreen(state, act) {
             doubleCheckSection(state, act),
           ],
     ),
-    card('Ask AI', askAi(state, prepared, box, status)),
-    restoreCard(state, prepared),
+    card('Before you sign', [
+      el('p', {}, ['AI answers can be wrong. Check the original documents yourself, and ask someone you trust if anything is unclear.']),
+      el('p', { class: 'hint' }, [
+        'Help in your language: ',
+        HELP_CONTACTS.filter((c) => c.phone).map((c) => c.name).join(' · '),
+      ]),
+    ], 'before-sign-card'),
     actions([button('Check other documents', () => act.restart(), { variant: 'secondary' })]),
+    ]),
+    el('div', { class: 'done-main' }, [
+      card('Ask AI', askAi(state, prepared, box, status), 'ask-ai-card'),
+      restoreCard(state, prepared),
+    ]),
   ]);
 }
 
