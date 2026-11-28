@@ -23,13 +23,22 @@ const screenFor = ({ purpose = MASKING_PURPOSE.FRAUD_CHECK, statuses = [] } = {}
 };
 
 describe('② "Next: ask AI" (#381)', () => {
-  it('결과 화면 맨 아래 카드에 고른 목적과 AI에 보내는 것 한 줄이 보인다', () => {
+  it('맨 아래에 큰 카드 대신 "Asking AI to: 목적 · Change purpose" 한 줄과 AI에 보내는 것 한 줄이 있다 (#388 의견)', () => {
     const { node } = screenFor({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION });
-    const cards = node.querySelectorAll('section.card');
-    const last = cards[cards.length - 1];
-    expect(last.querySelector('h2')?.textContent).toBe('Next: ask AI');
-    expect(last.querySelector('#chosen-purpose-title')?.textContent).toBe('Explain contract conditions');
-    expect(last.querySelector('#chosen-purpose')?.textContent).toContain('The property register is not sent');
+    const ask = /** @type {HTMLElement} */ (node.querySelector('#ask-ai'));
+    // 큰 카드(제목 있는 card)가 아니다
+    expect(ask.classList.contains('card')).toBe(false);
+    expect(ask.querySelector('h2')).toBeNull();
+    expect(ask.getAttribute('aria-label')).toBe('Next: ask AI');
+    expect(node.lastElementChild).toBe(ask);
+    const line = ask.querySelector('.chosen-purpose-line');
+    expect(line?.textContent).toBe('Asking AI to: Explain contract conditions · Change purpose');
+    expect(line?.querySelector('#change-purpose')?.tagName).toBe('BUTTON');
+    // AI에 무엇을 보내는지 한 줄은 신뢰 때문에 남긴다
+    expect(ask.querySelector('#chosen-purpose-sends')?.textContent).toContain('The property register is not sent');
+    // 목적 줄은 다음 버튼 위 (사이에는 PART 3 "Shown only on this screen" 안내만)
+    const next = /** @type {HTMLElement} */ (ask.querySelector('#next-review'));
+    expect(ask.querySelector('#chosen-purpose')?.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('목적 화면으로 가는 버튼이 없고, 다음 버튼은 바로 AI 준비(prepare)를 한다', () => {
@@ -40,7 +49,7 @@ describe('② "Next: ask AI" (#381)', () => {
     expect(act.goTo).not.toHaveBeenCalledWith('purpose');
   });
 
-  it('"Change"를 누르면 목적 3개가 펼쳐지고, 고르면 setPurpose를 부른다', () => {
+  it('"Change purpose"를 누르면 목적 3개가 펼쳐지고, 고르면 setPurpose를 부른다', () => {
     const { node, act } = screenFor();
     const list = /** @type {HTMLElement} */ (node.querySelector('#purpose-choices'));
     const change = /** @type {HTMLButtonElement} */ (node.querySelector('#change-purpose'));
@@ -50,6 +59,7 @@ describe('② "Next: ask AI" (#381)', () => {
     change.click();
     expect(list.hidden).toBe(false);
     expect(change.getAttribute('aria-expanded')).toBe('true');
+    expect(change.textContent).toBe('Close');
     expect(list.querySelectorAll('input[type=radio]')).toHaveLength(3);
     // 목적마다 AI에 보내는 것 설명 (옛 목적 화면 문구)
     for (const p of PURPOSES) expect(list.textContent).toContain(sendsTextOf(p));
@@ -69,6 +79,10 @@ describe('② "Next: ask AI" (#381)', () => {
 
   it('Stop이 있고 사기 위험 확인이 아니면 "Switch to Check fraud risks"를 제안한다', () => {
     const { node, act } = screenFor({ purpose: MASKING_PURPOSE.CONTRACT_EXPLANATION, statuses: [RISK_STATUS.STOP, RISK_STATUS.CHECK] });
+    // Stop 제안은 눈에 띄는 상자로, 목적 한 줄보다 위에
+    const box = /** @type {HTMLElement} */ (node.querySelector('#switch-purpose'));
+    expect(box.classList.contains('warning')).toBe(true);
+    expect(box.compareDocumentPosition(/** @type {HTMLElement} */ (node.querySelector('#chosen-purpose'))) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const sw = /** @type {HTMLButtonElement} */ (node.querySelector('#switch-fraud'));
     expect(sw?.textContent).toBe('Switch to Check fraud risks');
     sw.click();
