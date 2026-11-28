@@ -33,7 +33,7 @@ const registry = (over = {}) => ({
 const summarize = (over) => {
   const r = buildRegistrySummary(registry(over), GROUPS, LEGEND);
   expect(r.ok).toBe(true);
-  return /** @type {{ documentId: string, text: string, hiddenCount: number }} */ (r.data);
+  return /** @type {{ documentId: string, text: string, hiddenCount: number, holderNames: Record<string, string> }} */ (r.data);
 };
 
 describe('PART 4 목적별로 보낼 방식 (getSendMode)', () => {
@@ -341,6 +341,44 @@ describe('PART 4 등기부 요약 (buildRegistrySummary)', () => {
     expect(text).toContain('received 2024-05-06, cause 설정계약, jeonse deposit (전세금) Could not read');
     expect(text).toContain('- Trust (신탁): received 2024-09-23, cause 신탁, holder 가상부동산신탁주식회사, active');
     expect(text).not.toContain('500,000,000');
+  });
+
+  it('holderNames: 요약에 쓴 개인 권리자 가명 → 원래 이름을 돌려준다 (가명 복원용, 회사는 넣지 않음)', () => {
+    const r = buildRegistrySummary(
+      registry({
+        rights: [
+          { kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '2025-05-02', holder: '이 가상', holderIsCompany: false, cause: '설정계약' },
+          { kind: 'SEIZURE', cancelled: false, receivedAt: '2025-07-01', holder: '이가상', holderIsCompany: false, cause: '압류' },
+          { kind: 'PROVISIONAL_SEIZURE', cancelled: false, receivedAt: '2025-06-01', holder: '홍 길동', holderIsCompany: false, cause: '가압류결정' },
+          { kind: 'MORTGAGE', maxClaimAmount: 30000000, cancelled: false, receivedAt: '2025-08-01', holder: '주식회사가상은행', holderIsCompany: true, cause: '설정계약' },
+        ],
+      }),
+      GROUPS,
+      LEGEND,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // 같은 이름(띄어쓰기만 다름)은 같은 가명, 소유자와 이름만 같은 사람도 따로 [Holder_2]
+    expect(r.data.holderNames).toEqual({ '[Holder_1]': '이 가상', '[Holder_2]': '홍 길동' });
+    expect(Object.values(r.data.holderNames)).not.toContain('주식회사가상은행');
+    // 프롬프트에 들어가는 요약 글에는 원래 이름이 없다
+    for (const name of ['이 가상', '이가상', '홍 길동', '홍길동']) expect(r.data.text).not.toContain(name);
+  });
+
+  it('holderNames: 개인 권리자가 없으면 빈 표, 값을 가려 요약에 안 남은 가명은 넣지 않는다', () => {
+    expect(summarize().holderNames).toEqual({});
+    // 사용자가 "설정계약"을 더 가리면 그 줄은 종류만 남아 [Holder_1]이 요약에 없다
+    const edits = { remove: [], add: [{ id: 'U1', value: '설정계약', documentId: 'DOC_REGISTRY' }] };
+    const r = buildRegistrySummary(
+      registry({
+        rights: [{ kind: 'MORTGAGE', maxClaimAmount: 50000000, cancelled: false, receivedAt: '2025-05-02', holder: '이가상', holderIsCompany: false, cause: '설정계약' }],
+      }),
+      GROUPS,
+      LEGEND,
+      /** @type {any} */ (edits),
+    );
+    expect(r.ok && r.data.text).not.toContain('[Holder_1]');
+    expect(r.ok && r.data.holderNames).toEqual({});
   });
 
   it('등기부 데이터가 없으면 실패한다', () => {

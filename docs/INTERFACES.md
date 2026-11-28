@@ -357,7 +357,7 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
 - `PARTY_SUMMARY`: 가린 원문에서 인적사항 칸 줄만 `buildContractPartySummary()`의 요약으로 바꾼다. 본문·특약은 가린 원문 그대로.
 - `MASKED_TEXT`: 지금처럼 `applyMaskingPlan()`의 가린 원문. `OMIT`: 보내지 않는다. 설정에 없는 서류 종류는 `MASKED_TEXT`.
 
-`buildRegistrySummary(registryFields, personGroups, legend?, edits?)` → `{ documentId, text, hiddenCount }`
+`buildRegistrySummary(registryFields, personGroups, legend?, edits?)` → `{ documentId, text, hiddenCount, holderNames }`
 
 ```text
 Extracted items from the property register (the original register text is not sent).
@@ -381,6 +381,7 @@ Unconfirmed register records: 1 (could not read what they are, check the origina
 - 못 읽은 값, 날짜가 아닌 날짜(연 1900~2099·월 01~12·일 01~31 밖), 0 이하이거나 숫자가 아닌 금액은 `Could not read`. `unknownActiveCount`가 0 이상의 정수가 아니면(없음·`null`·`NaN`·음수) 확인하지 못했다고 적는다.
 - `edits`를 주면 사용자가 ④에서 더 가린 글자(`add`)도 요약에서 가린다.
 - 요약 줄이 검사에 걸리면 값을 `[hidden]`으로 바꾸고, 그래도 걸리면 권리 줄은 종류와 말소 여부만 남기고(`details hidden`) 그 밖의 줄은 뺀다. 가린 줄 수가 `hiddenCount`다 (화면 알림용).
+- `holderNames`: 요약에 쓴 개인 권리자 가명 → 원래 이름 (`{ '[Holder_1]': '이가상' }`). 요약에 실제로 남은 가명만 넣는다. `[Holder_N]`은 마스킹 계획에 없는 가명이라, 완료 화면의 가명 복원(#395)이 이 표도 읽어야 바꿀 수 있다. **화면 전용, 프롬프트에 넣지 않는다.**
 
 `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks?, registryFields?, document? })` → `{ documentId, text, replaced, lineBlocks? }`
 
@@ -456,7 +457,7 @@ Real estate agent: a section for the agent is present (details hidden)
 | 4 | `applyMaskingPlan(documents, plan, findings, personGroups, edits?)` | edits의 `add` 글자도 가린다 | `{ maskedText, legend }` |
 | 4 | `validateMaskedText(maskedText, findings, plan, edits?)`  | edits의 `add` 글자도 검사한다 | 남은 개인정보가 있으면 실패 |
 | 4 | `getSendMode(purpose, documentType)` | 목적, 서류 종류 | `'SUMMARY'` \| `'PARTY_SUMMARY'` \| `'MASKED_TEXT'` \| `'OMIT'` |
-| 4 | `buildRegistrySummary(registryFields, personGroups, legend?, edits?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례, 사용자 수정 | `{ documentId, text, hiddenCount }` |
+| 4 | `buildRegistrySummary(registryFields, personGroups, legend?, edits?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례, 사용자 수정 | `{ documentId, text, hiddenCount, holderNames }` |
 | 4 | `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks?, registryFields?, document? })` | 계약서 가린 글(쪽 표시 전), 추출 데이터의 `contract`·`registry`, 인물 판별 결과, 목적, 계약서 DocumentModel | `{ documentId, text, replaced, lineBlocks? }` |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
 | 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |

@@ -154,7 +154,9 @@ function isSafeLine(line, names) {
  * @param {PersonGroup[]} personGroups  matchPeople() 결과
  * @param {Record<string, string>} [legend]  applyMaskingPlan()의 가명 범례 (가린 원문과 같은 가명을 쓰려고 본다)
  * @param {import('./user-edits.js').MaskingEdits} [edits]  ④에서 사용자가 더 가린 글자(add)도 요약에 남기지 않는다
- * @returns {import('../../shared/document-model.js').Result<{ documentId: string, text: string, hiddenCount: number }>}
+ * @returns {import('../../shared/document-model.js').Result<{ documentId: string, text: string, hiddenCount: number,
+ *   holderNames: Record<string, string> }>}
+ *   holderNames: 요약에 쓴 개인 권리자 가명 → 원래 이름 ({ '[Holder_1]': '이가상' }). 완료 화면의 가명 복원용, 프롬프트에 넣지 않는다
  */
 export function buildRegistrySummary(registryFields, personGroups, legend = {}, edits) {
   if (!registryFields || typeof registryFields.documentId !== 'string') {
@@ -184,12 +186,18 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
 
   // 개인 권리자 가명: [Holder_1]부터 (같은 이름은 같은 가명).
   // 소유자·이전 소유자와 이름이 같아도 같은 사람인지 모르므로 따로 가명을 주고 "같은 이름"이라고만 적는다.
-  /** @type {Map<string, string>} */
+  /** @type {Map<string, string>} 띄어쓰기 뺀 이름 → 가명 */
   const holderAlias = new Map();
+  /** @type {Map<string, string>} 가명 → 원래 이름 (처음 읽은 글자 그대로). 화면 복원용으로만 돌려준다 */
+  const holderName = new Map();
   /** @param {string} holder */
   const individualHolder = (holder) => {
     const key = squash(holder);
-    if (!holderAlias.has(key)) holderAlias.set(key, `[Holder_${holderAlias.size + 1}]`);
+    if (!holderAlias.has(key)) {
+      const alias = `[Holder_${holderAlias.size + 1}]`;
+      holderAlias.set(key, alias);
+      holderName.set(alias, holder.replace(/\s+/g, ' ').trim());
+    }
     const alias = /** @type {string} */ (holderAlias.get(key));
     const same = registryPeople.find((p) => typeof p.name === 'string' && squash(p.name) === key);
     const sameAlias = same ? aliasOf(same.findingId, groups, known) : null;
@@ -295,5 +303,12 @@ export function buildRegistrySummary(registryFields, personGroups, legend = {}, 
   }
   if (hiddenCount > 0) out.push(`${hiddenCount} item${hiddenCount === 1 ? '' : 's'} hidden (check the original register)`);
 
-  return ok({ documentId: registryFields.documentId, text: out.join('\n'), hiddenCount });
+  const text = out.join('\n');
+  // [Holder_1] → 원래 이름: 요약에 실제로 남은 가명만 (값을 가리거나 줄을 뺀 가명은 AI 답변에 나올 수 없다)
+  // PART 5 완료 화면의 "가명 복원"(#395)이 마스킹 계획에 없는 이 가명도 바꿀 수 있게 돌려준다. 화면 전용, 프롬프트에 넣지 않는다.
+  /** @type {Record<string, string>} */
+  const holderNames = {};
+  for (const [alias, name] of holderName) if (text.includes(alias) && name) holderNames[alias] = name;
+
+  return ok({ documentId: registryFields.documentId, text, hiddenCount, holderNames });
 }
