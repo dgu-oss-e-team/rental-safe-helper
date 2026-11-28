@@ -460,7 +460,7 @@ Real estate agent: a section for the agent is present (details hidden)
 | 4 | `buildRegistrySummary(registryFields, personGroups, legend?, edits?)` | 추출 데이터의 `registry`, 인물 판별 결과, 가명 범례, 사용자 수정 | `{ documentId, text, hiddenCount, holderNames }` |
 | 4 | `buildContractPartySummary({ maskedText, contractFields, personGroups, purpose, legend?, lineBlocks?, registryFields?, document? })` | 계약서 가린 글(쪽 표시 전), 추출 데이터의 `contract`·`registry`, 인물 판별 결과, 목적, 계약서 DocumentModel | `{ documentId, text, replaced, lineBlocks? }` |
 | 5 | `exportMaskedPDF(document, plan, { file })` | DocumentModel, MaskingPlan, 원본 파일(없으면 문서 글자로 데모 페이지) | `{ fileName, blob, pageCount }` (글자를 못 읽은 페이지가 있으면 `LOW_CONFIDENCE`) |
-| 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt }` |
+| 5 | `prepareForAi(analysis, purpose, edits?)` | 분석 결과, 목적, 사용자 수정 | `{ purpose, maskingPlan, maskedText, legend, prompt, sentText, sending, holderNames }` (holderNames: 등기부 요약의 `[Holder_N]` → 원래 이름, 완료 화면 가명 복원 전용·프롬프트에 넣지 않음) |
 | 5 | `runPipeline({ files, purpose })` | File[], 목적 | 전체 결과 |
 
 

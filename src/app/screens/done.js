@@ -308,7 +308,7 @@ function askAi(state, prepared, box, status) {
  */
 function restoreCard(state, prepared) {
   if (!prepared.prompt || promptHoldReason(state)) return null;
-  const table = buildRestoreTable(prepared.maskingPlan, state.analysis?.findings);
+  const table = buildRestoreTable(prepared.maskingPlan, state.analysis?.findings, prepared.holderNames);
   if (table.size === 0) {
     const reason =
       prepared.maskingPlan?.purpose === MASKING_PURPOSE.FRAUD_CHECK

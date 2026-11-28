@@ -72,6 +72,35 @@ describe('buildRestoreTable(): 마스킹 계획에서 "가명 → 원래 이름"
   });
 });
 
+describe('등기부 요약의 개인 권리자 가명 [Holder_N] (#396 holderNames)', () => {
+  const HOLDERS = { '[Holder_1]': '가상채권', '[Holder_2]': '가짜 압류' };
+  const WITH_HOLDERS = buildRestoreTable(/** @type {any} */ (PLAN), FINDINGS, HOLDERS);
+
+  it('마스킹 계획의 가명과 함께 표에 넣는다', () => {
+    expect(WITH_HOLDERS.get('holder_1')).toEqual({ alias: '[Holder_1]', name: '가상채권', unconfirmed: false });
+    expect(WITH_HOLDERS.get('holder_2')?.name).toBe('가짜 압류');
+    expect(WITH_HOLDERS.get('owner_a')?.name).toBe('가상소유');
+    // 마스킹 계획이 없어도(이름이 없는 계약서 등) 권리자 표만으로 만든다
+    expect(buildRestoreTable(null, null, HOLDERS).size).toBe(2);
+  });
+
+  it('권리자 표에서는 [Holder_N] 모양만 받는다', () => {
+    const odd = { '[Owner_A]': '가상다른', '[Holder_A]': '가상글자', '[Holder_1?]': '가상물음', 'Holder_3': '가상괄호', '[Holder_0]': '가상영', '[Holder_4]': '' };
+    expect(buildRestoreTable(null, null, /** @type {any} */ (odd)).size).toBe(0);
+    expect(buildRestoreTable(null, null, /** @type {any} */ ({ '[Holder_5]': 5 })).size).toBe(0);
+  });
+
+  it('여러 모양의 [Holder_1]을 바꾸고, Holder 12·Holder_1a는 바꾸지 않는다', () => {
+    for (const form of ['[Holder_1]', 'Holder_1', 'Holder 1', '[holder 1]', 'HOLDER_1']) {
+      expect(restored(`${form} filed a seizure.`, WITH_HOLDERS), form).toBe('{가상채권} filed a seizure.');
+    }
+    for (const text of ['Holder 12', 'Holder_1a', 'Holder_3', 'the holder', 'Holder\n1']) {
+      expect(restored(text, WITH_HOLDERS), JSON.stringify(text)).toBe(text);
+    }
+    expect(restoreAliases('[Holder_1], [Owner_A] and Holder 2', WITH_HOLDERS).replaced).toBe(3);
+  });
+});
+
 describe('restoreAliases(): 대소문자·띄어쓰기·밑줄만 정리해 정확히 같은 가명만 바꾼다', () => {
   it('여러 모양의 같은 가명을 바꾼다', () => {
     for (const form of ['[Owner_A]', 'Owner_A', 'Owner A', '[owner_a]', '[ Owner A ]', 'OWNER_A', 'owner A']) {
@@ -228,6 +257,20 @@ describe('완료 화면 "Read the AI answer with real names" (#394)', () => {
     const card = node.querySelector('.restore-card');
     expect([...(card?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(['Show real names', 'Clear']);
     expect(card?.querySelector('#restore-privacy')?.textContent).toContain('not saved or sent anywhere');
+  });
+
+  it('등기부 요약의 권리자 가명도 완료 화면에서 바꾼다 (prepared.holderNames)', () => {
+    const node = screen({ prepared: { prompt: 'p', maskingPlan: PLAN, sending: [], holderNames: { '[Holder_1]': '가상채권' } } });
+    /** @type {HTMLTextAreaElement} */ (node.querySelector('#ai-answer')).value = '[Holder_1] has a provisional seizure. Ask [Owner_A].';
+    /** @type {HTMLButtonElement} */ (node.querySelector('#restore-names')).click();
+    const marks = [...node.querySelectorAll('mark.restored')];
+    expect(marks.map((m) => m.firstChild?.textContent)).toEqual(['가상채권', '가상소유']);
+    expect(marks[0].textContent).toContain('[Holder_1]');
+    // 이름 가명이 없고 권리자만 있어도 붙여 넣는 칸이 나온다
+    const only = screen({
+      prepared: { prompt: 'p', maskingPlan: { purpose: 'FRAUD_CHECK', items: [] }, sending: [], holderNames: { '[Holder_1]': '가상채권' } },
+    });
+    expect(only.querySelector('#ai-answer')).not.toBeNull();
   });
 
   it('프롬프트가 없거나 사진 다시 확인을 기다리면 카드가 없다', () => {
