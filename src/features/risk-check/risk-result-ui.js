@@ -154,9 +154,12 @@ export function renderRiskResults(riskResults, options = {}) {
   /** 상태 버튼 (눌러서 그 상태만 보기) */
   const chips = new Map(
     STATUS_ORDER.map((status) => {
-      const chip = el('button', { type: 'button', class: `risk-chip chip-${status.toLowerCase()}` }, [
-        `${STATUS_TEXT[status]} ${groups[status].length}`,
-      ]);
+      // 프로토타입 v2 (#382): 숫자를 크게, 이름은 아래 작게. 화면 낭독기에는 "Stop: 1"로 읽힌다
+      const chip = el(
+        'button',
+        { type: 'button', class: `risk-chip chip-${status.toLowerCase()}`, 'aria-label': `${STATUS_TEXT[status]}: ${groups[status].length}` },
+        [el('span', { class: 'chip-count' }, [String(groups[status].length)]), el('span', { class: 'chip-label' }, [STATUS_TEXT[status]])],
+      );
       chip.addEventListener('click', () => {
         // 같은 버튼을 다시 누르면 전체 보기
         view.filter = validFilter(groups, view.filter) === status ? null : status;

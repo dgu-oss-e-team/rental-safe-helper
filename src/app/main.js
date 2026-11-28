@@ -8,6 +8,7 @@
  */
 
 import './style.css';
+import logoUrl from '../assets/logo.webp';
 import { appState, initialState, currentAnalysis } from './app-state.js';
 import { errorHelp } from './error-help.js';
 import { hasPhotoDocuments, textReviewFromAnalysis } from './text-review.js';
@@ -576,14 +577,17 @@ function errorCard(error, screenStep) {
 }
 
 /**
- * 서비스 제목. 누르면 ① 첫 화면으로 간다 (#118). 결과는 지우지 않고, 기록을 남겨서 뒤로 가기로 돌아올 수 있다.
+ * 서비스 제목(방패 BANGPAE 로고 + 한 줄 소개, 프로토타입 v2 #382). 누르면 ① 첫 화면으로 간다 (#118). 결과는 지우지 않고, 기록을 남겨서 뒤로 가기로 돌아올 수 있다.
  * 새 탭으로 열기(Ctrl·Cmd·Shift·가운데 버튼)는 브라우저에 맡긴다. 새 탭은 새로고침과 같아서 ①부터 시작한다.
  */
 function homeLink() {
   const link = el(
     'a',
-    { href: hashFor('upload'), class: 'home-link', 'aria-label': 'Rental Safety Helper, go to the first step' },
-    ['Rental Safety Helper'],
+    { href: hashFor('upload'), class: 'home-link', 'aria-label': '방패 BANGPAE, go to the first step' },
+    [
+      el('img', { class: 'brand-logo', src: logoUrl, alt: '방패 BANGPAE', width: '93', height: '43' }),
+      el('span', { class: 'brand-tagline' }, ['Your rental document companion']),
+    ],
   );
   link.addEventListener('click', (e) => {
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
@@ -596,12 +600,17 @@ function homeLink() {
 function render() {
   const state = appState.getState();
   const screen = SCREENS[state.step] ?? uploadScreen;
+  // ① 첫 화면은 프로토타입처럼 넓게, 진행 표시 대신 화면 안의 "How it works"로 단계를 보여 준다 (#382)
+  const home = state.step === 'upload';
+  app.dataset.step = state.step;
   const parts = [
-    el('header', {}, [el('h1', {}, [homeLink()]), disclaimer()]),
-    stepper(state.step),
+    el('header', { class: 'site-header' }, [el('div', { class: 'brand-bar' }, [el('h1', { class: 'brand' }, [homeLink()])])]),
+    home ? null : stepper(state.step),
     state.busy ? el('p', { class: 'busy', role: 'status' }, [el('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy]) : null,
     state.error ? errorCard(state.error, state.step) : null,
     state.busy ? null : screen(state, act),
+    // 법률 자문이 아니라는 안내는 모든 화면 맨 아래에 (프로토타입 v2)
+    el('footer', { class: 'site-footer' }, [disclaimer()]),
   ];
   app.replaceChildren(.../** @type {HTMLElement[]} */ (parts.filter(Boolean)));
   // 단계가 바뀌면 화면 맨 위로 (휴대폰에서 다음 단계가 아래에 숨지 않게)

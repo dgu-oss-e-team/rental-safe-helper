@@ -19,11 +19,11 @@ const screenFor = (documents, uploadSlots = ['registry', 'lease']) => {
 };
 
 describe('② 결과 화면: 역할 이름·가명 설명 (9번)', () => {
-  it('"Check before you sign" 카드 맨 위에 Owner·Landlord·가명·Could not check 설명이 있다', () => {
+  it('"How to read the results" 칸에 Owner·Landlord·가명·Could not check 설명이 있다 (프로토타입 v2 오른쪽 칸, #382)', () => {
     const { node } = screenFor([REG, LEASE]);
     const legend = node.querySelector('#role-legend');
     expect(legend).not.toBeNull();
-    expect(legend?.closest('section.card')?.querySelector('h2')?.textContent).toBe('Check before you sign');
+    expect(legend?.closest('section.card')?.querySelector('h2')?.textContent).toBe('How to read the results');
     const text = legend?.textContent ?? '';
     for (const term of ['Owner', 'Landlord', '[Owner_A]', 'Could not check']) expect(text).toContain(term);
     // "Could not check"가 "문제 없음"으로 읽히지 않게
