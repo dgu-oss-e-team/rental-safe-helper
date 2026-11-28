@@ -725,28 +725,44 @@ textarea:focus-visible {
   margin: 0;
 }
 
-/* ② 결과 맨 아래 "Next: ask AI": 고른 목적과 바꾸기 (#381) */
-.chosen-purpose {
+/* ② 결과 맨 아래 "Next: ask AI": 큰 카드 대신 다음 버튼 위 한 줄 (#381, #388 의견) */
+.ask-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chosen-purpose p {
+  margin: 0;
+}
+
+.chosen-purpose-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
+  column-gap: 4px;
 }
 
-.chosen-purpose-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1 1 240px;
-  min-width: 0;
+/* 목적 바꾸기: 글자 버튼 (누르는 영역 44px) */
+button.purpose-change {
+  min-height: 44px;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .purpose-choices {
   margin-top: 4px;
+}
+
+/* .options의 display: flex가 hidden을 덮어써서 목록이 늘 펼쳐져 있었다 */
+.purpose-choices[hidden] {
+  display: none;
 }
 
 .switch-purpose p {

@@ -141,7 +141,8 @@ let purposeListOpen = false;
 /**
  * 결과 화면 맨 아래 "Next: ask AI" (#381, 기능 개선 목록 2번)
  * 목적은 ① 화면에서 이미 골랐다. 결과를 본 뒤에도 여기서 바꿀 수 있다 (옛 ③ 목적 화면을 대신함).
- * Stop이 있는데 사기 위험 확인이 아니면 "Switch to Check fraud risks"를 제안한다.
+ * 큰 카드 대신 다음 버튼 위에 작은 한 줄로 둔다 (#388 성연님 의견). AI에 보내는 것 한 줄은 신뢰 때문에 남긴다.
+ * Stop이 있는데 사기 위험 확인이 아니면 "Switch to Check fraud risks"를 눈에 띄게 제안한다.
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../main.js').Actions} act
  * @param {boolean} hasStop
@@ -149,13 +150,16 @@ let purposeListOpen = false;
 function askAiSection(state, act, hasStop) {
   const chosen = purposeInfo(state.purpose);
   const listId = 'purpose-choices';
-  const change = button(purposeListOpen ? 'Close' : 'Change', () => {
+  const changeLabel = () => (purposeListOpen ? 'Close' : 'Change purpose');
+  const change = button(changeLabel(), () => {
     purposeListOpen = !purposeListOpen;
     list.hidden = !purposeListOpen;
-    change.textContent = purposeListOpen ? 'Close' : 'Change';
+    change.textContent = changeLabel();
     change.setAttribute('aria-expanded', String(purposeListOpen));
     if (purposeListOpen) /** @type {HTMLInputElement | null} */ (list.querySelector('input:checked'))?.focus();
   }, { id: 'change-purpose', variant: 'secondary' });
+  // 큰 버튼 대신 글자 버튼 (누르는 영역은 44px)
+  change.className = 'purpose-change';
   change.setAttribute('aria-expanded', String(purposeListOpen));
   change.setAttribute('aria-controls', listId);
 
@@ -184,31 +188,28 @@ function askAiSection(state, act, hasStop) {
         ])
       : null;
 
-  return card(
-    'Next: ask AI',
-    [
-      el('div', { class: 'chosen-purpose', id: 'chosen-purpose' }, [
-        el('div', { class: 'chosen-purpose-text' }, [
-          el('span', { class: 'hint' }, ['You chose']),
-          el('strong', { id: 'chosen-purpose-title' }, [chosen.title]),
-          el('span', { class: 'hint' }, [sendsTextOf(chosen)]),
-        ]),
+  return el('section', { class: 'ask-ai', id: 'ask-ai', 'aria-label': 'Next: ask AI' }, [
+    suggestSwitch,
+    el('div', { class: 'chosen-purpose', id: 'chosen-purpose' }, [
+      el('p', { class: 'chosen-purpose-line' }, [
+        el('span', { class: 'hint' }, ['Asking AI to: ']),
+        el('strong', { id: 'chosen-purpose-title' }, [chosen.title]),
+        el('span', { class: 'hint', 'aria-hidden': 'true' }, [' · ']),
         change,
       ]),
-      list,
-      suggestSwitch,
-      // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 다음 버튼 바로 위에 한 번만 (#377, PART 3)
-      renderScreenOnlyNote(),
-      actions([
-        button('Next: see what AI will get', () => {
-          purposeListOpen = false;
-          act.prepare();
-        }, { id: 'next-review' }),
-        button('Start over', () => act.restart(), { variant: 'secondary' }),
-      ]),
-    ],
-    'ask-ai-card',
-  );
+      el('p', { class: 'hint chosen-purpose-sends', id: 'chosen-purpose-sends' }, [sendsTextOf(chosen)]),
+    ]),
+    list,
+    // 화면에만 보이는 정보 안내: 카드마다 붙이지 않고 다음 버튼 바로 위에 한 번만 (#377, PART 3)
+    renderScreenOnlyNote(),
+    actions([
+      button('Next: see what AI will get', () => {
+        purposeListOpen = false;
+        act.prepare();
+      }, { id: 'next-review' }),
+      button('Start over', () => act.restart(), { variant: 'secondary' }),
+    ]),
+  ]);
 }
 
 /**
