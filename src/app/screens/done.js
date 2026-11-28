@@ -3,10 +3,11 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { DOCUMENT_TEXT } from '../slots.js';
-import { DOCUMENT_TYPE } from '../../shared/document-model.js';
+import { DOCUMENT_TYPE, MASKING_PURPOSE } from '../../shared/document-model.js';
 import { errorHelp } from '../error-help.js';
 import { CHECK_STATUS, PII_TYPE_TEXT, partlyCheckedText } from '../double-check.js';
 import { hasPhotoDocuments } from '../text-review.js';
+import { buildRestoreTable, restoreAliases } from '../alias-restore.js';
 
 /**
  * 웹서비스가 AI를 직접 부르지 않는다. 프롬프트를 복사해 두고 사용자가 직접 붙여넣는다 (제안서 ⑨).
@@ -208,6 +209,7 @@ export function doneScreen(state, act) {
           ],
     ),
     card('Ask AI', askAi(state, prepared, box, status)),
+    restoreCard(state, prepared),
     actions([button('Check other documents', () => act.restart(), { variant: 'secondary' })]),
   ]);
 }
@@ -292,4 +294,80 @@ function askAi(state, prepared, box, status) {
     ),
     status,
   ];
+}
+
+/**
+ * "Read the AI answer with real names" 카드 (#394, 도전 목표 ②)
+ * AI 답변을 붙여 넣으면 [Landlord_B] 같은 가명을 이 브라우저 안에서만 원래 이름으로 보여 준다.
+ * 붙여 넣은 글과 결과는 저장하지 않는다 (화면을 다시 그리거나 새로 시작하면 사라진다). 복사 버튼은 두지 않는다.
+ * 프롬프트를 보여 줄 때(다시 확인을 기다리지 않을 때)만 나온다.
+ * 바꿀 가명이 없으면(조항·계약 설명 목적은 이름을 가명 대신 완전히 가린다) 카드 자리에 그 이유를 짧게 알린다 (#395 리뷰).
+ * @param {ReturnType<typeof import('../app-state.js').initialState>} state
+ * @param {import('../pipeline.js').Prepared} prepared
+ * @returns {HTMLElement | null}
+ */
+function restoreCard(state, prepared) {
+  if (!prepared.prompt || promptHoldReason(state)) return null;
+  const table = buildRestoreTable(prepared.maskingPlan, state.analysis?.findings);
+  if (table.size === 0) {
+    const reason =
+      prepared.maskingPlan?.purpose === MASKING_PURPOSE.FRAUD_CHECK
+        ? 'No name labels like [Landlord_B] were sent to the AI this time, so there are no names to put back.'
+        : 'For this purpose, names are fully hidden instead of being replaced with labels like [Landlord_B], ' +
+          'so there are no names to put back. To see who is who in the AI answer, choose "Check fraud risks".';
+    return card('Read the AI answer with real names', [el('p', { class: 'hint', id: 'restore-none' }, [reason])], 'restore-card');
+  }
+
+  const input = /** @type {HTMLTextAreaElement} */ (
+    el('textarea', { id: 'ai-answer', rows: '8', autocomplete: 'off', spellcheck: 'false' })
+  );
+  const output = el('div', { class: 'restored-answer', id: 'restored-answer', hidden: true }, []);
+  const status = el('p', { class: 'hint', id: 'restore-status', role: 'status' }, []);
+
+  const show = () => {
+    const { segments, replaced } = restoreAliases(input.value, table);
+    output.replaceChildren(
+      ...segments.map((seg) =>
+        'alias' in seg
+          ? el('mark', { class: seg.unconfirmed ? 'restored unconfirmed' : 'restored', title: seg.alias }, [
+              seg.name,
+              el('span', { class: 'restored-alias' }, [
+                seg.unconfirmed ? ` (${seg.alias}: same name, not confirmed to be the same person)` : ` (${seg.alias})`,
+              ]),
+            ])
+          : document.createTextNode(seg.text),
+      ),
+    );
+    output.hidden = segments.length === 0;
+    status.textContent = !input.value.trim()
+      ? 'Paste the AI answer first.'
+      : replaced === 0
+        ? 'We found no labels like [Landlord_B] in this answer.'
+        : `Replaced ${replaced} label${replaced === 1 ? '' : 's'} with real names.`;
+  };
+  const clear = () => {
+    input.value = '';
+    output.replaceChildren();
+    output.hidden = true;
+    status.textContent = '';
+    input.focus();
+  };
+
+  return card('Read the AI answer with real names', [
+    el('p', {}, [
+      'Paste the answer from the AI here. We put the real names back in place of labels like [Landlord_B], so you can see who is who.',
+    ]),
+    el('p', { class: 'hint', id: 'restore-privacy' }, [
+      'This happens only in this browser. The answer and the names are not saved or sent anywhere, and they are gone when you leave this page. ' +
+        'Only name labels are changed. Addresses and numbers stay hidden.',
+    ]),
+    el('label', { for: 'ai-answer' }, ['AI answer']),
+    input,
+    actions([
+      button('Show real names', show, { id: 'restore-names' }),
+      button('Clear', clear, { id: 'restore-clear', variant: 'secondary' }),
+    ]),
+    status,
+    output,
+  ], 'restore-card');
 }

@@ -995,3 +995,31 @@ a.ai-link {
   outline-offset: 2px;
   transition: outline-color 0.3s;
 }
+
+/* 완료: AI 답변 가명 → 원래 이름 (#394). 결과는 이 화면에만 */
+.restored-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  line-height: 1.6;
+}
+
+mark.restored {
+  background: var(--check-bg);
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 600;
+}
+
+mark.restored.unconfirmed {
+  outline: 1px dashed var(--check);
+}
+
+.restored-alias {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--muted);
+}
