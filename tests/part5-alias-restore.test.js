@@ -20,7 +20,7 @@ const FINDINGS = [
   finding('F7', '가짜예금'),
   finding('F8', '서울특별시 가상구 가짜로 1', PII_TYPE.ADDRESS),
   finding('F9', '010-0000-0000', PII_TYPE.PHONE_NUMBER),
-  finding('F10', '가상추정'),
+  finding('F10', '가상소유'), // F1과 이름은 같지만 같은 사람인지 확인 안 됨 (PART 4 unconfirmedAlias)
 ];
 const PLAN = {
   purpose: 'FRAUD_CHECK',
@@ -34,7 +34,7 @@ const PLAN = {
     item('F7', '[AccountHolder_F]'),
     item('F8', '서울특별시 가상구'), // 주소는 줄인 주소로 바꾸지만 복원하지 않는다
     item('F9', '[REDACTED]', MASKING_ACTION.REDACT),
-    item('F10', '[Owner_A?]'), // 이름만 같고 같은 사람인지 확인 안 됨
+    item('F10', '[Owner_A?]'), // [Owner_A]와 이름만 같고 같은 사람인지 확인 안 됨
   ],
 };
 const TABLE = buildRestoreTable(/** @type {any} */ (PLAN), FINDINGS);
@@ -58,7 +58,9 @@ describe('buildRestoreTable(): 마스킹 계획에서 "가명 → 원래 이름"
   });
 
   it('확인 안 된 같은 이름 가명은 따로 표시한다', () => {
-    expect(TABLE.get('owner_a?')).toEqual({ alias: '[Owner_A?]', name: '가상추정', unconfirmed: true });
+    expect(TABLE.get('owner_a?')).toEqual({ alias: '[Owner_A?]', name: '가상소유', unconfirmed: true });
+    // 이름은 같아도 확인된 가명과 섞지 않는다
+    expect(TABLE.get('owner_a')).toEqual({ alias: '[Owner_A]', name: '가상소유', unconfirmed: false });
   });
 
   it('계획·서류가 없거나 모양이 다르면 빈 표', () => {
@@ -109,6 +111,22 @@ describe('restoreAliases(): 대소문자·띄어쓰기·밑줄만 정리해 정�
     expect(restored('Is it Owner_A?')).toBe('Is it {가상소유}?');
   });
 
+  it('같은 이름이 나란히: [Owner_A]와 [Owner_A?]는 같은 이름이 나오지만 확인 여부는 따로', () => {
+    const { segments } = restoreAliases('[Owner_A] signed. [Owner_A?] is on the register.', TABLE);
+    const changed = segments.filter((s) => 'alias' in s).map((s) => /** @type {any} */ (s));
+    expect(changed.map((s) => [s.name, s.alias, s.unconfirmed])).toEqual([
+      ['가상소유', '[Owner_A]', false],
+      ['가상소유', '[Owner_A?]', true],
+    ]);
+  });
+
+  it('줄바꿈은 넘지 않는다: "Owner" 다음 줄이 대문자 한 글자로 시작해도 가명이 아니다', () => {
+    for (const text of ['Owner\nA new rule applies.', 'Owner\r\nA', 'Account\nHolder F', 'Owner\tA']) {
+      expect(restored(text), JSON.stringify(text)).toBe(text);
+    }
+    expect(restored('Owner A\nTenant C')).toBe('{가상소유}\n{가짜임차}');
+  });
+
   it('확인된 가명이 표에 없으면 ?가 빠진 모양도 확인 안 된 가명으로 본다', () => {
     const only = buildRestoreTable(/** @type {any} */ ({ items: [item('F10', '[Owner_A?]')] }), FINDINGS);
     const r = restoreAliases('Owner_A', only);
@@ -123,6 +141,8 @@ describe('restoreAliases(): 대소문자·띄어쓰기·밑줄만 정리해 정�
 
   it('바꾼 수를 센다. 빈 글·빈 표는 그대로', () => {
     expect(restoreAliases('[Owner_A], [Tenant_C] and Owner A', TABLE).replaced).toBe(3);
+    // 같은 가명이 여러 번 + 표에 없는 가명이 섞여 있으면 표에 있는 것만 센다
+    expect(restoreAliases('[Owner_A] [Owner_A] [Tenant_Z] [Landlord_B] Owner_A [Tenant_C]', TABLE).replaced).toBe(4);
     expect(restoreAliases('', TABLE)).toEqual({ segments: [], replaced: 0 });
     expect(restoreAliases('Owner_A', new Map())).toEqual({ segments: [{ text: 'Owner_A' }], replaced: 0 });
   });
@@ -136,19 +156,23 @@ describe('restoreAliases(): 대소문자·띄어쓰기·밑줄만 정리해 정�
 describe('완료 화면 "Read the AI answer with real names" (#394)', () => {
   const act = () => /** @type {any} */ ({ doubleCheckPdfs: vi.fn(), setPdfChecked: vi.fn(), goTo: vi.fn(), restart: vi.fn() });
   /** @param {any} [patch] */
-  const screen = (patch = {}) =>
-    doneScreen(
-      /** @type {any} */ ({
-        ...initialState(),
-        step: 'done',
-        analysis: { documents: [{ documentId: 'D1', sourceType: 'text_pdf' }], findings: FINDINGS },
-        prepared: { prompt: 'fake prompt', maskingPlan: PLAN, sending: [] },
-        pdfs: [],
-        doubleCheck: null,
-        ...patch,
-      }),
-      act(),
-    );
+  const stateOf = (patch = {}) =>
+    /** @type {any} */ ({
+      ...initialState(),
+      step: 'done',
+      analysis: { documents: [{ documentId: 'D1', sourceType: 'text_pdf' }], findings: FINDINGS },
+      prepared: { prompt: 'fake prompt', maskingPlan: PLAN, sending: [] },
+      pdfs: [],
+      doubleCheck: null,
+      ...patch,
+    });
+  /** @param {any} [patch] */
+  const screen = (patch = {}) => doneScreen(stateOf(patch), act());
+  /** 목적별 마스킹 계획: 이름은 사기 위험 확인만 가명, 나머지 두 목적은 완전히 가린다 (masking-policy.json) */
+  const planFor = (/** @type {string} */ purpose) =>
+    purpose === 'FRAUD_CHECK'
+      ? PLAN
+      : { purpose, items: PLAN.items.map((i) => ({ ...i, action: MASKING_ACTION.REDACT, replacement: '[REDACTED]' })) };
   afterEach(() => vi.restoreAllMocks());
 
   it('붙여 넣고 누르면 가명 자리에 원래 이름과 가명을 함께 보여 준다', () => {
@@ -206,11 +230,52 @@ describe('완료 화면 "Read the AI answer with real names" (#394)', () => {
     expect(card?.querySelector('#restore-privacy')?.textContent).toContain('not saved or sent anywhere');
   });
 
-  it('프롬프트가 없거나, 사진 다시 확인을 기다리거나, 바꿀 가명이 없으면 카드가 없다', () => {
-    expect(screen({ prepared: { prompt: '', maskingPlan: PLAN, sending: [] } }).querySelector('#ai-answer')).toBeNull();
-    expect(
-      screen({ analysis: { documents: [{ documentId: 'D1', sourceType: 'image' }], findings: FINDINGS }, doubleCheck: null }).querySelector('#ai-answer'),
-    ).toBeNull();
-    expect(screen({ prepared: { prompt: 'p', maskingPlan: { items: [] }, sending: [] } }).querySelector('#ai-answer')).toBeNull();
+  it('프롬프트가 없거나 사진 다시 확인을 기다리면 카드가 없다', () => {
+    for (const node of [
+      screen({ prepared: { prompt: '', maskingPlan: PLAN, sending: [] } }),
+      screen({ analysis: { documents: [{ documentId: 'D1', sourceType: 'image' }], findings: FINDINGS }, doubleCheck: null }),
+    ]) {
+      expect(node.querySelector('.restore-card')).toBeNull();
+    }
+  });
+
+  it('세 목적 모두 카드가 나온다: 사기 위험 확인은 붙여 넣는 칸, 나머지 두 목적은 바꿀 이름이 없다는 안내', () => {
+    for (const purpose of ['FRAUD_CHECK', 'CLAUSE_EXPLANATION', 'CONTRACT_EXPLANATION']) {
+      const card = screen({ prepared: { prompt: 'p', maskingPlan: planFor(purpose), sending: [] } }).querySelector('.restore-card');
+      expect(card, purpose).not.toBeNull();
+      expect(card?.textContent, purpose).toContain('Read the AI answer with real names');
+      if (purpose === 'FRAUD_CHECK') {
+        expect(card?.querySelector('#ai-answer'), purpose).not.toBeNull();
+        expect(card?.querySelector('#restore-none'), purpose).toBeNull();
+      } else {
+        expect(card?.querySelector('#ai-answer'), purpose).toBeNull();
+        expect(card?.querySelector('#restore-none')?.textContent, purpose).toContain('names are fully hidden');
+        expect(card?.querySelector('#restore-none')?.textContent, purpose).toContain('Check fraud risks');
+      }
+    }
+    // 사기 위험 확인인데 이름이 하나도 없었으면: 보낸 가명이 없다고 알린다
+    const none = screen({ prepared: { prompt: 'p', maskingPlan: { purpose: 'FRAUD_CHECK', items: [] }, sending: [] } });
+    expect(none.querySelector('#restore-none')?.textContent).toContain('No name labels');
+  });
+
+  it('화면을 다시 그리거나 "Check other documents"를 누르면 붙여 넣은 답변과 결과가 남지 않는다', () => {
+    const a = act();
+    const state = stateOf();
+    const node = doneScreen(state, a);
+    /** @type {HTMLTextAreaElement} */ (node.querySelector('#ai-answer')).value = 'Ask [Owner_A] now';
+    /** @type {HTMLButtonElement} */ (node.querySelector('#restore-names')).click();
+    expect(node.querySelector('mark.restored')).not.toBeNull();
+    // 답변과 결과는 화면에만 있고 앱 상태에 들어가지 않는다
+    expect(JSON.stringify(state)).not.toContain('Ask [Owner_A] now');
+    // 다른 화면에 갔다가 돌아오면 완료 화면을 새로 그린다: 빈 칸, 결과 없음
+    const again = doneScreen(state, a);
+    expect(/** @type {HTMLTextAreaElement} */ (again.querySelector('#ai-answer')).value).toBe('');
+    expect(/** @type {HTMLElement} */ (again.querySelector('#restored-answer')).hidden).toBe(true);
+    expect(again.querySelector('mark.restored')).toBeNull();
+    // "Check other documents"는 처음부터 다시 시작한다 (새 상태에는 마스킹 계획이 없어 카드도 없다)
+    const restartBtn = [...node.querySelectorAll('button')].find((b) => b.textContent === 'Check other documents');
+    restartBtn?.click();
+    expect(a.restart).toHaveBeenCalledTimes(1);
+    expect(initialState().prepared ?? null).toBeNull();
   });
 });

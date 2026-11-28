@@ -3,7 +3,7 @@
 
 import { el, button, card, actions } from '../ui.js';
 import { DOCUMENT_TEXT } from '../slots.js';
-import { DOCUMENT_TYPE } from '../../shared/document-model.js';
+import { DOCUMENT_TYPE, MASKING_PURPOSE } from '../../shared/document-model.js';
 import { errorHelp } from '../error-help.js';
 import { CHECK_STATUS, PII_TYPE_TEXT, partlyCheckedText } from '../double-check.js';
 import { hasPhotoDocuments } from '../text-review.js';
@@ -300,7 +300,8 @@ function askAi(state, prepared, box, status) {
  * "Read the AI answer with real names" 카드 (#394, 도전 목표 ②)
  * AI 답변을 붙여 넣으면 [Landlord_B] 같은 가명을 이 브라우저 안에서만 원래 이름으로 보여 준다.
  * 붙여 넣은 글과 결과는 저장하지 않는다 (화면을 다시 그리거나 새로 시작하면 사라진다). 복사 버튼은 두지 않는다.
- * 프롬프트를 보여 줄 때(다시 확인을 기다리지 않을 때)만, 바꿀 가명이 있을 때만 나온다.
+ * 프롬프트를 보여 줄 때(다시 확인을 기다리지 않을 때)만 나온다.
+ * 바꿀 가명이 없으면(조항·계약 설명 목적은 이름을 가명 대신 완전히 가린다) 카드 자리에 그 이유를 짧게 알린다 (#395 리뷰).
  * @param {ReturnType<typeof import('../app-state.js').initialState>} state
  * @param {import('../pipeline.js').Prepared} prepared
  * @returns {HTMLElement | null}
@@ -308,7 +309,14 @@ function askAi(state, prepared, box, status) {
 function restoreCard(state, prepared) {
   if (!prepared.prompt || promptHoldReason(state)) return null;
   const table = buildRestoreTable(prepared.maskingPlan, state.analysis?.findings);
-  if (table.size === 0) return null;
+  if (table.size === 0) {
+    const reason =
+      prepared.maskingPlan?.purpose === MASKING_PURPOSE.FRAUD_CHECK
+        ? 'No name labels like [Landlord_B] were sent to the AI this time, so there are no names to put back.'
+        : 'For this purpose, names are fully hidden instead of being replaced with labels like [Landlord_B], ' +
+          'so there are no names to put back. To see who is who in the AI answer, choose "Check fraud risks".';
+    return card('Read the AI answer with real names', [el('p', { class: 'hint', id: 'restore-none' }, [reason])], 'restore-card');
+  }
 
   const input = /** @type {HTMLTextAreaElement} */ (
     el('textarea', { id: 'ai-answer', rows: '8', autocomplete: 'off', spellcheck: 'false' })

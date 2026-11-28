@@ -67,13 +67,13 @@ export function buildRestoreTable(plan, findings) {
   return table;
 }
 
-/** 표에 있는 가명의 이름 부분 (예: "AccountHolder" → "Account[\s_]*Holder") */
+/** 표에 있는 가명의 이름 부분 (예: "AccountHolder" → "Account[ _]*Holder"). 줄바꿈은 넘지 않는다 */
 const labelPattern = (/** @type {string} */ label) =>
   label
     .split(/(?=[A-Z])/)
     .map((w) => w.replace(/[^A-Za-z]/g, ''))
     .filter(Boolean)
-    .join('[\\s_]*');
+    .join('[ _]*');
 
 /**
  * AI 답변에서 표에 있는 가명을 찾아 원래 이름 조각으로 나눈다.
@@ -91,8 +91,9 @@ export function restoreAliases(answer, table) {
     if (m) labels.add(labelPattern(m[1]));
   }
   // [ Landlord _ B ? ]  /  Landlord B  /  landlord_b
+  // 역할 이름과 글자 사이는 띄어쓰기·밑줄만 (줄바꿈은 안 됨: "Owner" 다음 줄이 "A ..."로 시작해도 가명이 아니다, #395 리뷰)
   const pattern = new RegExp(
-    `(\\[\\s*)?(?<![A-Za-z])(${[...labels].join('|')})[\\s_]+([A-Za-z])(?![A-Za-z0-9])(?:(\\s*\\?)?(\\s*\\]))?`,
+    `(\\[\\s*)?(?<![A-Za-z])(${[...labels].join('|')})[ _]+([A-Za-z])(?![A-Za-z0-9])(?:(\\s*\\?)?(\\s*\\]))?`,
     'gid',
   );
 
@@ -106,7 +107,8 @@ export function restoreAliases(answer, table) {
     // 대괄호가 없으면 끝 글자는 대문자만 (영어 관사 "a" 등과 헷갈리지 않게)
     if (!bracketed && letter !== letter.toUpperCase()) continue;
     const unconfirmed = bracketed && Boolean(question);
-    // AI가 [Owner_A?]의 ?를 빼고 썼을 수 있다. 확인된 가명이 표에 없을 때만 확인 안 된 가명으로 본다
+    // AI가 [Owner_A?]의 ?를 빼고 "Owner_A"로 쓰는 일이 있다. 확인된 [Owner_A]가 표에 없으면 이 글자는 [Owner_A?]밖에
+    // 가리킬 수 없으므로 그것으로 바꾸되, 화면에는 "확인 안 된 같은 이름"으로 표시해 같은 사람이라고 오해하지 않게 한다
     const entry =
       table.get(keyOf(label, letter, unconfirmed)) ?? (unconfirmed ? undefined : table.get(keyOf(label, letter, true)));
     if (!entry) continue;
