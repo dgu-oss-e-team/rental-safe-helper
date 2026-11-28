@@ -1,23 +1,53 @@
-/* PART 5. 앱 전체 스타일 (모바일 우선) */
+/* PART 5. 앱 전체 스타일 (모바일 우선). 색·글꼴·버튼·카드는 프로토타입 v2를 따른다 (#382) */
+
+/* 글꼴은 저장소 안에 넣어 외부 서버 요청 없이 쓴다 (Pretendard, SIL OFL 1.1: src/assets/fonts/LICENSE-Pretendard.txt) */
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('../assets/fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;
+  font-display: swap;
+}
+
+/*
+ * 색 토큰. 주 색은 주황(--brand), 그 위 글자는 진한 갈색(--brand-ink, 대비 5.5:1).
+ * 주황은 글자색으로 쓰지 않는다(흰 바탕 대비 2.6:1). 글자 링크·보조 버튼 글자는 --link(6.5:1).
+ * 다른 파트 CSS가 var(--accent)를 쓰므로 --accent는 --link와 같은 색으로 남긴다.
+ */
 :root {
-  --bg: #f6f6f3;
+  --bg: #f6f7f8;
   --card: #ffffff;
-  --ink: #1f2328;
-  --muted: #5d6370;
-  --line: #dcd9d0;
-  --accent: #1f5fbf;
-  --stop: #b3362c;
-  --stop-bg: #fbeceb;
-  --check: #8a5a00;
-  --check-bg: #fbf1dc;
-  --unverifiable: #4b5563;
-  --unverifiable-bg: #eceef1;
-  --ok: #2f6b47;
-  --ok-bg: #e5f2ea;
-  font-family: system-ui, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --ink: #2d343b;
+  --ink-soft: #3d454d;
+  --muted: #59636d;
+  --line: #e2e5e8;
+  --line-strong: #d5d9dd;
+  --brand: #de8c4f;
+  --brand-hover: #d7813f;
+  --brand-ink: #2d2925;
+  --brand-soft: #fff8f1;
+  --brand-ring: #fbe7d6;
+  --link: #895023;
+  --link-hover: #6e3f19;
+  --focus: #995722;
+  --accent: var(--link);
+  --stop: #a12c24;
+  --stop-bg: #fdecea;
+  --check: #7f4f0c;
+  --check-bg: #fdf3e2;
+  --unverifiable: #46505c;
+  --unverifiable-bg: #eceff2;
+  --ok: #166b52;
+  --ok-bg: #e3f5ee;
+  --code-bg: #f3f4f6;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
   color: var(--ink);
   background: var(--bg);
-  line-height: 1.5;
+  line-height: 1.55;
+  accent-color: var(--brand);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -25,10 +55,41 @@ body {
   background: var(--bg);
 }
 
+/* display를 정한 규칙이 hidden 속성을 덮어쓰지 않게 (#393에서 목적 목록이 늘 펼쳐졌던 일) */
+[hidden] {
+  display: none !important;
+}
+
+::selection {
+  background: #f6d9c2;
+  color: var(--brand-ink);
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+p,
+li,
+dd {
+  text-wrap: pretty;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
 #app {
   max-width: 760px;
   margin: 0 auto;
-  padding: 20px 16px 64px;
+  padding: 24px 16px 72px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -41,24 +102,48 @@ body {
 }
 
 h1 {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
-/* 서비스 제목 = 홈 링크 (#118). 겉모습은 제목 그대로 */
+/* 서비스 제목 = 홈 링크 (#118). 겉모습은 제목 그대로, 앞에 주황 방패 (favicon과 같은 모양, 꾸밈이라 읽지 않음) */
 .home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
   color: inherit;
   text-decoration: none;
 }
 
+.home-link::before {
+  content: '';
+  flex: none;
+  width: 26px;
+  height: 26px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 4 5.5V11c0 5 3.4 9.2 8 10.5 4.6-1.3 8-5.5 8-10.5V5.5L12 2Z' fill='%23de8c4f'/%3E%3Cpath d='m8.5 12 2.5 2.5 4.5-5' fill='none' stroke='%232d2925' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.home-link:hover {
+  color: inherit;
+}
+
 h2 {
   margin: 0 0 4px;
-  font-size: 18px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
 }
 
 h3 {
   margin: 4px 0;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 p {
@@ -69,6 +154,7 @@ p {
 .hint {
   color: var(--muted);
   font-size: 14px;
+  line-height: 1.55;
 }
 
 /* 진행 표시 */
@@ -81,46 +167,88 @@ p {
 }
 
 .stepper li {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 13px;
   color: var(--muted);
-  border-top: 4px solid var(--line);
-  padding-top: 6px;
+  text-align: center;
+}
+
+/* 앞 단계와 잇는 선 */
+.stepper li + li::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  left: calc(-50% + 18px);
+  right: calc(50% + 18px);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
 }
 
 .stepper .num {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--card);
   font-weight: 700;
+  font-size: 13px;
+  transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
 }
 
-.stepper li.done {
-  border-top-color: var(--accent);
+.stepper li.done::before,
+.stepper li.current::before {
+  background: var(--brand);
+}
+
+.stepper li.done .num {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
 }
 
 .stepper li.current {
-  border-top-color: var(--accent);
-  color: var(--accent);
+  color: var(--link);
   font-weight: 700;
+}
+
+.stepper li.current .num {
+  border-color: var(--brand);
+  color: var(--link);
+  box-shadow: 0 0 0 4px var(--brand-ring);
 }
 
 /* 카드 */
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: var(--radius);
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgb(25 31 37 / 4%);
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
 }
 
 /* ① 이전 결과로 돌아가기 안내 (#124) */
 .resume-card {
-  border-color: var(--accent);
-  background: #eef3fb;
+  border-color: var(--brand);
+  background: var(--brand-soft);
 }
 
 .error-card {
@@ -131,9 +259,10 @@ p {
 .warning {
   color: var(--check);
   background: var(--check-bg);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   font-size: 14px;
+  line-height: 1.55;
 }
 
 label {
@@ -179,24 +308,31 @@ label {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 6px 14px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  color: var(--accent);
+  min-height: 48px;
+  padding: 8px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--link);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 120ms var(--ease-out);
 }
 
 .file-button:hover {
-  background: var(--bg);
+  border-color: #cfa985;
+  background: var(--brand-soft);
+}
+
+.file-button:active {
+  transform: scale(0.97);
 }
 
 /* 키보드로 숨은 파일 칸에 오면 보이는 버튼에 테두리를 그린다 */
 .file-input:focus-visible + .file-button {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
 }
 
 .file-name {
@@ -211,16 +347,18 @@ label {
   color: var(--ok);
 }
 
-/* 지우기: 작은 글자 버튼 (주 버튼보다 눈에 덜 띄게, 누르는 영역은 32px 이상) */
+/* 지우기: 작은 글자 버튼 (주 버튼보다 눈에 덜 띄게, 누르는 영역은 44px) */
 button.link-button {
-  min-height: 32px;
-  padding: 4px 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 4px 8px;
   border: none;
   background: none;
   color: var(--muted);
   font-weight: 500;
   font-size: 14px;
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 button.link-button:hover {
@@ -250,7 +388,7 @@ button.link-button:hover {
   height: 112px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--card);
   overflow: hidden;
   cursor: zoom-in;
@@ -289,15 +427,46 @@ button.link-button:hover {
 .file-viewer {
   width: min(92vw, 720px);
   max-height: 92vh;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 18px;
   background: var(--card);
   color: var(--ink);
 }
 
 .file-viewer::backdrop {
-  background: rgb(0 0 0 / 60%);
+  background: rgb(25 31 37 / 60%);
+}
+
+/* 큰 그림 창: 0.2초에 살짝 커지며 나타남 */
+.file-viewer[open] {
+  animation: dialog-in 200ms var(--ease-out);
+}
+
+.file-viewer[open]::backdrop {
+  animation: fade-in 200ms var(--ease-out);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .viewer-caption {
@@ -324,21 +493,44 @@ input[type='file'] {
   gap: 8px;
 }
 
+/* 주 버튼: 주황 바탕 + 진한 갈색 글자. 보조 버튼: 흰 바탕 + 회색 테두리 + 갈색 글자 */
 button {
   font: inherit;
-  font-weight: 600;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
   cursor: pointer;
-  min-height: 44px;
+  min-height: 48px;
+  transition: transform 120ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out), box-shadow 160ms var(--ease-out), filter 160ms var(--ease-out);
 }
 
 button.secondary {
-  background: transparent;
-  color: var(--accent);
+  background: var(--card);
+  border-color: var(--line-strong);
+  color: var(--link);
+  font-weight: 600;
+}
+
+/* 누르면 살짝 작아짐 (0.12초) */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* 마우스를 올리면 조금 진하게. 다른 파트의 글자 버튼에도 무리 없게 색을 바꾸지 않고 밝기만 낮춘다 */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover {
+    filter: brightness(0.96);
+  }
+
+  button.secondary:not(:disabled):hover {
+    filter: none;
+    border-color: #cfa985;
+    background: var(--brand-soft);
+  }
 }
 
 button:disabled {
@@ -348,10 +540,12 @@ button:disabled {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
 a:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
 }
 
 /* 처리 중 */
@@ -366,7 +560,7 @@ textarea:focus-visible {
   width: 18px;
   height: 18px;
   border: 3px solid var(--line);
-  border-top-color: var(--accent);
+  border-top-color: var(--brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -377,9 +571,29 @@ textarea:focus-visible {
   }
 }
 
+/* 움직임 줄이기: 커지고 작아지는 움직임은 없애고, 상태가 바뀐 결과는 그대로 보이게 */
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
+  }
+
+  button:not(:disabled):active,
+  .file-button:active,
+  .option:active,
+  .purpose-card:active {
+    transform: none;
+  }
+
+  .file-viewer[open] {
+    animation: fade-in 150ms linear;
+  }
+
+  .stepper .num,
+  button,
+  .file-button,
+  .option,
+  .purpose-card {
+    transition: none;
   }
 }
 
@@ -429,8 +643,9 @@ textarea:focus-visible {
 .risk {
   border: 1px solid var(--line);
   border-left: 6px solid var(--unverifiable);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--card);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -509,7 +724,7 @@ textarea:focus-visible {
 .unknown-doc-notice {
   border: 2px solid var(--stop);
   background: var(--stop-bg);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 12px 14px;
   margin: 8px 0;
 }
@@ -526,7 +741,7 @@ textarea:focus-visible {
   font-size: 14px;
   color: var(--muted);
   background: var(--unverifiable-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   margin-bottom: 10px;
 }
@@ -557,7 +772,7 @@ textarea:focus-visible {
   font-size: 14px;
   color: var(--muted);
   background: var(--unverifiable-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
 }
 
@@ -570,24 +785,33 @@ textarea:focus-visible {
 
 .option {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--card);
   cursor: pointer;
   font-weight: 400;
+  min-height: 44px;
+  box-sizing: border-box;
+  transition: transform 140ms var(--ease-out), background-color 180ms var(--ease-out), border-color 180ms var(--ease-out);
 }
 
 .option:has(input:checked) {
-  border-color: var(--accent);
-  background: #eef3fb;
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.option:active {
+  transform: scale(0.985);
 }
 
 .option input {
-  margin-top: 4px;
-  width: 18px;
-  height: 18px;
+  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  flex: none;
 }
 
 .option > span {
@@ -605,20 +829,33 @@ textarea:focus-visible {
 
 .purpose-card {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--card);
   cursor: pointer;
   font-weight: 400;
   min-height: 44px;
+  box-sizing: border-box;
+  transition: transform 140ms var(--ease-out), background-color 180ms var(--ease-out), border-color 180ms var(--ease-out);
 }
 
 .purpose-card:has(input:checked) {
-  border: 2px solid var(--accent);
-  padding: 11px;
-  background: #eef3fb;
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.purpose-card:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .option:not(:has(input:checked)):hover,
+  .purpose-card:not(:has(input:checked)):hover {
+    border-color: #cfa985;
+  }
 }
 
 .purpose-card input {
@@ -639,6 +876,7 @@ textarea:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  font-size: 17px;
 }
 
 .purpose-questions {
@@ -688,11 +926,11 @@ textarea:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--ok-bg);
-  padding: 12px 14px;
+  gap: 12px 20px;
+  border: 1px solid #cfe6da;
+  border-radius: var(--radius);
+  background: #f1f8f4;
+  padding: 16px 18px;
 }
 
 .registry-optin-text {
@@ -717,7 +955,9 @@ textarea:focus-visible {
 /* 촬영 팁은 접어 둔다 (#380) */
 .photo-tips summary {
   cursor: pointer;
-  min-height: 24px;
+  /* 누르는 영역 44px. display를 바꾸면 펼침 화살표가 사라지므로 위아래 여백으로 맞춘다 */
+  padding: 12px 0;
+  margin: -10px 0;
 }
 
 .photo-tips summary strong {
@@ -750,7 +990,7 @@ button.purpose-change {
   padding: 4px 6px;
   border: none;
   background: none;
-  color: var(--accent);
+  color: var(--link);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -784,16 +1024,21 @@ button.purpose-change {
 
 .confirm {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  padding: 10px;
-  border-radius: 8px;
-  background: #eef3fb;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #f0d8c3;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  cursor: pointer;
 }
 
 .confirm input {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
 }
 
 /* 마스킹 PDF 미리보기 */
@@ -814,7 +1059,7 @@ button.purpose-change {
   width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: #fff;
 }
 
@@ -823,9 +1068,10 @@ textarea {
   margin: 0;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 13px;
-  background: #f0eee8;
-  border-radius: 6px;
-  padding: 10px;
+  line-height: 1.6;
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+  padding: 12px;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -834,8 +1080,9 @@ textarea {
 textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   resize: vertical;
+  color: var(--ink);
 }
 
 /* 완료: 다운로드·AI 상담 */
@@ -850,22 +1097,41 @@ a.download,
 a.ai-link {
   display: inline-flex;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-weight: 600;
-  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  min-height: 48px;
   box-sizing: border-box;
   text-decoration: none;
+  transition: transform 120ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
 
 a.download {
-  background: var(--accent);
-  color: #fff;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+a.download:hover {
+  background: var(--brand-hover);
+  color: var(--brand-ink);
 }
 
 a.ai-link {
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--link);
+  font-weight: 600;
+}
+
+a.ai-link:hover {
+  border-color: #cfa985;
+  background: var(--brand-soft);
+}
+
+a.download:active,
+a.ai-link:active {
+  transform: scale(0.97);
 }
 
 /* ⑤ 마스킹 PDF 다시 검사 결과 */
@@ -882,7 +1148,7 @@ a.ai-link {
 .double-check-results .check-ok {
   color: var(--ok);
   background: var(--ok-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
 }
 
@@ -903,7 +1169,7 @@ a.ai-link {
 .photo-tips {
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 12px;
   font-size: 13px;
   color: var(--muted);
@@ -979,7 +1245,7 @@ a.ai-link {
   align-items: flex-start;
   gap: 6px;
   background: var(--ok-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 10px;
 }
@@ -991,7 +1257,7 @@ a.ai-link {
 
 /* "See what changed"로 찾아간 카드를 잠깐 강조 */
 .risk-changed {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--brand);
   outline-offset: 2px;
   transition: outline-color 0.3s;
 }
@@ -1001,7 +1267,7 @@ a.ai-link {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 12px;
   line-height: 1.6;
 }
