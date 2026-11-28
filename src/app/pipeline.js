@@ -58,6 +58,8 @@ import { settlePersonAnswers } from './person-questions.js';
  * @property {string} prompt  보낼 서류가 하나도 없으면 빈 글 (#360)
  * @property {Record<string, string>} sentText  documentId → AI 프롬프트에 실제로 넣은 글 (쪽 표시 전). 안 보낸 서류는 없다
  * @property {SentDocument[]} sending  서류마다 어떻게 보냈는지 (완료 화면 안내용, #360)
+ * @property {Record<string, string>} holderNames  등기부 요약에 쓴 개인 권리자 가명 → 원래 이름 ({ '[Holder_1]': ... }, PART 4 #396).
+ *   완료 화면의 가명 복원(#394)만 쓴다. 프롬프트에는 넣지 않는다
  */
 
 /**
@@ -435,6 +437,7 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
     prompt: promptData,
     sentText: selected.sentText,
     sending: selected.sending,
+    holderNames: selected.holderNames,
   };
   return ok(prepared);
 }
@@ -452,8 +455,10 @@ export function prepareForAi(analysis, purpose, edits = emptyEdits()) {
  * @param {string} purpose
  * @param {{ maskedText: Record<string, string>, legend: Record<string, string>, lineBlocks?: Record<string, string[]> }} masked
  * @param {import('./masking-edits.js').MaskingEdits} userEdits
- * @returns {{ sentText: Record<string, string>, sending: SentDocument[], sentLineBlocks: Record<string, (string | null)[]> }}
+ * @returns {{ sentText: Record<string, string>, sending: SentDocument[], sentLineBlocks: Record<string, (string | null)[]>,
+ *   holderNames: Record<string, string> }}
  *   sentLineBlocks: 인적사항 요약을 넣은 계약서의 줄 순서대로 blockId (요약 줄은 null). 검사·쪽 표시에 쓴다
+ *   holderNames: 실제로 보낸 등기부 요약의 [Holder_N] → 원래 이름 (가명 복원용, 프롬프트에 넣지 않음)
  */
 function selectSentText(analysis, purpose, masked, userEdits) {
   /** @type {Record<string, string>} */
@@ -462,6 +467,8 @@ function selectSentText(analysis, purpose, masked, userEdits) {
   const sending = [];
   /** @type {Record<string, (string | null)[]>} */
   const sentLineBlocks = {};
+  /** @type {Record<string, string>} */
+  const holderNames = {};
   const registryFields = analysis.fields?.registry;
   const contractFields = analysis.fields?.contract;
   for (const doc of analysis.documents) {
@@ -483,6 +490,7 @@ function selectSentText(analysis, purpose, masked, userEdits) {
       if (summary?.ok) {
         sentText[documentId] = summary.data.text;
         sending.push({ documentId, documentType, mode: SEND_MODE.SUMMARY, hiddenCount: summary.data.hiddenCount });
+        Object.assign(holderNames, summary.data.holderNames ?? {});
       } else {
         sending.push({ documentId, documentType, mode: SEND_MODE.OMIT, reason: 'SUMMARY_FAILED' });
       }
@@ -509,7 +517,7 @@ function selectSentText(analysis, purpose, masked, userEdits) {
     sentText[documentId] = text;
     sending.push({ documentId, documentType, mode: SEND_MODE.MASKED_TEXT });
   }
-  return { sentText, sending, sentLineBlocks };
+  return { sentText, sending, sentLineBlocks, holderNames };
 }
 
 /**

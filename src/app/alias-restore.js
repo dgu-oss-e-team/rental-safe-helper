@@ -11,12 +11,17 @@
  *   (문장 끝 물음표 "Is it Owner_A?"는 확인된 가명).
  * - 결과는 글 조각 목록으로 돌려준다. 화면은 이것을 글자 노드로 그린다 (innerHTML을 쓰지 않음).
  * - 원래 이름은 저장·전송·콘솔 출력하지 않는다.
+ * - 등기부 요약의 개인 권리자 가명 [Holder_1]은 마스킹 계획에 없어서 PART 4 요약의 holderNames 표로 받는다 (#396).
+ *   끝이 숫자인 가명은 "Holder 1"처럼 대괄호가 없어도 바꾸지만, "Holder 12"를 "Holder 1"로 잘라 읽지 않는다.
  */
 
 import { MASKING_ACTION, PII_TYPE } from '../shared/document-model.js';
 
-/** 가명 모양: [Landlord_B], [AccountHolder_C?] (alias-manager.js, create-masking-plan.js의 unconfirmedAlias) */
-const ALIAS_SHAPE = /^\[([A-Za-z]+)_([A-Z])(\?)?\]$/;
+/**
+ * 가명 모양: [Landlord_B], [AccountHolder_C?] (alias-manager.js, create-masking-plan.js의 unconfirmedAlias)
+ * 또는 등기부 요약의 [Holder_1] (registry-summary.js)
+ */
+const ALIAS_SHAPE = /^\[([A-Za-z]+)_([A-Z]|[1-9][0-9]*)(\?)?\]$/;
 
 /**
  * @typedef {Object} RestoreEntry
@@ -37,31 +42,59 @@ const keyOf = (/** @type {string} */ label, /** @type {string} */ letter, unconf
 /** 이름 비교용: 띄어쓰기를 정리한다 */
 const tidyName = (/** @type {string} */ s) => s.replace(/\s+/g, ' ').trim();
 
+/** 같은 이름인지 볼 때: 띄어쓰기를 모두 뺀다 ("홍 길동" = "홍길동") */
+const compactName = (/** @type {string} */ s) => s.replace(/\s+/g, '');
+
 /**
- * 마스킹 계획에서 "가명 → 원래 이름" 표를 만든다.
+ * 마스킹 계획(과 등기부 요약의 권리자 가명 표)에서 "가명 → 원래 이름" 표를 만든다.
  * @param {import('../shared/document-model.js').MaskingPlan | null | undefined} plan
  * @param {{ id: string, type: string, value: string }[] | null | undefined} findings
+ * @param {Record<string, string> | null | undefined} [holderNames]  prepared.holderNames ({ '[Holder_1]': 원래 이름 })
  * @returns {Map<string, RestoreEntry>}  열쇠는 keyOf()
  */
-export function buildRestoreTable(plan, findings) {
+export function buildRestoreTable(plan, findings, holderNames) {
   /** @type {Map<string, RestoreEntry>} */
   const table = new Map();
-  if (!plan?.items || !findings) return table;
-  const byId = new Map(findings.map((f) => [f.id, f]));
   /** @type {Map<string, { alias: string, unconfirmed: boolean, names: string[] }>} */
   const found = new Map();
-  for (const item of plan.items) {
+  /** 권리자 표에서 온 열쇠 */
+  const holderKeys = new Set();
+  /** @param {RegExpExecArray} m @param {string} alias @param {string} raw */
+  const add = (m, alias, raw) => {
+    const name = tidyName(raw);
+    if (!name) return;
+    const key = keyOf(m[1], m[2], Boolean(m[3]));
+    const entry = found.get(key) ?? { alias, unconfirmed: Boolean(m[3]), names: [] };
+    if (!entry.names.includes(name)) entry.names.push(name);
+    found.set(key, entry);
+  };
+  if (holderNames && typeof holderNames === 'object') {
+    for (const [alias, name] of Object.entries(holderNames)) {
+      const m = ALIAS_SHAPE.exec(alias);
+      // 권리자 표에서는 [Holder_N]만 받는다 (다른 역할 가명은 마스킹 계획에서만)
+      if (m && /^Holder$/.test(m[1]) && /^[0-9]+$/.test(m[2]) && !m[3] && typeof name === 'string') {
+        add(m, alias, name);
+        holderKeys.add(keyOf(m[1], m[2]));
+      }
+    }
+  }
+  const byId = new Map((findings ?? []).map((f) => [f.id, f]));
+  for (const item of plan?.items ?? []) {
     if (item.action !== MASKING_ACTION.REPLACE || typeof item.replacement !== 'string') continue;
     const m = ALIAS_SHAPE.exec(item.replacement);
     if (!m) continue;
     const f = byId.get(item.findingId);
     if (!f || f.type !== PII_TYPE.PERSON_NAME) continue;
-    const name = tidyName(String(f.value ?? ''));
-    if (!name) continue;
-    const key = keyOf(m[1], m[2], Boolean(m[3]));
-    const entry = found.get(key) ?? { alias: item.replacement, unconfirmed: Boolean(m[3]), names: [] };
-    if (!entry.names.includes(name)) entry.names.push(name);
-    found.set(key, entry);
+    add(m, item.replacement, String(f.value ?? ''));
+  }
+  // 등기부 요약은 소유자와 이름만 같은 개인 권리자를 일부러 [Holder_N]으로 따로 둔다 ("same name as [Owner_A], not confirmed").
+  // 복원하면 두 이름이 같아 보여 같은 사람으로 오해할 수 있으므로, 마스킹 계획의 이름과 (띄어쓰기를 빼고) 같으면
+  // 그 [Holder_N]은 "확인 안 된 같은 이름"으로 표시한다 (#398 리뷰). 찾는 열쇠는 그대로 둔다
+  const planNames = new Set();
+  for (const [key, e] of found) if (!holderKeys.has(key)) for (const n of e.names) planNames.add(compactName(n));
+  for (const key of holderKeys) {
+    const e = found.get(key);
+    if (e && e.names.some((n) => planNames.has(compactName(n)))) e.unconfirmed = true;
   }
   for (const [key, e] of found) table.set(key, { alias: e.alias, name: e.names.join(' / '), unconfirmed: e.unconfirmed });
   return table;
@@ -93,7 +126,7 @@ export function restoreAliases(answer, table) {
   // [ Landlord _ B ? ]  /  Landlord B  /  landlord_b
   // 역할 이름과 글자 사이는 띄어쓰기·밑줄만 (줄바꿈은 안 됨: "Owner" 다음 줄이 "A ..."로 시작해도 가명이 아니다, #395 리뷰)
   const pattern = new RegExp(
-    `(\\[\\s*)?(?<![A-Za-z])(${[...labels].join('|')})[ _]+([A-Za-z])(?![A-Za-z0-9])(?:(\\s*\\?)?(\\s*\\]))?`,
+    `(\\[\\s*)?(?<![A-Za-z])(${[...labels].join('|')})[ _]+([A-Za-z]|[0-9]+)(?![A-Za-z0-9])(?:(\\s*\\?)?(\\s*\\]))?`,
     'gid',
   );
 
@@ -104,7 +137,7 @@ export function restoreAliases(answer, table) {
   for (const m of text.matchAll(pattern)) {
     const [, open, label, letter, question, close] = m;
     const bracketed = Boolean(open && close);
-    // 대괄호가 없으면 끝 글자는 대문자만 (영어 관사 "a" 등과 헷갈리지 않게)
+    // 대괄호가 없으면 끝 글자는 대문자만 (영어 관사 "a" 등과 헷갈리지 않게). 숫자는 그대로 통과
     if (!bracketed && letter !== letter.toUpperCase()) continue;
     const unconfirmed = bracketed && Boolean(question);
     // AI가 [Owner_A?]의 ?를 빼고 "Owner_A"로 쓰는 일이 있다. 확인된 [Owner_A]가 표에 없으면 이 글자는 [Owner_A?]밖에

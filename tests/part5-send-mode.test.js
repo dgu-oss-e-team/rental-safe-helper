@@ -91,6 +91,26 @@ describe('PART 5 prepareForAi(): 목적별로 보낼 서류 (#360)', () => {
     expect(r.data.sending.find((s) => s.documentId === registry.documentId)).toMatchObject({ mode: 'OMIT', reason: 'SUMMARY_FAILED' });
   });
 
+  it('사기 위험 확인: 등기부 요약의 개인 권리자 가명 표(holderNames)를 prepared에 담고, 프롬프트에는 원래 이름이 없다 (#396)', () => {
+    const rights = [
+      ...(analysis.fields.registry.rights ?? []),
+      { kind: 'PROVISIONAL_SEIZURE', cancelled: false, receivedAt: '2025-06-01', holder: '가상채권', holderIsCompany: false, cause: '가압류결정' },
+    ];
+    const withHolder = { ...analysis, fields: { ...analysis.fields, registry: { ...analysis.fields.registry, rights } } };
+    const r = prepareForAi(withHolder, MASKING_PURPOSE.FRAUD_CHECK);
+    expect(r.ok).toBe(true);
+    const entries = Object.entries(r.data.holderNames);
+    expect(entries.map(([, name]) => name)).toContain('가상채권');
+    const [alias] = /** @type {[string, string]} */ (entries.find(([, name]) => name === '가상채권'));
+    expect(alias).toMatch(/^\[Holder_\d+\]$/);
+    expect(section(r.data.prompt, REGISTRY_LABEL)).toContain(alias);
+    expect(r.data.prompt).not.toContain('가상채권');
+    // 다른 목적은 등기부를 요약하지 않으므로 표가 비어 있다
+    for (const purpose of [MASKING_PURPOSE.CLAUSE_EXPLANATION, MASKING_PURPOSE.CONTRACT_EXPLANATION]) {
+      expect(prepareForAi(withHolder, purpose).data.holderNames, purpose).toEqual({});
+    }
+  });
+
   it('추출 데이터가 다른 등기부의 것이면(등기부를 두 개 올림) 그 등기부도 원문 대신 뺀다', () => {
     const other = { ...analysis, fields: { ...analysis.fields, registry: { ...analysis.fields.registry, documentId: 'OTHER_DOC' } } };
     const r = prepareForAi(other, MASKING_PURPOSE.FRAUD_CHECK);
