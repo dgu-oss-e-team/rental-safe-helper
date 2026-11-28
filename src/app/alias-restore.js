@@ -42,6 +42,9 @@ const keyOf = (/** @type {string} */ label, /** @type {string} */ letter, unconf
 /** 이름 비교용: 띄어쓰기를 정리한다 */
 const tidyName = (/** @type {string} */ s) => s.replace(/\s+/g, ' ').trim();
 
+/** 같은 이름인지 볼 때: 띄어쓰기를 모두 뺀다 ("홍 길동" = "홍길동") */
+const compactName = (/** @type {string} */ s) => s.replace(/\s+/g, '');
+
 /**
  * 마스킹 계획(과 등기부 요약의 권리자 가명 표)에서 "가명 → 원래 이름" 표를 만든다.
  * @param {import('../shared/document-model.js').MaskingPlan | null | undefined} plan
@@ -54,6 +57,8 @@ export function buildRestoreTable(plan, findings, holderNames) {
   const table = new Map();
   /** @type {Map<string, { alias: string, unconfirmed: boolean, names: string[] }>} */
   const found = new Map();
+  /** 권리자 표에서 온 열쇠 */
+  const holderKeys = new Set();
   /** @param {RegExpExecArray} m @param {string} alias @param {string} raw */
   const add = (m, alias, raw) => {
     const name = tidyName(raw);
@@ -67,7 +72,10 @@ export function buildRestoreTable(plan, findings, holderNames) {
     for (const [alias, name] of Object.entries(holderNames)) {
       const m = ALIAS_SHAPE.exec(alias);
       // 권리자 표에서는 [Holder_N]만 받는다 (다른 역할 가명은 마스킹 계획에서만)
-      if (m && /^Holder$/.test(m[1]) && /^[0-9]+$/.test(m[2]) && !m[3] && typeof name === 'string') add(m, alias, name);
+      if (m && /^Holder$/.test(m[1]) && /^[0-9]+$/.test(m[2]) && !m[3] && typeof name === 'string') {
+        add(m, alias, name);
+        holderKeys.add(keyOf(m[1], m[2]));
+      }
     }
   }
   const byId = new Map((findings ?? []).map((f) => [f.id, f]));
@@ -78,6 +86,15 @@ export function buildRestoreTable(plan, findings, holderNames) {
     const f = byId.get(item.findingId);
     if (!f || f.type !== PII_TYPE.PERSON_NAME) continue;
     add(m, item.replacement, String(f.value ?? ''));
+  }
+  // 등기부 요약은 소유자와 이름만 같은 개인 권리자를 일부러 [Holder_N]으로 따로 둔다 ("same name as [Owner_A], not confirmed").
+  // 복원하면 두 이름이 같아 보여 같은 사람으로 오해할 수 있으므로, 마스킹 계획의 이름과 (띄어쓰기를 빼고) 같으면
+  // 그 [Holder_N]은 "확인 안 된 같은 이름"으로 표시한다 (#398 리뷰). 찾는 열쇠는 그대로 둔다
+  const planNames = new Set();
+  for (const [key, e] of found) if (!holderKeys.has(key)) for (const n of e.names) planNames.add(compactName(n));
+  for (const key of holderKeys) {
+    const e = found.get(key);
+    if (e && e.names.some((n) => planNames.has(compactName(n)))) e.unconfirmed = true;
   }
   for (const [key, e] of found) table.set(key, { alias: e.alias, name: e.names.join(' / '), unconfirmed: e.unconfirmed });
   return table;

@@ -99,6 +99,23 @@ describe('등기부 요약의 개인 권리자 가명 [Holder_N] (#396 holderNam
     }
     expect(restoreAliases('[Holder_1], [Owner_A] and Holder 2', WITH_HOLDERS).replaced).toBe(3);
   });
+
+  it('마스킹 계획의 이름과 같은 권리자는 "확인 안 된 같은 이름"으로 표시한다 (#398 리뷰)', () => {
+    // 등기부 요약은 소유자와 이름만 같은 권리자를 [Holder_1]로 따로 둔다. 띄어쓰기만 달라도 같은 이름으로 본다
+    const same = buildRestoreTable(/** @type {any} */ (PLAN), FINDINGS, { '[Holder_1]': '가상 소유', '[Holder_2]': '가상채권' });
+    expect(same.get('holder_1')).toEqual({ alias: '[Holder_1]', name: '가상 소유', unconfirmed: true });
+    expect(same.get('holder_2')?.unconfirmed).toBe(false);
+    // 계획 쪽 가명은 그대로
+    expect(same.get('owner_a')?.unconfirmed).toBe(false);
+    // 찾는 방법은 그대로: [Holder_1]·Holder 1 모두 바꾸고, 바꾼 조각에 확인 안 됨 표시가 붙는다
+    const { segments } = restoreAliases('[Owner_A] and Holder 1', same);
+    expect(segments.filter((x) => 'alias' in x).map((x) => [x.alias, /** @type {any} */ (x).unconfirmed])).toEqual([
+      ['[Owner_A]', false],
+      ['[Holder_1]', true],
+    ]);
+    // 마스킹 계획이 없으면 비교할 이름이 없어 확인된 가명으로 둔다
+    expect(buildRestoreTable(null, null, { '[Holder_1]': '가상소유' }).get('holder_1')?.unconfirmed).toBe(false);
+  });
 });
 
 describe('restoreAliases(): 대소문자·띄어쓰기·밑줄만 정리해 정확히 같은 가명만 바꾼다', () => {
@@ -271,6 +288,15 @@ describe('완료 화면 "Read the AI answer with real names" (#394)', () => {
       prepared: { prompt: 'p', maskingPlan: { purpose: 'FRAUD_CHECK', items: [] }, sending: [], holderNames: { '[Holder_1]': '가상채권' } },
     });
     expect(only.querySelector('#ai-answer')).not.toBeNull();
+  });
+
+  it('소유자와 이름만 같은 권리자는 완료 화면에서 "same name, not confirmed"로 보인다 (#398 리뷰)', () => {
+    const node = screen({ prepared: { prompt: 'p', maskingPlan: PLAN, sending: [], holderNames: { '[Holder_1]': '가상 소유' } } });
+    /** @type {HTMLTextAreaElement} */ (node.querySelector('#ai-answer')).value = '[Owner_A] and [Holder_1]';
+    /** @type {HTMLButtonElement} */ (node.querySelector('#restore-names')).click();
+    const marks = [...node.querySelectorAll('mark.restored')];
+    expect(marks.map((m) => m.classList.contains('unconfirmed'))).toEqual([false, true]);
+    expect(marks[1].textContent).toContain('[Holder_1]: same name, not confirmed to be the same person');
   });
 
   it('프롬프트가 없거나 사진 다시 확인을 기다리면 카드가 없다', () => {
