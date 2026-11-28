@@ -111,17 +111,23 @@ function autoShowChanges(changes, autoMove) {
  * [Owner_A]·[PrevOwner_D]가 무엇인지, 등기부의 집주인과 계약서의 집주인이 왜 따로 나오는지 처음엔 알기 어렵다.
  * 이름·번호 같은 개인정보는 넣지 않는다 (정해진 문구만).
  */
-function roleLegend() {
+function roleLegend(hasRegistry = true) {
   /** @param {string} term @param {string} meaning */
   const item = (term, meaning) => el('li', {}, [el('strong', {}, [term]), ` = ${meaning}`]);
   return el('div', { class: 'role-legend', id: 'role-legend' }, [
     el('p', {}, ['How to read the results:']),
     el('ul', {}, [
-      item('Owner', 'the owner of the home on the property register (등기부등본)'),
-      item('Previous owner', 'someone who owned the home before'),
+      // 등기부를 넣지 않았으면 Owner·Previous owner는 화면 어디에도 안 나오므로 설명하지 않는다 (v2 프로토타입 의견)
+      hasRegistry ? item('Owner', 'the owner of the home on the property register (등기부등본)') : null,
+      hasRegistry ? item('Previous owner', 'someone who owned the home before') : null,
       item('Landlord', 'the person renting the home to you on the lease contract (임대차계약서)'),
-      item('[Owner_A], [Landlord_B] …', 'labels we use instead of real names'),
-      item('Could not check', 'we could not read the part we needed, so this was not checked. It does not mean there is no problem.'),
+      item(hasRegistry ? '[Owner_A], [Landlord_B] …' : '[Landlord_B], [Tenant_C] …', 'labels we use instead of real names'),
+      item(
+        'Could not check',
+        hasRegistry
+          ? 'we could not read the part we needed, so this was not checked. It does not mean there is no problem.'
+          : 'the document we needed was not added or could not be read, so this was not checked. It does not mean there is no problem.',
+      ),
     ]),
   ]);
 }
@@ -316,7 +322,7 @@ export function resultsScreen(state, act) {
       changesNotice,
       questionNotice,
       // 역할 이름·가명 설명은 그 이름을 쓰는 결과 카드 바로 위에 둔다 (기능 개선 목록 9번)
-      roleLegend(),
+      roleLegend(analysis.documents.some((d) => d.documentType === DOCUMENT_TYPE.REGISTRY)),
       // 위쪽 요약(Stop / Check / Could not check 개수, 눌러서 필터)은 PART 3 카드 화면 안에 있다 (#63)
       slots.riskResults(analysis.riskResults, { monthlyRent: analysis.fields?.contract?.monthlyRent }),
     ]),

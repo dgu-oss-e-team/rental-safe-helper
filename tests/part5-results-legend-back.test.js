@@ -30,6 +30,17 @@ describe('② 결과 화면: 역할 이름·가명 설명 (9번)', () => {
     expect(text).toContain('does not mean there is no problem');
     expect(text).not.toMatch(/\bsafe\b/i);
   });
+
+  it('등기부를 넣지 않았으면 Owner·Previous owner 설명을 빼고, 가명 예시도 계약서 역할로 (v2 의견)', () => {
+    const text = screenFor([LEASE], ['lease']).node.querySelector('#role-legend')?.textContent ?? '';
+    expect(text).not.toMatch(/\bOwner\b/);
+    expect(text).not.toContain('Previous owner');
+    expect(text).not.toContain('[Owner_A]');
+    for (const term of ['Landlord', '[Landlord_B]', 'Could not check']) expect(text).toContain(term);
+    // 등기부가 없어서 못 본 것도 "Could not check"라는 걸 알려 주고, 문제없다는 뜻이 아니라고 한다
+    expect(text).toContain('was not added');
+    expect(text).toContain('does not mean there is no problem');
+  });
 });
 
 describe('② 결과 화면: 다시 올리러 가는 버튼 (10번)', () => {
