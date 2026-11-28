@@ -118,7 +118,6 @@ rules:
           Check the account holder's name on the original contract yourself. Send money only
           to an account in the landlord's own name, and ask the landlord to confirm the
           account holder.
-      UNVERIFIABLE.no_registry: *no_registry
 
   ADDRESS_MISMATCH:
     title: Property address check
@@ -518,4 +517,3 @@ rules:
         action: >-
           Read the special terms yourself. Look for terms about cash payment, address registration
           (전입신고), restoring or repairing the home, brokerage fees, and returning the deposit.
-      UNVERIFIABLE.no_registry: *no_registry
