@@ -1003,7 +1003,7 @@ describe('PART 3 사진 서류의 주소 숫자 차이는 STOP 대신 CHECK (#31
 });
 
 describe('PART 3 등기부를 안 넣은 경우', () => {
-  it('등기부 점검 카드는 "not added" 문구, 읽지 못한 경우와 구분된다', () => {
+  it('등기부 점검 카드는 "No property register was found" 문구, 읽지 못한 경우와 구분된다', () => {
     const f = structuredClone(mockExtractedFields);
     f.registry = {
       documentId: null, address: null, roadAddress: null, owners: null, previousOwners: null,
@@ -1012,9 +1012,9 @@ describe('PART 3 등기부를 안 넣은 경우', () => {
     const r = assessRisks(f, structuredClone(mockPersonGroups));
     const owner = r.data.find((x) => x.ruleId === 'OWNER_MISMATCH');
     expect(owner.status).toBe(RISK_STATUS.UNVERIFIABLE);
-    expect(owner.explanation).toContain('was not added');
+    expect(owner.explanation).toContain('No property register was found');
     const holder = r.data.find((x) => x.ruleId === 'ACCOUNT_HOLDER_MISMATCH');
-    expect(holder.explanation).not.toContain('was not added');
+    expect(holder.explanation).not.toContain('No property register was found');
   });
 
   it('등기부는 있는데 못 읽은 경우는 기존 문구 그대로', () => {
@@ -1022,6 +1022,49 @@ describe('PART 3 등기부를 안 넣은 경우', () => {
     f.registry.owners = null;
     const r = assessRisks(f, structuredClone(mockPersonGroups));
     const owner = r.data.find((x) => x.ruleId === 'OWNER_MISMATCH');
-    expect(owner.explanation).not.toContain('was not added');
+    expect(owner.explanation).not.toContain('No property register was found');
+  });
+});
+
+describe('PART 3 동명이인 안내 (notice, #378)', () => {
+  it('이름이 같고 생년월일이 다르면 STOP + SAME_NAME_DIFFERENT_BIRTH', () => {
+    const r = compareOwnerAndLandlord(fields(), groups());
+    expect(r.data.status).toBe(RISK_STATUS.STOP);
+    expect(r.data.notice).toBe('SAME_NAME_DIFFERENT_BIRTH');
+  });
+
+  it('notice에는 코드만 있고 이름·생년월일이 없다', () => {
+    const r = compareOwnerAndLandlord(fields(), groups());
+    const { evidence, ...rest } = r.data; // evidence는 화면 전용이라 제외
+    const text = JSON.stringify(rest);
+    for (const s of ['김철수', '800101', '750315']) expect(text).not.toContain(s);
+  });
+
+  it('이름이 다르면 notice가 없다', () => {
+    const f = fields();
+    f.contract.landlords = [{ findingId: 'PII_L02', name: '이영희', birthDate: '790202', role: 'LANDLORD' }];
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.status).toBe(RISK_STATUS.STOP);
+    expect(r.data.notice).toBeUndefined();
+  });
+
+  it('이름이 같고 생년월일이 없는데 다른 사람으로 확정되면 STOP이고 notice가 없다', () => {
+    const f = fields();
+    f.contract.landlords[0].birthDate = null; // 임대인 생년월일 없음, 그룹은 P1/P2로 서로 다른 사람 확정
+    const r = compareOwnerAndLandlord(f, groups());
+    expect(r.data.status).toBe(RISK_STATUS.STOP);
+    expect(r.data.notice).toBeUndefined();
+  });
+
+  it('생년월일이 없고 판정 보류(AMBIGUOUS)면 UNVERIFIABLE + SAME_NAME_BIRTH_UNKNOWN', () => {
+    // 목 데이터: 예금주 김철수(생년월일 null)는 AMBIGUOUS, 임대인 김철수는 750315
+    const r = compareAccountHolderAndLandlord(fields(), groups());
+    expect(r.data.status).toBe(RISK_STATUS.UNVERIFIABLE);
+    expect(r.data.notice).toBe('SAME_NAME_BIRTH_UNKNOWN');
+  });
+
+  it('같은 사람으로 확정되면(NO_FLAG) notice가 없다', () => {
+    const r = compareOwnerAndLandlord(fields(), mergeOwnerAndLandlord(groups()));
+    expect(r.data.notice).toBeUndefined();
   });
 });

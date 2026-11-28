@@ -11,8 +11,8 @@
  * 이 파일은 화면·브라우저를 건드리지 않는 계산만 한다 (단위 테스트용). 실제 연결은 main.js.
  */
 
-/** 단계 순서 ("Confirm text"는 ① 다음, 사진·스캔이 있을 때만) */
-export const STEP_ORDER = /** @type {const} */ (['upload', 'confirm', 'results', 'purpose', 'review', 'done']);
+/** 단계 순서 ("Confirm text"는 ① 다음, 사진·스캔이 있을 때만). 목적은 ①에서 고르고 ②에서 바꾼다 (#381) */
+export const STEP_ORDER = /** @type {const} */ (['upload', 'confirm', 'results', 'review', 'done']);
 
 /** @typedef {typeof STEP_ORDER[number]} Step */
 
@@ -23,6 +23,8 @@ export const STEP_ORDER = /** @type {const} */ (['upload', 'confirm', 'results',
  */
 export function stepFromHash(hash) {
   const name = String(hash ?? '').replace(/^#/, '');
+  // 예전 목적 화면 주소(#purpose, 기록·즐겨찾기에 남아 있을 수 있음)는 목적을 바꾸는 ② 결과로 (#381)
+  if (name === 'purpose') return 'results';
   return /** @type {readonly string[]} */ (STEP_ORDER).includes(name) ? /** @type {Step} */ (name) : 'upload';
 }
 
@@ -46,7 +48,6 @@ function hasResultFor(state, step) {
     case 'confirm':
       return Boolean(state.ocrReview);
     case 'results':
-    case 'purpose':
       return Boolean(state.analysis);
     case 'review':
       return Boolean(state.analysis && state.prepared);
@@ -85,7 +86,6 @@ export function shouldGoHome(state) {
 /**
  * ①에서 "Back to your results"를 누르면 갈 단계 (#124). 이전 결과가 없으면 null (버튼을 보여 주지 않음).
  * 결과가 있는 가장 먼 단계로 간다: PDF까지 만들었으면 ⑤, 확인 화면까지면 ④, 분석만 했으면 ② 결과.
- * (③ 목적 고르기는 결과가 아니므로 분석만 했을 때는 ②로 간다)
  * @param {{ ocrReview?: unknown, analysis?: unknown, prepared?: unknown, pdfs?: unknown }} state
  * @returns {'results' | 'review' | 'done' | null}
  */

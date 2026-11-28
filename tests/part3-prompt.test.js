@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildPrompt, getRecommendedQuestions, assessRisks } from '../src/features/risk-check/index.js';
 import { replaceUnlistedAliases, ANSWER_RULES } from '../src/features/risk-check/prompt-builder.js';
 import { mockExtractedFields, mockPersonGroups } from '../src/shared/mock-data.js';
@@ -251,5 +251,37 @@ describe('PART 3 프롬프트 답변 규칙 (#274)', () => {
     expect(rule).toContain('the same role name always means the same person');
     expect(rule).toContain('role legend');
     expect(rule).not.toContain('cannot tell');
+  });
+});
+
+describe('동명이인 안내는 프롬프트에 들어가지 않는다 (#378)', () => {
+  it('buildPrompt 결과에 이름·생년월일·안내 문구가 없다', () => {
+    const risks = assessRisks(structuredClone(mockExtractedFields), structuredClone(mockPersonGroups));
+    expect(risks.ok).toBe(true);
+    expect(risks.data.some((x) => x.notice)).toBe(true); // 테스트 전제: notice가 실제로 있다
+    const p = buildPrompt({
+      purpose: MASKING_PURPOSE.FRAUD_CHECK,
+      riskResults: risks.data,
+      maskedText: { DOC_001: '[Owner_A] and [Landlord_B] ...' },
+      legend: { '[Owner_A]': 'Registry owner', '[Landlord_B]': 'Contract landlord' },
+    });
+    expect(p.ok).toBe(true);
+    for (const s of ['김철수', '800101', '750315', 'Same name', 'SAME_NAME']) {
+      expect(p.data).not.toContain(s);
+    }
+  });
+
+  it('분석 중 콘솔에 이름·생년월일이 찍히지 않는다', () => {
+    const spies = ['log', 'warn', 'error', 'info', 'debug'].map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    assessRisks(structuredClone(mockExtractedFields), structuredClone(mockPersonGroups));
+    const printed = JSON.stringify(spies.flatMap((s) => s.mock.calls));
+    for (const s of ['김철수', '800101', '750315']) expect(printed).not.toContain(s);
+    spies.forEach((s) => s.mockRestore());
+  });
+
+  it('잘못된 입력의 오류 메시지에 개인정보가 없다', () => {
+    const r = assessRisks(null, []);
+    expect(r.ok).toBe(false);
+    expect(r.error.message).not.toMatch(/김철수|800101|750315/);
   });
 });

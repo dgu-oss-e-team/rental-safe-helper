@@ -68,6 +68,26 @@ button.risk-chip[aria-pressed='true'] {
   padding: 12px;
 }
 
+/* 이름이 같은 사람 안내 */
+.risk .name-notice {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.risk .name-notice-different {
+  color: var(--stop);
+  background: var(--stop-bg);
+  border: 1px solid var(--stop);
+}
+
+.risk .name-notice-unknown {
+  color: var(--unverifiable);
+  background: var(--unverifiable-bg);
+  border: 1px solid var(--unverifiable);
+}
+
 /* 근거 칸 */
 .evidence-box {
   display: flex;

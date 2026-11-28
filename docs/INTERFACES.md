@@ -308,13 +308,15 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   ruleId: 'OWNER_MISMATCH', status: 'STOP', title: '...', explanation: '...', action: '...',
   evidence: {  // 선택. 화면 근거 칸 전용
     left:  { label: 'Registry owner',    value: '김철수 (birth 800101)' },
-    right: { label: 'Contract landlord', value: '김철수 (birth 750315)' }
+    right: { label: 'Contract landlord', value: '김철수 (birth 750315)' },
+    notice: 'SAME_NAME_DIFFERENT_BIRTH'  // 선택. 화면 전용 안내 코드
   }
 }
 ```
 
 - `explanation`, `action`, `title`에는 실제 이름 대신 **역할 가명**(`[Owner_A]` 등)만 쓴다. AI 프롬프트에 들어가기 때문이다.
 - `evidence`는 사용자 화면에만 보여 준다. 실제 이름·주소가 들어갈 수 있으므로 **프롬프트·로그·오류 메시지에 넣지 않는다.**
+- `notice`는 선택 필드로, 화면 전용 **코드 문자열**만 담는다 (`SAME_NAME_DIFFERENT_BIRTH`, `SAME_NAME_BIRTH_UNKNOWN`). 실제 이름·생년월일은 넣지 않고, 문구는 화면에서 코드를 보고 만든다. **프롬프트·로그·오류 메시지에 넣지 않는다.**
 
 | status | 의미 |
 |---|---|
