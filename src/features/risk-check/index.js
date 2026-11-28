@@ -19,11 +19,11 @@
  *         위험 결과 카드 UI (risk-result-ui.js, slots.js에 연결 #63)
  */
 
-import { ok, fail, ERROR_CODE } from '../../shared/document-model.js';
+import { ok, fail, ERROR_CODE, RISK_STATUS } from '../../shared/document-model.js';
 import { compareDocuments } from './compare-documents.js';
 import { assessRegistryRisks } from './assess-risks.js';
 import { assessSpecialTerms } from './special-terms.js';
-import { RISK_STATUS } from '../../shared/document-model.js';
+import { buildRiskResult } from './risk-explanations.js';
 
 export { buildPrompt } from './prompt-builder.js';
 export { getRecommendedQuestions } from './recommended-questions.js';
@@ -65,19 +65,15 @@ const REGISTRY_RULES = new Set([
 
 /**
  * 등기부를 안 넣어서 확인하지 못한 카드는 "읽지 못함"이 아니라 "등기부 없음"으로 안내한다.
- * documentId가 null일 때만(안 넣었을 때만) 바꾼다. 읽지 못한 경우는 기존 문구 그대로.
+ * documentId가 null이면(안 넣었거나 종류를 못 알아본 경우) 바꾼다. 읽지 못한 경우는 기존 문구 그대로.
  * @param {any} fields
  * @param {RiskResult[]} results
  */
 function markMissingRegistry(fields, results) {
   if (fields?.registry?.documentId !== null) return results;
-  return results.map((r) =>
-    r.status === RISK_STATUS.UNVERIFIABLE && REGISTRY_RULES.has(r.ruleId)
-      ? {
-          ...r,
-          explanation: 'The property register was not added, so this was not checked.',
-          action: 'Add the property register to check this.',
-        }
-      : r,
-  );
+  return results.map((r) => {
+    if (r.status !== RISK_STATUS.UNVERIFIABLE || !REGISTRY_RULES.has(r.ruleId)) return r;
+    const t = buildRiskResult(r.ruleId, RISK_STATUS.UNVERIFIABLE, { variant: 'no_registry' });
+    return t.ok ? { ...r, explanation: t.data.explanation, action: t.data.action } : r;
+  });
 }

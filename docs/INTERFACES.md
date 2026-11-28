@@ -309,8 +309,8 @@ personAnswers = {}            // 키 없음 = 아직 답하지 않음
   evidence: {  // 선택. 화면 근거 칸 전용
     left:  { label: 'Registry owner',    value: '김철수 (birth 800101)' },
     right: { label: 'Contract landlord', value: '김철수 (birth 750315)' },
-    notice: 'SAME_NAME_DIFFERENT_BIRTH'  // 선택. 화면 전용 안내 코드
   }
+  notice: 'SAME_NAME_DIFFERENT_BIRTH'  // 선택. 화면 전용 안내 코드
 }
 ```
 
